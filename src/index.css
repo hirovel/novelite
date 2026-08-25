@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body, #root {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(150, 150, 150, 0.15);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(150, 150, 150, 0.35);
+  }
+}
+
+.cm-editor {
+  height: 100% !important;
+  outline: none !important;
+  position: relative !important;
+}
+
+.cm-scroller {
+  font-family: inherit !important;
+  position: relative !important;
+}
+
+/* 🌟 Obsidian / Typora 级圆角半透明优雅选区 */
+.cm-selectionLayer {
+  z-index: 1 !important;
+}
+
+.cm-selectionBackground {
+  border-radius: 3.5px !important;
+  transition: background-color 0.15s ease-out;
+}
+
+::selection {
+  color: inherit !important;
+}
