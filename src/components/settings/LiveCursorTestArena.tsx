@@ -46,7 +46,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<LiveCursorEngine>(new LiveCursorEngine());
   const rafRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(performance.now());
+  const lastTimeRef = useRef<number>(0);
 
   const isAutoColor = !cursorColor || cursorColor === 'auto';
   const effectiveColor = isAutoColor ? (theme.colors.cursor || theme.colors.accent || '#a78bfa') : cursorColor;
@@ -60,7 +60,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
     { name: '纯净白', value: '#f8fafc' },
   ];
 
-  const updateCaret = (immediate = false) => {
+  const updateCaret = React.useCallback((immediate = false) => {
     const input = inputRef.current;
     const container = containerRef.current;
     if (!input || !container) return;
@@ -93,11 +93,11 @@ export const LiveCursorTestArena: React.FC<Props> = ({
     } else {
       engineRef.current.setTarget(targetX, targetY, targetW, targetH);
     }
-  };
+  }, [cursorShape, text]);
 
   useEffect(() => {
     updateCaret(true);
-  }, [cursorShape, cursorColor, cursorAnimationLength, cursorTrailSize, vfxMode, blinkMode, breatheCycle, speedMode, theme]);
+  }, [updateCaret, cursorShape, cursorColor, cursorAnimationLength, cursorTrailSize, vfxMode, blinkMode, breatheCycle, speedMode, theme]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -121,7 +121,8 @@ export const LiveCursorTestArena: React.FC<Props> = ({
     lastTimeRef.current = performance.now();
 
     const loop = (now: number) => {
-      const dt = (now - lastTimeRef.current) / 1000;
+      const last = lastTimeRef.current || now;
+      const dt = (now - last) / 1000;
       lastTimeRef.current = now;
 
       if (containerRef.current) {

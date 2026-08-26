@@ -8,6 +8,8 @@ export interface TypographyConfig {
   lineHeight: number;
   paragraphSpacing?: number;
   indentEnabled?: boolean;
+  contentMaxWidth?: number;
+  horizontalPadding?: number;
 }
 
 export function createTypographyExtension(
@@ -38,10 +40,10 @@ export function createTypographyExtension(
         height: '100%',
         width: '100%',
         get fontSize() {
-          return `${getConfig().fontSize || 16}px`;
+          return `${getConfig().fontSize || 18}px`;
         },
         get lineHeight() {
-          return `${getConfig().lineHeight || 1.8}`;
+          return `${getConfig().lineHeight || 1.95}`;
         },
         get fontFamily() {
           return resolveFontFamily(getConfig());
@@ -56,13 +58,19 @@ export function createTypographyExtension(
         width: '100%',
       },
 
-      // 🌟 标准编辑器风格：自然撑满容器，标准留白，绝无左右大面积空隙
+      // 🌟 标准居中版心与自定义页边距
       '.cm-content': {
         width: '100%',
-        maxWidth: '100%',
-        margin: '0',
+        get maxWidth() {
+          const maxW = getConfig().contentMaxWidth;
+          return maxW ? `${maxW}px` : '780px';
+        },
+        margin: '0 auto',
         boxSizing: 'border-box',
-        padding: '24px 32px 300px 32px',
+        get padding() {
+          const hPad = getConfig().horizontalPadding ?? 32;
+          return `28px ${hPad}px 50vh ${hPad}px`;
+        },
         caretColor: 'transparent !important',
       },
 
@@ -73,34 +81,43 @@ export function createTypographyExtension(
         width: '100%',
       },
 
-      // 🌟 标准换行与行渲染：无强制首行缩进，纯净自然
+      // 🌟 标准中文首行 2 字符缩进与段落微间距 (纯 CSS，不污染 Markdown 源码)
       '.cm-line': {
         boxSizing: 'border-box',
         width: '100%',
-        margin: '0',
+        get textIndent() {
+          return getConfig().indentEnabled !== false ? '2em' : '0';
+        },
+        get marginBottom() {
+          const spacing = getConfig().paragraphSpacing ?? 0.7;
+          return `${spacing * 0.35}em`;
+        },
         padding: '2px 0',
-        textIndent: '0 !important',
       },
 
-      // Headings
+      // 标题与引用块不应用正文首行缩进
       '.cm-header': {
         fontWeight: '700',
         lineHeight: '1.4',
+        textIndent: '0 !important',
       },
       '.cm-header-1': {
         fontSize: '1.6em',
-        paddingTop: '16px',
-        paddingBottom: '8px',
+        paddingTop: '20px',
+        paddingBottom: '10px',
+        textIndent: '0 !important',
       },
       '.cm-header-2': {
         fontSize: '1.35em',
-        paddingTop: '12px',
-        paddingBottom: '6px',
+        paddingTop: '16px',
+        paddingBottom: '8px',
+        textIndent: '0 !important',
       },
       '.cm-header-3': {
         fontSize: '1.15em',
-        paddingTop: '8px',
-        paddingBottom: '4px',
+        paddingTop: '12px',
+        paddingBottom: '6px',
+        textIndent: '0 !important',
       },
 
       // Inline Literary Elements
@@ -115,10 +132,12 @@ export function createTypographyExtension(
         borderLeft: '3px solid rgba(167, 139, 250, 0.5)',
         paddingLeft: '14px',
         opacity: '0.85',
+        textIndent: '0 !important',
       },
       '.cm-horizontalRule': {
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-        margin: '20px 0',
+        margin: '24px 0',
+        textIndent: '0 !important',
       },
     }),
   ];

@@ -2,16 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { THEMES, DEFAULT_THEME_ID } from './core/themes/themeDefinitions';
 import type { Theme } from './core/themes/types';
 import { NovelEditor } from './components/editor/NovelEditor';
-import { Sidebar } from './components/sidebar/Sidebar';
+import { FloatingChapterTree } from './components/tree/FloatingChapterTree';
 import { TerminalBar } from './components/statusbar/TerminalBar';
 import { CommandPalette } from './components/palette/CommandPalette';
 import { SettingsDrawer } from './components/settings/SettingsDrawer';
 import { pluginManager } from './core/plugins/PluginManager';
+import { commandRegistry } from './core/plugins/CommandRegistry';
 import { eventBus } from './core/events/EventBus';
 import { projectStore } from './core/storage/ProjectStore';
 import type { BackgroundEffect } from './components/editor/EditorBackground';
 
 // Import Core & Literary Plugins
+import { NovelTreePlugin } from './plugins/novel-tree';
+import { BackgroundAtmospherePlugin } from './plugins/background-atmosphere';
 import { LiveCursorPlugin } from './plugins/live-cursor';
 import { TypewriterPlugin } from './plugins/typewriter';
 import { ChineseTypographyPlugin } from './plugins/chinese-typography';
@@ -87,7 +90,16 @@ export const App: React.FC = () => {
     return saved !== null ? saved === 'true' : true;
   });
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  // Spotlight Focus & Zero-Chrome Layout state
+  const [spotlightMode, setSpotlightMode] = useState<'none' | 'paragraph'>(() => {
+    return (localStorage.getItem('novelite_spotlight_mode') as any) || 'paragraph';
+  });
+  const [zeroChrome, setZeroChrome] = useState<boolean>(() => {
+    const saved = localStorage.getItem('novelite_zero_chrome');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -96,6 +108,8 @@ export const App: React.FC = () => {
   const toastTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
+    pluginManager.registerPlugin(NovelTreePlugin);
+    pluginManager.registerPlugin(BackgroundAtmospherePlugin);
     pluginManager.registerPlugin(LiveCursorPlugin);
     pluginManager.registerPlugin(TypewriterPlugin);
     pluginManager.registerPlugin(ChineseTypographyPlugin);
@@ -132,32 +146,102 @@ export const App: React.FC = () => {
   }, [fontPreset, customFontName, fontSize, lineHeight, contentMaxWidth, horizontalPadding, paragraphSpacing, indentEnabled]);
 
   useEffect(() => {
-    const unsub = eventBus.on('show-toast', ({ message, type }: any) => {
+    const unsubToast = eventBus.on('show-toast', ({ message, type }: any) => {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       setToast({ message, type });
       toastTimeoutRef.current = setTimeout(() => setToast(null), 2500);
     });
-    return () => unsub();
+
+    const unsubVfx = eventBus.on('live-cursor:vfx-changed', (mode: any) => {
+      if (mode) {
+        setVfxMode(mode);
+        localStorage.setItem('novelite_cursor_vfx_mode', mode);
+      }
+    });
+
+    const unsubTypo = eventBus.on('plugin-setting-changed:plugin-chinese-typography', ({ key, value }: any) => {
+      if (key === 'indentEnabled' && typeof value === 'boolean') {
+        setIndentEnabled(value);
+        localStorage.setItem('novelite_indent_enabled', String(value));
+      } else if (key === 'fontSize' && typeof value === 'number') {
+        setFontSize(value);
+        localStorage.setItem('novelite_font_size', String(value));
+      }
+    });
+
+    return () => {
+      unsubToast();
+      unsubVfx();
+      unsubTypo();
+    };
   }, []);
 
   useEffect(() => {
+    const matchesShortcut = (e: KeyboardEvent, shortcut: string): boolean => {
+      const parts = shortcut.split('+').map((s) => s.trim().toLowerCase());
+      const needsCtrl = parts.includes('ctrl') || parts.includes('control') || parts.includes('cmd');
+      const needsAlt = parts.includes('alt') || parts.includes('opt');
+      const needsShift = parts.includes('shift');
+
+      const hasCtrl = e.ctrlKey || e.metaKey;
+      const hasAlt = e.altKey;
+      const hasShift = e.shiftKey;
+
+      if (needsCtrl !== hasCtrl) return false;
+      if (needsAlt !== hasAlt) return false;
+      if (needsShift !== hasShift) return false;
+
+      const keyPart = parts.find(
+        (p) => !['ctrl', 'control', 'cmd', 'alt', 'opt', 'shift'].includes(p)
+      );
+      if (!keyPart) return false;
+
+      const actualKey = e.key.toLowerCase();
+      if (actualKey === keyPart) return true;
+      if (keyPart === '=' && (e.key === '=' || e.key === '+')) return true;
+      if (keyPart === '-' && (e.key === '-' || e.key === '_')) return true;
+
+      return false;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'k')) {
+      // 1. Core Built-in Shortcuts
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'k' || e.key === 'P' || e.key === 'K')) {
         e.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
         e.preventDefault();
         setIsSidebarOpen((prev) => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
         e.preventDefault();
         setIsSettingsOpen((prev) => !prev);
-      } else if (e.key === 'F11' || (e.altKey && (e.key === 'z' || e.key === 'Z'))) {
+        return;
+      }
+      if (e.key === 'F11' || (e.altKey && (e.key === 'z' || e.key === 'Z'))) {
         e.preventDefault();
         setIsZenMode((prev) => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         projectStore.save();
         eventBus.emit('show-toast', { message: '章节已保存', type: 'success' });
+        return;
+      }
+
+      // 2. Dispatch registered plugin commands with matching shortcut
+      const commands = commandRegistry.getAll();
+      for (const cmd of commands) {
+        if (cmd.shortcut && matchesShortcut(e, cmd.shortcut)) {
+          e.preventDefault();
+          const ctx = pluginManager.createPluginContext(cmd.id);
+          cmd.run(ctx);
+          return;
+        }
       }
     };
 
@@ -263,6 +347,19 @@ export const App: React.FC = () => {
     localStorage.setItem('novelite_bg_intensity', String(intensity));
   };
 
+  const handleSelectSpotlightMode = (mode: 'none' | 'paragraph') => {
+    setSpotlightMode(mode);
+    localStorage.setItem('novelite_spotlight_mode', mode);
+  };
+
+  const handleToggleZeroChrome = () => {
+    setZeroChrome((prev) => {
+      const next = !prev;
+      localStorage.setItem('novelite_zero_chrome', String(next));
+      return next;
+    });
+  };
+
   return (
     <div
       className="flex h-screen w-screen flex-col overflow-hidden font-sans select-none antialiased"
@@ -288,16 +385,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Main Area */}
-      <div className="flex flex-1 overflow-hidden">
-        {!isZenMode && (
-          <Sidebar
-            theme={theme}
-            isOpen={isSidebarOpen}
-            onToggle={() => setIsSidebarOpen((prev) => !prev)}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-          />
-        )}
-
+      <div className="relative flex flex-1 overflow-hidden">
         <main className="relative flex flex-1 flex-col overflow-hidden">
           <NovelEditor
             theme={theme}
@@ -317,12 +405,25 @@ export const App: React.FC = () => {
             fontSize={fontSize}
             lineHeight={lineHeight}
             contentMaxWidth={contentMaxWidth}
+            spotlightMode={spotlightMode}
+            zeroChrome={zeroChrome}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+            isSidebarOpen={isSidebarOpen}
           />
         </main>
       </div>
 
-      {/* Bottom Bar */}
-      {!isZenMode && (
+      {/* Floating Chapter Tree Sheet (Ctrl+B) */}
+      <FloatingChapterTree
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+        theme={theme}
+      />
+
+      {/* Bottom Bar (Only visible when zeroChrome is turned off) */}
+      {!isZenMode && !zeroChrome && (
         <TerminalBar
           theme={theme}
           cursorShape={cursorShape}
@@ -384,6 +485,10 @@ export const App: React.FC = () => {
         onChangeParagraphSpacing={handleChangeParagraphSpacing}
         indentEnabled={indentEnabled}
         onToggleIndent={handleToggleIndent}
+        spotlightMode={spotlightMode}
+        onSelectSpotlightMode={handleSelectSpotlightMode}
+        zeroChrome={zeroChrome}
+        onToggleZeroChrome={handleToggleZeroChrome}
       />
     </div>
   );

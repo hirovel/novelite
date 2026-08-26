@@ -25,6 +25,14 @@ export class EventBus {
     };
   }
 
+  public once(event: string, callback: Callback): () => void {
+    const unbind = this.on(event, (...args: any[]) => {
+      unbind();
+      callback(...args);
+    });
+    return unbind;
+  }
+
   public off(event: string, callback: Callback): void {
     const set = this.listeners.get(event);
     if (set) {

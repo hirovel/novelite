@@ -30,6 +30,7 @@ export const TerminalBar: React.FC<Props> = ({
   const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
   const [statusBarItems, setStatusBarItems] = useState(pluginManager.getStatusBarItems());
   const [isSaved, setIsSaved] = useState<boolean>(true);
+  const [isTyping, setIsTyping] = useState<boolean>(false);
 
   useEffect(() => {
     const updateChapter = () => {
@@ -53,6 +54,9 @@ export const TerminalBar: React.FC<Props> = ({
     const unsub6 = pluginManager.subscribe(() => {
       setStatusBarItems(pluginManager.getStatusBarItems());
     });
+    const unsub7 = eventBus.on('typing-state-changed', (typing: any) => {
+      setIsTyping(Boolean(typing));
+    });
 
     return () => {
       unsub1();
@@ -61,6 +65,7 @@ export const TerminalBar: React.FC<Props> = ({
       unsub4();
       unsub5();
       unsub6();
+      unsub7();
     };
   }, []);
 
@@ -74,11 +79,18 @@ export const TerminalBar: React.FC<Props> = ({
 
   return (
     <footer
-      className="flex h-7 w-full items-center justify-between border-t px-3 text-[11px] font-mono select-none shrink-0 z-10 transition-colors"
+      onMouseEnter={() => {
+        if (isTyping) {
+          setIsTyping(false);
+          eventBus.emit('typing-state-changed', false);
+        }
+      }}
+      className="flex h-7 w-full items-center justify-between border-t px-3 text-[11px] font-mono select-none shrink-0 z-10 transition-all duration-500 ease-out"
       style={{
         backgroundColor: theme.colors.statusbarBg,
         borderColor: theme.colors.border,
         color: theme.colors.statusbarText,
+        opacity: isTyping ? 0.15 : 1,
       }}
     >
       {/* Left Items */}

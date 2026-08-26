@@ -2,6 +2,41 @@ import type { NovelProject, Volume, Chapter } from './types';
 import { SAMPLE_PROJECT } from './sampleNovel';
 import { eventBus } from '../events/EventBus';
 
+/**
+ * 🚀 High-performance single-pass word counting without regex heap allocations.
+ * Accurately counts CJK Chinese characters + English/alphanumeric words.
+ */
+export function countWordsFast(text: string): number {
+  if (!text) return 0;
+  let count = 0;
+  let inWord = false;
+  const len = text.length;
+
+  for (let i = 0; i < len; i++) {
+    const code = text.charCodeAt(i);
+
+    // CJK Unified Ideographs (0x4E00 - 0x9FA5) + CJK Extension A (0x3400 - 0x4DBF)
+    if ((code >= 0x4e00 && code <= 0x9fa5) || (code >= 0x3400 && code <= 0x4dbf)) {
+      count++;
+      inWord = false;
+    } else if (
+      (code >= 48 && code <= 57) || // 0-9
+      (code >= 65 && code <= 90) || // A-Z
+      (code >= 97 && code <= 122) || // a-z
+      code === 95 // _
+    ) {
+      if (!inWord) {
+        count++;
+        inWord = true;
+      }
+    } else {
+      inWord = false;
+    }
+  }
+
+  return count;
+}
+
 export class ProjectStore {
   private static instance: ProjectStore;
   private project: NovelProject;
@@ -71,10 +106,7 @@ export class ProjectStore {
     if (!chap) return;
 
     chap.content = content;
-    const cleanContent = content.replace(/^#+\s+.*$/gm, '').trim();
-    const chineseChars = (cleanContent.match(/[\u4e00-\u9fa5]/g) || []).length;
-    const englishWords = (cleanContent.replace(/[\u4e00-\u9fa5]/g, ' ').match(/\b\w+\b/g) || []).length;
-    chap.wordCount = chineseChars + englishWords;
+    chap.wordCount = countWordsFast(content);
     chap.updatedAt = Date.now();
 
     if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
@@ -156,6 +188,40 @@ export class ProjectStore {
     this.save();
     eventBus.emit('project-tree-changed', this.project);
     eventBus.emit('active-chapter-changed', this.project.activeChapterId);
+  }
+
+  public moveChapter(volumeId: string, chapterId: string, direction: 'up' | 'down'): boolean {
+    const vol = this.project.volumes.find((v) => v.id === volumeId);
+    if (!vol) return false;
+    const index = vol.chapters.findIndex((c) => c.id === chapterId);
+    if (index === -1) return false;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= vol.chapters.length) return false;
+
+    const temp = vol.chapters[index];
+    vol.chapters[index] = vol.chapters[targetIndex];
+    vol.chapters[targetIndex] = temp;
+
+    this.save();
+    eventBus.emit('project-tree-changed', this.project);
+    return true;
+  }
+
+  public moveVolume(volumeId: string, direction: 'up' | 'down'): boolean {
+    const index = this.project.volumes.findIndex((v) => v.id === volumeId);
+    if (index === -1) return false;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= this.project.volumes.length) return false;
+
+    const temp = this.project.volumes[index];
+    this.project.volumes[index] = this.project.volumes[targetIndex];
+    this.project.volumes[targetIndex] = temp;
+
+    this.save();
+    eventBus.emit('project-tree-changed', this.project);
+    return true;
   }
 
   public updateScratchpad(text: string): void {

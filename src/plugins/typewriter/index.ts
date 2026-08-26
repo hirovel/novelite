@@ -9,7 +9,7 @@ export const TypewriterPlugin: NovelitePlugin = {
     description: '保持当前编辑行平滑锁定在屏幕中央视野，免去频繁手动滚动的疲劳。',
     author: 'Novelite Core',
     icon: 'AlignVerticalSpaceAround',
-    defaultEnabled: true,
+    defaultEnabled: false,
   },
   init: (ctx: PluginContext) => {
     ctx.registerCommand({

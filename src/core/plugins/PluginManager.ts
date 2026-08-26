@@ -1,5 +1,15 @@
 import type { Extension } from '@codemirror/state';
-import type { NovelitePlugin, PluginContext, SidebarTabContribution, StatusBarItem, Exporter } from './types';
+import type {
+  NovelitePlugin,
+  PluginContext,
+  SidebarTabContribution,
+  RightPanelContribution,
+  StatusBarItem,
+  Exporter,
+  ModalContribution,
+  TextFormatterContribution,
+  BackgroundRendererContribution,
+} from './types';
 import { commandRegistry } from './CommandRegistry';
 import { eventBus } from '../events/EventBus';
 
@@ -9,8 +19,15 @@ export class PluginManager {
   private enabledPluginIds: Set<string> = new Set();
   
   private sidebarTabs: Map<string, SidebarTabContribution> = new Map();
+  private rightPanels: Map<string, RightPanelContribution> = new Map();
   private statusBarItems: Map<string, StatusBarItem> = new Map();
   private exporters: Map<string, Exporter> = new Map();
+  private modals: Map<string, ModalContribution> = new Map();
+  private formatters: Map<string, TextFormatterContribution> = new Map();
+  private backgroundRenderers: Map<string, BackgroundRendererContribution> = new Map();
+  private dynamicExtensions: Extension[] = [];
+  private activeModalId: string | null = null;
+  private pluginDisposables: Map<string, (() => void)[]> = new Map();
 
   private editorContentGetter: () => string = () => '';
   private editorContentSetter: (c: string) => void = () => {};
@@ -64,34 +81,141 @@ export class PluginManager {
     this.toastHandler = bridges.showToast;
   }
 
+  private addDisposable(pluginId: string, fn: () => void): () => void {
+    if (!this.pluginDisposables.has(pluginId)) {
+      this.pluginDisposables.set(pluginId, []);
+    }
+    this.pluginDisposables.get(pluginId)!.push(fn);
+    return () => {
+      fn();
+      const list = this.pluginDisposables.get(pluginId);
+      if (list) {
+        this.pluginDisposables.set(pluginId, list.filter((item) => item !== fn));
+      }
+    };
+  }
+
+  private disposePluginResources(pluginId: string): void {
+    const list = this.pluginDisposables.get(pluginId);
+    if (list) {
+      list.forEach((cleanup) => {
+        try {
+          cleanup();
+        } catch (err) {
+          console.error(`[PluginManager] Error disposing resource for ${pluginId}:`, err);
+        }
+      });
+      this.pluginDisposables.delete(pluginId);
+    }
+  }
+
   public createPluginContext(pluginId: string): PluginContext {
     return {
       registerCommand: (command) => {
-        return commandRegistry.register(command);
+        const unbind = commandRegistry.register(command);
+        return this.addDisposable(pluginId, unbind);
       },
       registerSidebarTab: (tab) => {
         this.sidebarTabs.set(tab.id, tab);
         this.notify();
-        return () => {
+        const unbind = () => {
           this.sidebarTabs.delete(tab.id);
           this.notify();
         };
+        return this.addDisposable(pluginId, unbind);
+      },
+      registerRightPanel: (panel) => {
+        this.rightPanels.set(panel.id, panel);
+        this.notify();
+        const unbind = () => {
+          this.rightPanels.delete(panel.id);
+          this.notify();
+        };
+        return this.addDisposable(pluginId, unbind);
       },
       registerStatusBarItem: (item) => {
         this.statusBarItems.set(item.id, item);
         this.notify();
-        return () => {
+        const unbind = () => {
           this.statusBarItems.delete(item.id);
           this.notify();
         };
+        return this.addDisposable(pluginId, unbind);
       },
       registerExporter: (exporter) => {
         this.exporters.set(exporter.id, exporter);
         this.notify();
-        return () => {
+        const unbind = () => {
           this.exporters.delete(exporter.id);
           this.notify();
         };
+        return this.addDisposable(pluginId, unbind);
+      },
+      registerModal: (modal) => {
+        this.modals.set(modal.id, modal);
+        this.notify();
+        const unbind = () => {
+          this.modals.delete(modal.id);
+          this.notify();
+        };
+        return this.addDisposable(pluginId, unbind);
+      },
+      openModal: (modalId) => {
+        this.activeModalId = modalId;
+        eventBus.emit('open-plugin-modal', modalId);
+        this.notify();
+      },
+      closeModal: (modalId) => {
+        if (!modalId || this.activeModalId === modalId) {
+          this.activeModalId = null;
+          eventBus.emit('close-plugin-modal');
+          this.notify();
+        }
+      },
+      registerFormatter: (formatter) => {
+        this.formatters.set(formatter.id, formatter);
+        let unregCmd: (() => void) | null = null;
+        if (formatter.shortcut) {
+          unregCmd = commandRegistry.register({
+            id: `formatter.${formatter.id}`,
+            title: `排版: ${formatter.title}`,
+            category: '排版沉浸',
+            shortcut: formatter.shortcut,
+            run: (c) => {
+              const current = c.getEditorContent();
+              const formatted = formatter.format(current);
+              if (formatted !== current) {
+                c.setEditorContent(formatted);
+                c.showToast(`已执行「${formatter.title}」`, 'success');
+              }
+            },
+          });
+        }
+        this.notify();
+        const unbind = () => {
+          if (unregCmd) unregCmd();
+          this.formatters.delete(formatter.id);
+          this.notify();
+        };
+        return this.addDisposable(pluginId, unbind);
+      },
+      registerEditorExtension: (ext) => {
+        this.dynamicExtensions.push(ext);
+        eventBus.emit('editor-extensions-changed');
+        const unbind = () => {
+          this.dynamicExtensions = this.dynamicExtensions.filter((e) => e !== ext);
+          eventBus.emit('editor-extensions-changed');
+        };
+        return this.addDisposable(pluginId, unbind);
+      },
+      registerBackgroundRenderer: (renderer) => {
+        this.backgroundRenderers.set(renderer.id, renderer);
+        this.notify();
+        const unbind = () => {
+          this.backgroundRenderers.delete(renderer.id);
+          this.notify();
+        };
+        return this.addDisposable(pluginId, unbind);
       },
       getEditorContent: () => this.editorContentGetter(),
       setEditorContent: (c) => this.editorContentSetter(c),
@@ -100,7 +224,10 @@ export class PluginManager {
       getActiveChapterId: () => this.activeChapterGetter(),
       getProjectData: () => this.projectDataGetter(),
       saveCurrentChapter: () => this.saveChapterHandler(),
-      on: (event, cb) => eventBus.on(event, cb),
+      on: (event, cb) => {
+        const unbind = eventBus.on(event, cb);
+        return this.addDisposable(pluginId, unbind);
+      },
       emit: (event, ...args) => eventBus.emit(event, ...args),
       showToast: (msg, type) => this.toastHandler(msg, type),
       getSetting: <T>(key: string, defaultValue: T): T => {
@@ -117,6 +244,7 @@ export class PluginManager {
         const fullKey = `novelite_plugin_${pluginId}_${key}`;
         localStorage.setItem(fullKey, JSON.stringify(value));
         eventBus.emit(`plugin-setting-changed:${pluginId}`, { key, value });
+        eventBus.emit('editor-extensions-changed');
       },
     };
   }
@@ -137,7 +265,17 @@ export class PluginManager {
 
       if (plugin.getSidebarTabs) {
         const tabs = plugin.getSidebarTabs(ctx);
-        tabs.forEach((tab) => this.sidebarTabs.set(tab.id, tab));
+        tabs.forEach((tab) => ctx.registerSidebarTab(tab));
+      }
+
+      if (plugin.getRightPanels) {
+        const panels = plugin.getRightPanels(ctx);
+        panels.forEach((p) => ctx.registerRightPanel(p));
+      }
+
+      if (plugin.getBackgroundRenderers) {
+        const bgs = plugin.getBackgroundRenderers(ctx);
+        bgs.forEach((bg) => ctx.registerBackgroundRenderer(bg));
       }
     }
 
@@ -158,7 +296,17 @@ export class PluginManager {
 
     if (plugin.getSidebarTabs) {
       const tabs = plugin.getSidebarTabs(ctx);
-      tabs.forEach((tab) => this.sidebarTabs.set(tab.id, tab));
+      tabs.forEach((tab) => ctx.registerSidebarTab(tab));
+    }
+
+    if (plugin.getRightPanels) {
+      const panels = plugin.getRightPanels(ctx);
+      panels.forEach((p) => ctx.registerRightPanel(p));
+    }
+
+    if (plugin.getBackgroundRenderers) {
+      const bgs = plugin.getBackgroundRenderers(ctx);
+      bgs.forEach((bg) => ctx.registerBackgroundRenderer(bg));
     }
 
     eventBus.emit('plugins-changed');
@@ -175,10 +323,8 @@ export class PluginManager {
     const ctx = this.createPluginContext(id);
     plugin.unmount?.(ctx);
 
-    if (plugin.getSidebarTabs) {
-      const tabs = plugin.getSidebarTabs(ctx);
-      tabs.forEach((tab) => this.sidebarTabs.delete(tab.id));
-    }
+    // ✨ Auto-disposal: automatically teardown all registered commands, slots, and event listeners
+    this.disposePluginResources(id);
 
     eventBus.emit('plugins-changed');
     this.notify();
@@ -205,7 +351,7 @@ export class PluginManager {
   }
 
   public getEditorExtensions(): Extension[] {
-    const extensions: Extension[] = [];
+    const extensions: Extension[] = [...this.dynamicExtensions];
     for (const plugin of this.getEnabledPlugins()) {
       if (plugin.getEditorExtensions) {
         const ctx = this.createPluginContext(plugin.metadata.id);
@@ -222,12 +368,32 @@ export class PluginManager {
     return Array.from(this.sidebarTabs.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 
+  public getRightPanels(): RightPanelContribution[] {
+    return Array.from(this.rightPanels.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
+  }
+
+  public getBackgroundRenderers(): BackgroundRendererContribution[] {
+    return Array.from(this.backgroundRenderers.values());
+  }
+
   public getStatusBarItems(): StatusBarItem[] {
     return Array.from(this.statusBarItems.values()).sort((a, b) => (a.order || 0) - (b.order || 0));
   }
 
   public getExporters(): Exporter[] {
     return Array.from(this.exporters.values());
+  }
+
+  public getModals(): ModalContribution[] {
+    return Array.from(this.modals.values());
+  }
+
+  public getActiveModalId(): string | null {
+    return this.activeModalId;
+  }
+
+  public getFormatters(): TextFormatterContribution[] {
+    return Array.from(this.formatters.values());
   }
 
   public subscribe(listener: () => void): () => void {

@@ -192,7 +192,9 @@ export class LiveCursorEngine {
   public update(dt: number, config: LiveCursorConfig): void {
     const animLength = Math.max(0.03, config.animationLength || 0.08);
     const trailSize = Math.max(0.2, config.trailSize || 0.75);
-    const clampedDt = Math.min(dt, 0.033);
+    // Clamp dt between 1ms and 50ms to gracefully handle background tab focus restoration and micro-stutters
+    const clampedDt = Math.max(0.001, Math.min(dt, 0.05));
+    const frameScale = clampedDt * 60; // 1.0 at 60Hz, 0.5 at 120Hz, 0.416 at 144Hz, 0.25 at 240Hz
 
     // 🌟 运动手感速度模式调节 (Gentle, Balanced, Snappy)
     let speedMultiplier = 1.0;
@@ -202,12 +204,12 @@ export class LiveCursorEngine {
       speedMultiplier = 1.35;
     }
 
-    // 🌟 解决多次按上下键“越跳越快/过于灵敏暴冲”的核心算法：
-    // 采用恒定阻尼常数与最大巡航速率限制 (Velocity Clamping)，保证连续快速按键时位移稳健自如
-    const tauLeadX = (animLength * 0.45) / speedMultiplier;
-    const tauLeadY = (animLength * 0.48) / speedMultiplier;
-    const tauTrailX = (animLength * (0.45 + trailSize * 0.75)) / speedMultiplier;
-    const tauTrailY = (animLength * (0.48 + trailSize * 0.6)) / speedMultiplier;
+    // 🌟 连续时间指数衰减模型 (Exact Continuous-Time Exponential Decay)
+    // 水平方向调校为极度跟手 (0 感知延迟，触键即到)，垂直方向保留优雅水滴阻尼
+    const tauLeadX = (animLength * 0.16) / speedMultiplier;
+    const tauLeadY = (animLength * 0.32) / speedMultiplier;
+    const tauTrailX = (animLength * (0.32 + trailSize * 0.5)) / speedMultiplier;
+    const tauTrailY = (animLength * (0.36 + trailSize * 0.5)) / speedMultiplier;
 
     const leadFactorX = 1.0 - Math.exp(-clampedDt / tauLeadX);
     const leadFactorY = 1.0 - Math.exp(-clampedDt / tauLeadY);
@@ -238,30 +240,42 @@ export class LiveCursorEngine {
     this.tw += (this.targetW - this.tw) * trailFactorX;
     this.th += (this.targetH - this.th) * trailFactorY;
 
-    // Update Embers
+    // Update Embers (连续时间粒子动力学)
     for (let i = this.embers.length - 1; i >= 0; i--) {
       const p = this.embers[i];
-      p.phase += 0.08;
-      p.x += p.vx + Math.sin(p.phase) * 0.2;
-      p.y += p.vy;
-      p.vx *= 0.95;
-      p.vy *= 0.96;
-      p.life -= 1;
-      p.alpha = Math.pow(p.life / p.maxLife, 1.2);
+      p.phase += 0.08 * frameScale;
+      p.x += (p.vx + Math.sin(p.phase) * 0.2) * frameScale;
+      p.y += p.vy * frameScale;
+      p.vx *= Math.pow(0.95, frameScale);
+      p.vy *= Math.pow(0.96, frameScale);
+      p.life -= frameScale;
+      p.alpha = Math.pow(Math.max(0, p.life) / p.maxLife, 1.2);
       if (p.life <= 0) {
         this.embers.splice(i, 1);
       }
     }
 
-    // Update Water Ripples
+    // Update Water Ripples (连续时间水纹扩散模型)
     for (let i = this.ripples.length - 1; i >= 0; i--) {
       const r = this.ripples[i];
-      r.radius += (r.maxRadius - r.radius) * 0.16 + 0.5;
-      r.alpha *= 0.89;
+      const radiusStep = ((r.maxRadius - r.radius) * 0.16 + 0.5) * frameScale;
+      r.radius += radiusStep;
+      r.alpha *= Math.pow(0.89, frameScale);
       if (r.alpha <= 0.02 || r.radius >= r.maxRadius) {
         this.ripples.splice(i, 1);
       }
     }
+  }
+
+  public isAnimating(): boolean {
+    const isMoving =
+      Math.abs(this.targetX - this.lx) > 0.15 ||
+      Math.abs(this.targetY - this.ly) > 0.15 ||
+      Math.abs(this.targetX - this.tx) > 0.15 ||
+      Math.abs(this.targetY - this.ty) > 0.15;
+    const hasParticles = this.embers.length > 0 || this.ripples.length > 0;
+    const isRecentActivity = performance.now() - this.lastActivityTime < 3000;
+    return isMoving || hasParticles || isRecentActivity;
   }
 
   public draw(ctx: CanvasRenderingContext2D, config: LiveCursorConfig): void {

@@ -1,5 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, Trash2, Edit2, FileText, Book, Search, Copy, CheckCircle2, Clock, FileEdit } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Trash2,
+  Edit2,
+  FileText,
+  Book,
+  Search,
+  Copy,
+  CheckCircle2,
+  Clock,
+  FileEdit,
+  ArrowUp,
+  ArrowDown,
+  Download,
+} from 'lucide-react';
 import { projectStore } from '../../core/storage/ProjectStore';
 import type { NovelProject, Volume, Chapter } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
@@ -102,6 +118,35 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
     if (confirm('确认删除该章节？')) {
       projectStore.deleteChapter(chapId);
     }
+  };
+
+  const handleMoveChapter = (e: React.MouseEvent, volId: string, chapId: string, dir: 'up' | 'down') => {
+    e.stopPropagation();
+    projectStore.moveChapter(volId, chapId, dir);
+  };
+
+  const handleMoveVolume = (e: React.MouseEvent, volId: string, dir: 'up' | 'down') => {
+    e.stopPropagation();
+    projectStore.moveVolume(volId, dir);
+  };
+
+  const handleExportChapter = (e: React.MouseEvent, chap: Chapter) => {
+    e.stopPropagation();
+    const clean = (chap.content || '')
+      .replace(/^#+\s+.*$/gm, '')
+      .split('\n')
+      .map((line: string) => (line.trim() ? `　　${line.trim()}` : ''))
+      .join('\n');
+    const blob = new Blob([`${chap.title}\n\n${clean}\n`], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chap.title}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    eventBus.emit('show-toast', { message: `已导出《${chap.title}》`, type: 'success' });
   };
 
   const handleCycleStatus = (e: React.MouseEvent, chapId: string) => {
@@ -243,6 +288,20 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                   {/* Volume Actions */}
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
+                      onClick={(e) => handleMoveVolume(e, vol.id, 'up')}
+                      title="上移分卷"
+                      className="p-1 rounded hover:bg-white/15 opacity-70 hover:opacity-100 transition-colors"
+                    >
+                      <ArrowUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={(e) => handleMoveVolume(e, vol.id, 'down')}
+                      title="下移分卷"
+                      className="p-1 rounded hover:bg-white/15 opacity-70 hover:opacity-100 transition-colors"
+                    >
+                      <ArrowDown className="h-3 w-3" />
+                    </button>
+                    <button
                       onClick={(e) => handleAddChapter(e, vol.id)}
                       title="新建章节"
                       className="p-1 rounded hover:bg-white/15 opacity-70 hover:opacity-100 transition-colors"
@@ -345,6 +404,27 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
 
                             {/* Chapter Hover Actions */}
                             <div className="hidden group-hover:flex items-center gap-0.5">
+                              <button
+                                onClick={(e) => handleMoveChapter(e, vol.id, chap.id, 'up')}
+                                title="上移章节"
+                                className="p-1 rounded hover:bg-white/20 opacity-70 hover:opacity-100 transition-colors"
+                              >
+                                <ArrowUp className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={(e) => handleMoveChapter(e, vol.id, chap.id, 'down')}
+                                title="下移章节"
+                                className="p-1 rounded hover:bg-white/20 opacity-70 hover:opacity-100 transition-colors"
+                              >
+                                <ArrowDown className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={(e) => handleExportChapter(e, chap)}
+                                title="导出单章 TXT"
+                                className="p-1 rounded hover:bg-white/20 opacity-70 hover:opacity-100 transition-colors"
+                              >
+                                <Download className="h-3 w-3" />
+                              </button>
                               <button
                                 onClick={(e) => handleStartRename(e, chap.id, chap.title)}
                                 title="重命名"

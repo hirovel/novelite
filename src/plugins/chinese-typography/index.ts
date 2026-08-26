@@ -16,10 +16,12 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
       id: 'typography.toggle-indent',
       title: '切换中文首行缩进 (2 字符)',
       category: '排版沉浸',
+      shortcut: 'Alt+I',
       run: (c) => {
         const current = c.getSetting<boolean>('indentEnabled', true);
-        c.setSetting('indentEnabled', !current);
-        c.showToast(current ? '已关闭首行缩进' : '已开启首行缩进 (2em)', 'info');
+        const next = !current;
+        c.setSetting('indentEnabled', next);
+        c.showToast(next ? '已开启首行缩进 (2em)' : '已关闭首行缩进', 'info');
       },
     });
 

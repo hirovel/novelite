@@ -24,17 +24,37 @@ interface PaletteItem {
 export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [shouldRender, setShouldRender] = useState(isOpen);
+  const [isAnimatingIn, setIsAnimatingIn] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
+    let enterTimer: ReturnType<typeof setTimeout>;
+    let exitTimer: ReturnType<typeof setTimeout>;
+
     if (isOpen) {
-      setQuery('');
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      enterTimer = setTimeout(() => {
+        setShouldRender(true);
+        setIsAnimatingIn(true);
+        inputRef.current?.focus();
+      }, 0);
+    } else {
+      enterTimer = setTimeout(() => {
+        setIsAnimatingIn(false);
+      }, 0);
+      exitTimer = setTimeout(() => {
+        setShouldRender(false);
+        setQuery('');
+      }, 220);
     }
+
+    return () => {
+      clearTimeout(enterTimer);
+      clearTimeout(exitTimer);
+    };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!shouldRender) return null;
 
   const items: PaletteItem[] = [];
   const project = projectStore.getProject();
@@ -100,22 +120,30 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/75 backdrop-blur-md select-none p-4 animate-in fade-in duration-150"
+      className={`fixed inset-0 z-50 flex items-start justify-center pt-20 sm:pt-28 select-none p-4 transition-all duration-200 ease-out ${
+        isAnimatingIn
+          ? 'bg-black/80 backdrop-blur-xl opacity-100'
+          : 'bg-black/0 backdrop-blur-none opacity-0 pointer-events-none'
+      }`}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl overflow-hidden rounded-2xl border shadow-2xl animate-in zoom-in-95 duration-150"
+        className={`w-full max-w-xl overflow-hidden rounded-2xl border shadow-2xl flex flex-col max-h-[75vh] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isAnimatingIn
+            ? 'opacity-100 scale-100 translate-y-0'
+            : 'opacity-0 scale-95 -translate-y-3'
+        }`}
         style={{
           backgroundColor: theme.colors.bgSecondary,
-          borderColor: theme.colors.border,
-          boxShadow: `0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 30px ${theme.colors.accentGlow}`,
+          borderColor: `${theme.colors.border}cc`,
+          boxShadow: `0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px ${theme.colors.accentGlow}`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Input Bar */}
         <div
-          className="flex items-center gap-3 border-b px-4 py-3.5"
-          style={{ borderColor: theme.colors.border }}
+          className="flex items-center gap-3 border-b px-5 py-4 bg-black/20"
+          style={{ borderColor: `${theme.colors.border}80` }}
         >
           <Search className="h-4 w-4 shrink-0" style={{ color: theme.colors.accent }} />
           <input
@@ -128,18 +156,19 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
             }}
             onKeyDown={handleKeyDown}
             placeholder="搜索章节、跳转或执行命令... (支持 Esc 退出)"
-            className="flex-1 bg-transparent text-sm outline-none placeholder:opacity-40 font-mono"
+            className="flex-1 bg-transparent text-sm outline-none placeholder:opacity-40 font-mono tracking-tight"
             style={{ color: theme.colors.text }}
           />
-          <span className="font-mono text-[10px] opacity-40 px-1.5 py-0.5 rounded border border-white/10">
-            Ctrl+P
-          </span>
+          <div className="flex items-center gap-1.5 font-mono text-[10px] opacity-60">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 shadow-xs">Esc</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 shadow-xs">↵</kbd>
+          </div>
         </div>
 
         {/* Results List */}
-        <div className="max-h-80 overflow-y-auto p-2 space-y-1">
+        <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
           {filtered.length === 0 ? (
-            <div className="py-10 text-center text-xs opacity-40 font-mono">
+            <div className="py-12 text-center text-xs opacity-40 font-mono">
               未找到匹配的章节或指令
             </div>
           ) : (
@@ -152,7 +181,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                   onClick={item.action}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`group relative flex items-center justify-between rounded-xl px-3.5 py-2.5 text-xs cursor-pointer transition-all ${
-                    isSelected ? 'font-medium shadow-xs' : 'opacity-75 hover:opacity-100'
+                    isSelected ? 'font-medium shadow-xs' : 'opacity-70 hover:opacity-100'
                   }`}
                   style={{
                     backgroundColor: isSelected ? theme.colors.bgHover : 'transparent',
@@ -162,12 +191,12 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                   {/* Left Indicator */}
                   {isSelected && (
                     <span
-                      className="absolute left-1 top-2 bottom-2 w-0.5 rounded-full"
-                      style={{ backgroundColor: theme.colors.accent }}
+                      className="absolute left-1 top-2 bottom-2 w-1 rounded-full shadow-[0_0_8px_currentColor]"
+                      style={{ backgroundColor: theme.colors.accent, color: theme.colors.accent }}
                     />
                   )}
 
-                  <div className="flex items-center gap-3 overflow-hidden pl-1">
+                  <div className="flex items-center gap-3 overflow-hidden pl-1.5">
                     {item.type === 'chapter' ? (
                       <FileText
                         className="h-3.5 w-3.5 shrink-0"
@@ -184,7 +213,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                         {item.title}
                       </span>
                       {item.subtitle && (
-                        <span className="ml-2 text-[10.5px] opacity-50 font-mono">
+                        <span className="ml-2 text-[10.5px] opacity-45 font-mono">
                           {item.subtitle}
                         </span>
                       )}
@@ -202,12 +231,14 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
 
         {/* Footer info */}
         <div
-          className="flex items-center justify-between border-t px-4 py-2 text-[10px] font-mono opacity-50 bg-black/20"
-          style={{ borderColor: theme.colors.border }}
+          className="flex items-center justify-between border-t px-5 py-2.5 text-[10px] font-mono opacity-50 bg-black/30"
+          style={{ borderColor: `${theme.colors.border}80` }}
         >
-          <span>↑↓ 切换选择</span>
-          <span>↵ 确认执行</span>
-          <span>ESC 退出</span>
+          <div className="flex items-center gap-3">
+            <span>↑↓ 切换选择</span>
+            <span>↵ 立即跳转</span>
+          </div>
+          <span>Novelite Command Hub</span>
         </div>
       </div>
     </div>

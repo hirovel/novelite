@@ -32,6 +32,8 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@oxlint/binding-win32-x64-msvc": "^1.80.0",
+    "@rolldown/binding-win32-x64-msvc": "^1.2.5",
     "@tauri-apps/cli": "^2.11.4",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^24.13.3",

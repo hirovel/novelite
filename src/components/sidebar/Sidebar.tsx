@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { NovelTree } from './NovelTree';
 import type { Theme } from '../../core/themes/types';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
@@ -10,8 +9,10 @@ import {
   ChevronLeft,
   Settings,
   Layers,
+  Users,
+  Lightbulb,
+  BarChart3,
 } from 'lucide-react';
-import { ScratchpadPanel } from '../../plugins/scratchpad/ScratchpadPanel';
 
 interface Props {
   theme: Theme;
@@ -20,61 +21,76 @@ interface Props {
   onOpenSettings: () => void;
 }
 
-const BUILTIN_TABS = [
-  { id: 'tree', label: '目录', icon: BookOpen, tooltip: '卷章大纲与文稿管理' },
-  { id: 'scratchpad', label: '便签', icon: Sparkles, tooltip: '灵感便签与素材随记' },
-  { id: 'plugins', label: '扩展', icon: Puzzle, tooltip: '扩展生态与插件管理' },
-];
+const ICON_MAP: Record<string, any> = {
+  BookOpen,
+  Sparkles,
+  Puzzle,
+  Layers,
+  Users,
+  Lightbulb,
+  BarChart3,
+};
 
 export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettings }) => {
-  const [activeTab, setActiveTab] = useState<string>('tree');
-  const [plugins, setPlugins] = useState(pluginManager.getAllPlugins());
-  const [pluginTabs, setPluginTabs] = useState(pluginManager.getSidebarTabs());
+  const [pluginTabs, setPluginTabs] = useState(() => pluginManager.getSidebarTabs());
+  const [plugins, setPlugins] = useState(() => pluginManager.getAllPlugins());
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const tabs = pluginManager.getSidebarTabs();
+    return tabs[0]?.id || 'plugins-manager';
+  });
 
   useEffect(() => {
-    const handlePluginsChange = () => {
+    const handleUpdate = () => {
+      const tabs = pluginManager.getSidebarTabs();
+      setPluginTabs([...tabs]);
       setPlugins([...pluginManager.getAllPlugins()]);
-      setPluginTabs([...pluginManager.getSidebarTabs()]);
+      setActiveTab((cur) => {
+        if (cur === 'plugins-manager') return cur;
+        if (tabs.some((t) => t.id === cur)) return cur;
+        return tabs[0]?.id || 'plugins-manager';
+      });
     };
 
-    handlePluginsChange();
+    handleUpdate();
 
-    const unsubBus = eventBus.on('plugins-changed', handlePluginsChange);
-    const unsubManager = pluginManager.subscribe(handlePluginsChange);
+    const unsubBus = eventBus.on('plugins-changed', handleUpdate);
+    const unsubManager = pluginManager.subscribe(handleUpdate);
     return () => {
       unsubBus();
       unsubManager();
     };
   }, []);
 
-  if (!isOpen) return null;
-
-  // Dynamic context for plugin rendering
   const dummyCtx = pluginManager.createPluginContext('sidebar-coordinator');
 
   return (
     <aside
-      className="flex h-full w-64 md:w-72 flex-col border-r shrink-0 select-none z-10 transition-all shadow-lg"
+      className={`h-full shrink-0 select-none z-10 shadow-lg overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        isOpen
+          ? 'w-64 md:w-72 opacity-100 border-r pointer-events-auto'
+          : 'w-0 opacity-0 border-r-0 pointer-events-none'
+      }`}
       style={{
         backgroundColor: theme.colors.bgSecondary,
         borderColor: `${theme.colors.border}80`,
       }}
     >
-      {/* 🌟 Top Luxury Segmented Icon Dock */}
+      <div className="w-64 md:w-72 h-full flex flex-col shrink-0">
+      {/* 🌟 Top Dynamic Segmented Icon Dock */}
       <div
         className="flex items-center justify-between border-b px-2.5 py-2 backdrop-blur-md bg-black/20"
         style={{ borderColor: `${theme.colors.border}70` }}
       >
         {/* Tab Buttons Strip */}
         <div className="flex items-center gap-1 bg-black/30 p-1 rounded-xl border border-white/5 flex-1 overflow-x-auto scrollbar-none">
-          {BUILTIN_TABS.map((tab) => {
-            const Icon = tab.icon;
+          {pluginTabs.map((tab) => {
+            const Icon = ICON_MAP[tab.icon] || Layers;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                title={tab.tooltip}
+                title={tab.title}
                 className={`group relative flex items-center justify-center gap-1.5 flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   isActive
                     ? 'shadow-xs font-semibold'
@@ -86,7 +102,7 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
                 }}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="text-[11px] truncate">{tab.label}</span>
+                <span className="text-[11px] truncate">{tab.title}</span>
 
                 {/* Active Indicator Line */}
                 {isActive && (
@@ -99,29 +115,29 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
             );
           })}
 
-          {/* Third-party plugin contributed sidebar tabs */}
-          {pluginTabs
-            .filter((pt) => !BUILTIN_TABS.some((bt) => bt.id === pt.id))
-            .map((pt) => {
-              const isActive = activeTab === pt.id;
-              return (
-                <button
-                  key={pt.id}
-                  onClick={() => setActiveTab(pt.id)}
-                  title={pt.title}
-                  className={`relative flex items-center justify-center gap-1 flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
-                    isActive ? 'shadow-xs font-semibold' : 'opacity-50 hover:opacity-100'
-                  }`}
-                  style={{
-                    backgroundColor: isActive ? theme.colors.bgHover : 'transparent',
-                    color: isActive ? theme.colors.accent : theme.colors.textMuted,
-                  }}
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span className="text-[11px] truncate">{pt.title}</span>
-                </button>
-              );
-            })}
+          {/* Built-in Plugin Ecosystem Management Tab */}
+          <button
+            onClick={() => setActiveTab('plugins-manager')}
+            title="插件生态与扩展管理"
+            className={`group relative flex items-center justify-center gap-1.5 flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
+              activeTab === 'plugins-manager'
+                ? 'shadow-xs font-semibold'
+                : 'opacity-50 hover:opacity-100 hover:bg-white/5'
+            }`}
+            style={{
+              backgroundColor: activeTab === 'plugins-manager' ? theme.colors.bgHover : 'transparent',
+              color: activeTab === 'plugins-manager' ? theme.colors.accent : theme.colors.textMuted,
+            }}
+          >
+            <Puzzle className="h-3.5 w-3.5 shrink-0" />
+            <span className="text-[11px] truncate">扩展</span>
+            {activeTab === 'plugins-manager' && (
+              <div
+                className="absolute -bottom-1 left-2 right-2 h-0.5 rounded-full shadow-xs"
+                style={{ backgroundColor: theme.colors.accent }}
+              />
+            )}
+          </button>
         </div>
 
         {/* Collapse Sidebar Button */}
@@ -137,20 +153,16 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
 
       {/* 🌟 Tab Content Panels */}
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'tree' && <NovelTree theme={theme} />}
-
-        {activeTab === 'scratchpad' && <ScratchpadPanel ctx={dummyCtx} theme={theme} />}
-
-        {activeTab === 'plugins' && (
+        {activeTab === 'plugins-manager' ? (
           <div className="flex h-full flex-col p-3 text-xs overflow-y-auto space-y-3">
             <div className="flex items-center justify-between opacity-70 font-mono text-[11px] pb-1 border-b border-white/5">
-              <span>已载入扩展插件 ({plugins.length})</span>
+              <span>已载入插件 ({plugins.length})</span>
               <button
                 onClick={onOpenSettings}
                 className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors"
               >
                 <Settings className="h-3 w-3" />
-                <span>配置</span>
+                <span>偏好设置</span>
               </button>
             </div>
 
@@ -168,7 +180,10 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: isEnabled ? '#34d399' : '#737373' }} />
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: isEnabled ? '#34d399' : '#737373' }}
+                        />
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
                           {p.metadata.name}
                         </span>
@@ -186,7 +201,10 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
                       </button>
                     </div>
 
-                    <p className="text-[10.5px] leading-relaxed opacity-60 mt-1 font-sans" style={{ color: theme.colors.textMuted }}>
+                    <p
+                      className="text-[10.5px] leading-relaxed opacity-60 mt-1 font-sans"
+                      style={{ color: theme.colors.textMuted }}
+                    >
                       {p.metadata.description}
                     </p>
 
@@ -199,27 +217,26 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
               })}
             </div>
           </div>
+        ) : (
+          pluginTabs.map((pt) => {
+            if (activeTab === pt.id) {
+              return (
+                <div key={pt.id} className="h-full w-full overflow-hidden">
+                  {pt.render(dummyCtx, theme)}
+                </div>
+              );
+            }
+            return null;
+          })
         )}
-
-        {/* Dynamic Plugin Tab Rendering */}
-        {pluginTabs.map((pt) => {
-          if (activeTab === pt.id && !BUILTIN_TABS.some((bt) => bt.id === pt.id)) {
-            return (
-              <div key={pt.id} className="h-full w-full overflow-hidden">
-                {pt.render(dummyCtx, theme)}
-              </div>
-            );
-          }
-          return null;
-        })}
       </div>
 
-      {/* 🌟 Bottom Quick Preferences Action */}
+      {/* 🌟 Bottom Quick Action */}
       <div
         className="border-t p-2 px-3 bg-black/20 flex items-center justify-between text-xs"
         style={{ borderColor: `${theme.colors.border}60` }}
       >
-        <span className="text-[11px] font-mono opacity-50">Novelite Literary Engine</span>
+        <span className="text-[11px] font-mono opacity-50">Novelite Microkernel 2.0</span>
         <button
           onClick={onOpenSettings}
           title="打开偏好设置 (Ctrl+,)"
@@ -229,6 +246,7 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
           <Settings className="h-3.5 w-3.5" />
         </button>
       </div>
-    </aside>
+    </div>
+  </aside>
   );
 };
