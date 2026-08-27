@@ -49,8 +49,12 @@ const DEFAULT_MEMOS: MemoCard[] = [
 
 export const ScratchpadPanel: React.FC<{ ctx: PluginContext; theme: Theme }> = ({ ctx, theme }) => {
   const [memos, setMemos] = useState<MemoCard[]>(() => {
-    const saved = localStorage.getItem('novelite_memos_data');
-    return saved ? JSON.parse(saved) : DEFAULT_MEMOS;
+    try {
+      const saved = localStorage.getItem('novelite_memos_data');
+      return saved ? JSON.parse(saved) : DEFAULT_MEMOS;
+    } catch {
+      return DEFAULT_MEMOS;
+    }
   });
   const [filterTag, setFilterTag] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');

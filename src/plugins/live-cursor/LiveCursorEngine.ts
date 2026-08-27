@@ -1,14 +1,17 @@
+/**
+ * Configuration options for the LiveCursorEngine.
+ */
 export interface LiveCursorConfig {
   enabled: boolean;
   shape: 'beam' | 'block' | 'underline';
-  color: string; // 'auto' or hex code
-  themeColor: string; // resolved theme color fallback
-  animationLength: number; // in seconds, e.g. 0.08s
-  trailSize: number;        // trail factor, e.g. 0.75
+  color: string;
+  themeColor: string;
+  animationLength: number;
+  trailSize: number;
   vfxMode: 'pure' | 'embers' | 'ripples' | 'feather';
   blinkMode: 'smooth' | 'solid' | 'blink';
-  breatheCycle: number;     // breathing cycle in seconds (e.g. 0.5s - 2.5s)
-  speedMode: 'gentle' | 'balanced' | 'snappy'; // movement cadence
+  breatheCycle: number;
+  speedMode: 'gentle' | 'balanced' | 'snappy';
   glow: boolean;
 }
 
@@ -38,77 +41,166 @@ interface WaterRipple {
 }
 
 /**
- * 2D 凸包计算 (Monotone Chain Convex Hull)
+ * 1D Exact Closed-Form 2nd-Order Harmonic Spring Damper.
+ * Closed-form analytical integration invariant across 60Hz, 120Hz, 144Hz, and 240Hz.
  */
-function computeConvexHull(points: Point2D[]): Point2D[] {
-  if (points.length <= 3) return points;
+class Spring1D {
+  public val: number = 0;
+  public vel: number = 0;
+  public target: number = 0;
 
-  const sorted = [...points].sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+  public reset(val: number): void {
+    this.val = val;
+    this.vel = 0;
+    this.target = val;
+  }
+
+  public step(dt: number, omega: number, zeta: number): void {
+    const d = this.val - this.target;
+    if (Math.abs(d) < 0.001 && Math.abs(this.vel) < 0.001) {
+      this.val = this.target;
+      this.vel = 0;
+      return;
+    }
+
+    if (zeta < 0.999) {
+      const omegaD = omega * Math.sqrt(1 - zeta * zeta);
+      const decay = Math.exp(-zeta * omega * dt);
+      const cosVal = Math.cos(omegaD * dt);
+      const sinVal = Math.sin(omegaD * dt);
+      const factor = (this.vel + zeta * omega * d) / omegaD;
+
+      this.val = this.target + decay * (d * cosVal + factor * sinVal);
+      this.vel = decay * (this.vel * cosVal - (d * omegaD + zeta * omega * factor) * sinVal);
+    } else {
+      const decay = Math.exp(-omega * dt);
+      const factor = this.vel + omega * d;
+      this.val = this.target + decay * (d + factor * dt);
+      this.vel = decay * (this.vel - factor * omega * dt);
+    }
+  }
+}
+
+// Pre-allocated static buffers for zero GC pressure in 120fps rAF loop
+const STATIC_POINTS: Point2D[] = [
+  { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 },
+  { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 },
+];
+const LOWER_HULL: Point2D[] = [];
+const UPPER_HULL: Point2D[] = [];
+const RESULT_HULL: Point2D[] = [];
+
+/**
+ * Computes the 2D convex hull of 8 boundary points using the Monotone Chain algorithm.
+ * 100% guarantees non-self-intersecting, perfectly manifold fluid polygons.
+ */
+function computeConvexHullZeroAlloc(points: Point2D[]): Point2D[] {
+  const n = points.length;
+  if (n <= 3) return points;
+
+  points.sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
 
   const cross = (o: Point2D, a: Point2D, b: Point2D) =>
     (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
 
-  const lower: Point2D[] = [];
-  for (const p of sorted) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) {
-      lower.pop();
+  LOWER_HULL.length = 0;
+  for (let i = 0; i < n; i++) {
+    const p = points[i];
+    while (LOWER_HULL.length >= 2 && cross(LOWER_HULL[LOWER_HULL.length - 2], LOWER_HULL[LOWER_HULL.length - 1], p) <= 0) {
+      LOWER_HULL.pop();
     }
-    lower.push(p);
+    LOWER_HULL.push(p);
   }
 
-  const upper: Point2D[] = [];
-  for (let i = sorted.length - 1; i >= 0; i--) {
-    const p = sorted[i];
-    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) {
-      upper.pop();
+  UPPER_HULL.length = 0;
+  for (let i = n - 1; i >= 0; i--) {
+    const p = points[i];
+    while (UPPER_HULL.length >= 2 && cross(UPPER_HULL[UPPER_HULL.length - 2], UPPER_HULL[UPPER_HULL.length - 1], p) <= 0) {
+      UPPER_HULL.pop();
     }
-    upper.push(p);
+    UPPER_HULL.push(p);
   }
 
-  lower.pop();
-  upper.pop();
-  return lower.concat(upper);
+  LOWER_HULL.pop();
+  UPPER_HULL.pop();
+
+  RESULT_HULL.length = 0;
+  for (let i = 0; i < LOWER_HULL.length; i++) RESULT_HULL.push(LOWER_HULL[i]);
+  for (let i = 0; i < UPPER_HULL.length; i++) RESULT_HULL.push(UPPER_HULL[i]);
+
+  return RESULT_HULL;
 }
 
 /**
- * 🌟 Novelite 自研 Live 灵感光标物理引擎
- * - 匀速平顺垂直巡航：连续按上下键时不会越跳越快或失控暴冲
- * - 临界阻尼柔和阻尼：微字符瞬态响应，长距离平稳滑行
+ * Beyond-Neovide SOTA Live Physics Cursor Engine.
+ * Features:
+ * 1. 0ms Feedforward Velocity Injection (前馈初速度注入，触键即达极速跟手)
+ * 2. Dual-Regime Distance-Adaptive Non-Linear Kinematics (双模态自适应动力学)
+ * 3. Continuous Curvature Liquid Fillet Rounding (流体液态微圆角润滑)
+ * 4. Aerodynamic Parallelogram Convex Hull Deformation (空气动力学单调流体平行四边形)
  */
 export class LiveCursorEngine {
-  // Destination
+  // Destination Target in Document Space
   public targetX: number = 0;
   public targetY: number = 0;
   public targetW: number = 2.6;
   public targetH: number = 24;
 
-  // Lead Box (Leading Edge)
-  public lx: number = 0;
-  public ly: number = 0;
-  public lw: number = 2.6;
-  public lh: number = 24;
+  // Leading Spring (Ultra-fast, crisp 0ms response)
+  private leadX = new Spring1D();
+  private leadY = new Spring1D();
+  private leadW = new Spring1D();
+  private leadH = new Spring1D();
 
-  // Trail Box (Trailing Edge)
-  public tx: number = 0;
-  public ty: number = 0;
-  public tw: number = 2.6;
-  public th: number = 24;
+  // Trailing Spring (Fluid inertial trailing edge creating Neovide parallelogram)
+  private trailX = new Spring1D();
+  private trailY = new Spring1D();
+  private trailW = new Spring1D();
+  private trailH = new Spring1D();
 
   private isInitialized: boolean = false;
+  private isFocused: boolean = true;
   private lastActivityTime: number = performance.now();
+  private lastJumpDist: number = 0;
 
-  // Particle systems
   private embers: EmberParticle[] = [];
   private ripples: WaterRipple[] = [];
+
+  public setFocused(focused: boolean): void {
+    this.isFocused = focused;
+    this.lastActivityTime = performance.now();
+  }
 
   public setTarget(x: number, y: number, width: number, height: number, immediate = false): void {
     const w = Math.max(2.2, width);
     const h = Math.max(16, height);
+
+    const dx = Math.abs(x - this.targetX);
+    const dy = Math.abs(y - this.targetY);
+    if (this.isInitialized && dx < 0.2 && dy < 0.2 && Math.abs(w - this.targetW) < 0.2 && Math.abs(h - this.targetH) < 0.2) {
+      return;
+    }
+
+    const prevX = this.targetX;
+    const prevY = this.targetY;
+    const jumpDist = Math.hypot(x - prevX, y - prevY);
+    this.lastJumpDist = jumpDist;
+
     this.targetX = x;
     this.targetY = y;
     this.targetW = w;
     this.targetH = h;
     this.lastActivityTime = performance.now();
+
+    this.leadX.target = x;
+    this.leadY.target = y;
+    this.leadW.target = w;
+    this.leadH.target = h;
+
+    this.trailX.target = x;
+    this.trailY.target = y;
+    this.trailW.target = w;
+    this.trailH.target = h;
 
     if (immediate || !this.isInitialized) {
       this.teleport(x, y, w, h);
@@ -116,19 +208,45 @@ export class LiveCursorEngine {
       return;
     }
 
-    const dist = Math.hypot(x - this.lx, y - this.ly);
-    const lineJump = Math.abs(y - this.ly) > h * 0.6;
-
-    // Embers Particle Spawning on motion
-    if (dist >= 3) {
-      const count = Math.min(3, Math.max(1, Math.floor(dist / 14) + 1));
-      this.spawnEmbers(x, y + h / 2, count);
+    // 🌟 核心突破 1：前馈初速度注入（0ms Feedforward Velocity Injection）
+    // 消除二阶弹簧起步时的 0 速度惯性迟滞，让按键在第一帧即以峰值初速度启动，实现绝对跟手感！
+    const deltaX = x - this.leadX.val;
+    const deltaY = y - this.leadY.val;
+    if (jumpDist > 0.5 && jumpDist < 48) {
+      // 短距离打字/方向键：注入精准临界前馈速度
+      this.leadX.vel += Math.max(-650, Math.min(650, deltaX * 24));
+      this.leadY.vel += Math.max(-650, Math.min(650, deltaY * 24));
+    } else if (jumpDist >= 48) {
+      // 中长距离跳跃/点击：注入高速喷射初速度
+      this.leadX.vel += Math.max(-1800, Math.min(1800, deltaX * 16));
+      this.leadY.vel += Math.max(-1800, Math.min(1800, deltaY * 16));
     }
 
-    // Inkstone Water Ripples on line wraps / jumps
-    if (lineJump || dist >= 22) {
+    const lineJump = Math.abs(y - prevY) > h * 0.6;
+
+    if (jumpDist >= 6) {
+      const count = Math.min(3, Math.max(1, Math.floor(jumpDist / 20) + 1));
+      this.spawnEmbers(x + w / 2, y + h / 2, count);
+    }
+
+    if (lineJump || jumpDist >= 32) {
       this.addWaterRipple(x + w / 2, y + h / 2);
     }
+  }
+
+  public shift(dx: number, dy: number): void {
+    this.leadX.val += dx;
+    this.leadY.val += dy;
+    this.leadX.target += dx;
+    this.leadY.target += dy;
+
+    this.trailX.val += dx;
+    this.trailY.val += dy;
+    this.trailX.target += dx;
+    this.trailY.target += dy;
+
+    this.targetX += dx;
+    this.targetY += dy;
   }
 
   public teleport(x: number, y: number, width: number, height: number): void {
@@ -139,15 +257,15 @@ export class LiveCursorEngine {
     this.targetW = w;
     this.targetH = h;
 
-    this.lx = x;
-    this.ly = y;
-    this.lw = w;
-    this.lh = h;
+    this.leadX.reset(x);
+    this.leadY.reset(y);
+    this.leadW.reset(w);
+    this.leadH.reset(h);
 
-    this.tx = x;
-    this.ty = y;
-    this.tw = w;
-    this.th = h;
+    this.trailX.reset(x);
+    this.trailY.reset(y);
+    this.trailW.reset(w);
+    this.trailH.reset(h);
 
     this.lastActivityTime = performance.now();
   }
@@ -155,14 +273,14 @@ export class LiveCursorEngine {
   private spawnEmbers(x: number, y: number, count = 2): void {
     for (let i = 0; i < count; i++) {
       const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
-      const speed = 0.5 + Math.random() * 1.4;
-      const life = 24 + Math.random() * 18;
+      const speed = 0.6 + Math.random() * 1.6;
+      const life = 20 + Math.random() * 16;
       this.embers.push({
         x: x + (Math.random() - 0.5) * 4,
         y: y + (Math.random() - 0.5) * 8,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
-        size: 1.2 + Math.random() * 1.3,
+        size: 1.2 + Math.random() * 1.2,
         alpha: 0.9,
         life,
         maxLife: life,
@@ -170,8 +288,8 @@ export class LiveCursorEngine {
       });
     }
 
-    if (this.embers.length > 40) {
-      this.embers.splice(0, this.embers.length - 40);
+    if (this.embers.length > 30) {
+      this.embers.splice(0, this.embers.length - 30);
     }
   }
 
@@ -180,67 +298,56 @@ export class LiveCursorEngine {
       x,
       y,
       radius: 3,
-      maxRadius: 26,
-      alpha: 0.8,
+      maxRadius: 24,
+      alpha: 0.75,
     });
 
-    if (this.ripples.length > 5) {
-      this.ripples.splice(0, this.ripples.length - 5);
+    if (this.ripples.length > 4) {
+      this.ripples.splice(0, this.ripples.length - 4);
     }
   }
 
   public update(dt: number, config: LiveCursorConfig): void {
-    const animLength = Math.max(0.03, config.animationLength || 0.08);
-    const trailSize = Math.max(0.2, config.trailSize || 0.75);
-    // Clamp dt between 1ms and 50ms to gracefully handle background tab focus restoration and micro-stutters
+    const animLength = Math.max(0.02, config.animationLength || 0.08);
+    const trailFactor = Math.max(0.2, config.trailSize || 0.75);
     const clampedDt = Math.max(0.001, Math.min(dt, 0.05));
-    const frameScale = clampedDt * 60; // 1.0 at 60Hz, 0.5 at 120Hz, 0.416 at 144Hz, 0.25 at 240Hz
+    const frameScale = clampedDt * 60;
 
-    // 🌟 运动手感速度模式调节 (Gentle, Balanced, Snappy)
     let speedMultiplier = 1.0;
     if (config.speedMode === 'gentle') {
-      speedMultiplier = 0.75;
+      speedMultiplier = 0.85;
     } else if (config.speedMode === 'snappy') {
-      speedMultiplier = 1.35;
+      speedMultiplier = 1.30;
     }
 
-    // 🌟 连续时间指数衰减模型 (Exact Continuous-Time Exponential Decay)
-    // 水平方向调校为极度跟手 (0 感知延迟，触键即到)，垂直方向保留优雅水滴阻尼
-    const tauLeadX = (animLength * 0.16) / speedMultiplier;
-    const tauLeadY = (animLength * 0.32) / speedMultiplier;
-    const tauTrailX = (animLength * (0.32 + trailSize * 0.5)) / speedMultiplier;
-    const tauTrailY = (animLength * (0.36 + trailSize * 0.5)) / speedMultiplier;
+    const timeScale = 0.08 / animLength;
 
-    const leadFactorX = 1.0 - Math.exp(-clampedDt / tauLeadX);
-    const leadFactorY = 1.0 - Math.exp(-clampedDt / tauLeadY);
-    const trailFactorX = 1.0 - Math.exp(-clampedDt / tauTrailX);
-    const trailFactorY = 1.0 - Math.exp(-clampedDt / tauTrailY);
+    // 🌟 核心突破 2：双模态非线性自适应频率（Dual-Regime Adaptive Frequency）
+    // 短距离打字区间采用高频临界阻尼（56 rad/s, 0延迟）；中长距离跳跃采用流体大阻尼（24 rad/s，奢华平行四边形）
+    let omegaLead = 52.0 * timeScale * speedMultiplier;
+    let omegaTrail = (26.0 - trailFactor * 6.0) * timeScale * speedMultiplier;
+    let zetaLead = 0.98;
+    let zetaTrail = 0.90;
 
-    // 计算步进量并施加平滑最大位移约束 (Max Slew Rate)，防止连续跳行时的过载冲量堆积
-    const rawDx = (this.targetX - this.lx) * leadFactorX;
-    const rawDy = (this.targetY - this.ly) * leadFactorY;
+    if (this.lastJumpDist <= 32) {
+      // 微距打字区间：临界阻尼极致跟手，无过冲
+      omegaLead = 58.0 * timeScale * speedMultiplier;
+      omegaTrail = 38.0 * timeScale * speedMultiplier;
+      zetaLead = 1.0;
+      zetaTrail = 0.95;
+    }
 
-    // 垂直方向平滑限速（每秒最大位移限制，给用户清晰舒适的视觉跟踪）
-    const maxSpeedY = 1800 * speedMultiplier; // px/s
-    const maxDy = maxSpeedY * clampedDt;
-    const clampedDy = Math.max(-maxDy, Math.min(maxDy, rawDy));
+    this.leadX.step(clampedDt, omegaLead, zetaLead);
+    this.leadY.step(clampedDt, omegaLead, zetaLead);
+    this.leadW.step(clampedDt, omegaLead, 0.98);
+    this.leadH.step(clampedDt, omegaLead, 0.98);
 
-    this.lx += rawDx;
-    this.ly += clampedDy;
-    this.lw += (this.targetW - this.lw) * leadFactorX;
-    this.lh += (this.targetH - this.lh) * leadFactorY;
+    this.trailX.step(clampedDt, omegaTrail, zetaTrail);
+    this.trailY.step(clampedDt, omegaTrail, zetaTrail);
+    this.trailW.step(clampedDt, omegaTrail, 0.94);
+    this.trailH.step(clampedDt, omegaTrail, 0.94);
 
-    // 尾部跟随
-    const rawTdx = (this.targetX - this.tx) * trailFactorX;
-    const rawTdy = (this.targetY - this.ty) * trailFactorY;
-    const clampedTdy = Math.max(-maxDy * 1.1, Math.min(maxDy * 1.1, rawTdy));
-
-    this.tx += rawTdx;
-    this.ty += clampedTdy;
-    this.tw += (this.targetW - this.tw) * trailFactorX;
-    this.th += (this.targetH - this.th) * trailFactorY;
-
-    // Update Embers (连续时间粒子动力学)
+    // Update Embers
     for (let i = this.embers.length - 1; i >= 0; i--) {
       const p = this.embers[i];
       p.phase += 0.08 * frameScale;
@@ -255,225 +362,192 @@ export class LiveCursorEngine {
       }
     }
 
-    // Update Water Ripples (连续时间水纹扩散模型)
+    // Update Water Ripples
     for (let i = this.ripples.length - 1; i >= 0; i--) {
       const r = this.ripples[i];
-      const radiusStep = ((r.maxRadius - r.radius) * 0.16 + 0.5) * frameScale;
+      const radiusStep = ((r.maxRadius - r.radius) * 0.18 + 0.5) * frameScale;
       r.radius += radiusStep;
-      r.alpha *= Math.pow(0.89, frameScale);
+      r.alpha *= Math.pow(0.88, frameScale);
       if (r.alpha <= 0.02 || r.radius >= r.maxRadius) {
         this.ripples.splice(i, 1);
       }
     }
   }
 
-  public isAnimating(): boolean {
+  public isAnimating(config: LiveCursorConfig): boolean {
     const isMoving =
-      Math.abs(this.targetX - this.lx) > 0.15 ||
-      Math.abs(this.targetY - this.ly) > 0.15 ||
-      Math.abs(this.targetX - this.tx) > 0.15 ||
-      Math.abs(this.targetY - this.ty) > 0.15;
+      Math.abs(this.targetX - this.leadX.val) > 0.05 ||
+      Math.abs(this.targetY - this.leadY.val) > 0.05 ||
+      Math.abs(this.targetX - this.trailX.val) > 0.05 ||
+      Math.abs(this.targetY - this.trailY.val) > 0.05 ||
+      Math.abs(this.leadX.vel) > 0.06 ||
+      Math.abs(this.leadY.vel) > 0.06 ||
+      Math.abs(this.trailX.vel) > 0.06 ||
+      Math.abs(this.trailY.vel) > 0.06;
+
     const hasParticles = this.embers.length > 0 || this.ripples.length > 0;
-    const isRecentActivity = performance.now() - this.lastActivityTime < 3000;
-    return isMoving || hasParticles || isRecentActivity;
+    const shouldBlink = this.isFocused && config.enabled && config.blinkMode !== 'solid';
+
+    return isMoving || hasParticles || shouldBlink;
   }
 
   public draw(ctx: CanvasRenderingContext2D, config: LiveCursorConfig): void {
-    if (!config.enabled) return;
+    const isMoving =
+      Math.abs(this.targetX - this.leadX.val) > 0.15 ||
+      Math.abs(this.targetY - this.leadY.val) > 0.15 ||
+      Math.abs(this.targetX - this.trailX.val) > 0.15 ||
+      Math.abs(this.targetY - this.trailY.val) > 0.15;
 
-    const effectiveColor =
-      config.color && config.color !== 'auto'
-        ? config.color
-        : config.themeColor || '#a78bfa';
+    const resolvedThemeColor = config.themeColor || '#a78bfa';
 
-    const now = performance.now();
-    const idleTime = now - this.lastActivityTime;
-
-    // 可调节周期的呼吸脉冲动力学
-    const breatheCycle = Math.max(0.5, config.breatheCycle || 1.2);
-    let baseAlpha = 1.0;
-    if (idleTime > 400) {
-      if (config.blinkMode === 'smooth') {
-        const t = (idleTime - 400) / 1000;
-        baseAlpha = 0.45 + 0.55 * Math.cos(t * ((Math.PI * 2) / breatheCycle));
-      } else if (config.blinkMode === 'blink') {
-        const halfPeriod = (breatheCycle / 2) * 1000;
-        const t = Math.floor((idleTime - 400) / halfPeriod);
-        baseAlpha = t % 2 === 0 ? 1.0 : 0.0;
-      }
-    }
-
-    if (baseAlpha <= 0.01) return;
-
-    // 1. 砚池水纹 (Ripples)
-    if (config.vfxMode === 'ripples') {
-      for (const r of this.ripples) {
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, r.alpha * baseAlpha * 0.8);
-        ctx.strokeStyle = effectiveColor;
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = effectiveColor;
-        ctx.shadowBlur = 6;
-        ctx.beginPath();
-        ctx.ellipse(r.x, r.y, r.radius, r.radius * 0.6, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    // 2. 灵感微星 (Embers)
-    if (config.vfxMode === 'embers') {
-      for (const p of this.embers) {
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, p.alpha * baseAlpha);
-        ctx.fillStyle = effectiveColor;
-        ctx.shadowColor = effectiveColor;
-        ctx.shadowBlur = 6;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
-
-    // 3. 羽落轻芒 (Feather Aura)
-    if (config.vfxMode === 'feather') {
+    if (this.ripples.length > 0 && config.vfxMode === 'ripples') {
       ctx.save();
-      const auraAlpha = 0.22 * baseAlpha;
-      ctx.globalAlpha = auraAlpha;
-      ctx.fillStyle = effectiveColor;
-      ctx.filter = 'blur(6px)';
-      ctx.beginPath();
-      ctx.roundRect(this.lx - 5, this.ly - 3, this.lw + 10, this.lh + 6, 6);
-      ctx.fill();
+      for (const r of this.ripples) {
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = `${resolvedThemeColor}${Math.floor(r.alpha * 120).toString(16).padStart(2, '0')}`;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
-    const dx = this.lx - this.tx;
-    const dy = this.ly - this.ty;
-    const dist = Math.hypot(dx, dy);
-
-    ctx.save();
-    ctx.fillStyle = effectiveColor;
-    if (config.glow) {
-      ctx.shadowColor = effectiveColor;
-      ctx.shadowBlur = 10;
+    if (this.embers.length > 0 && (config.vfxMode === 'embers' || config.vfxMode === 'feather')) {
+      ctx.save();
+      for (const p of this.embers) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `${resolvedThemeColor}${Math.floor(p.alpha * 220).toString(16).padStart(2, '0')}`;
+        ctx.shadowColor = resolvedThemeColor;
+        ctx.shadowBlur = 6;
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
-    if (config.shape === 'block') {
-      // Live 极简色块 (Block)
-      if (dist < 0.6) {
-        ctx.globalAlpha = 0.75 * baseAlpha;
-        ctx.beginPath();
-        ctx.roundRect(this.lx, this.ly, this.lw, this.lh, 2.5);
-        ctx.fill();
-      } else {
-        const points: Point2D[] = [
-          { x: this.tx, y: this.ty },
-          { x: this.tx + this.tw, y: this.ty },
-          { x: this.tx + this.tw, y: this.ty + this.th },
-          { x: this.tx, y: this.ty + this.th },
-          { x: this.lx, y: this.ly },
-          { x: this.lx + this.lw, y: this.ly },
-          { x: this.lx + this.lw, y: this.ly + this.lh },
-          { x: this.lx, y: this.ly + this.lh },
-        ];
-
-        const hull = computeConvexHull(points);
-
-        ctx.globalAlpha = 0.65 * baseAlpha;
-        ctx.beginPath();
-        ctx.moveTo(hull[0].x, hull[0].y);
-        for (let i = 1; i < hull.length; i++) {
-          ctx.lineTo(hull[i].x, hull[i].y);
+    let idleAlpha = 1.0;
+    if (!this.isFocused) {
+      idleAlpha = 0.4;
+    } else if (!isMoving) {
+      const elapsed = (performance.now() - this.lastActivityTime) / 1000;
+      
+      if (config.blinkMode === 'blink') {
+        const cycle = Math.max(0.4, config.breatheCycle || 1.0);
+        if (elapsed < 0.35) {
+          idleAlpha = 1.0;
+        } else {
+          const phase = (elapsed - 0.35) % cycle;
+          idleAlpha = phase < (cycle * 0.52) ? 1.0 : 0.0;
         }
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.globalAlpha = 0.85 * baseAlpha;
-        ctx.beginPath();
-        ctx.roundRect(this.lx, this.ly, this.lw, this.lh, 2.5);
-        ctx.fill();
-      }
-    } else if (config.shape === 'underline') {
-      // Live 水平基准线 (Underline)
-      const uH = 3.5;
-      const tuy = this.ty + this.th - uH;
-      const luy = this.ly + this.lh - uH;
-
-      if (dist < 0.6) {
-        ctx.globalAlpha = baseAlpha;
-        ctx.beginPath();
-        ctx.roundRect(this.lx, luy, this.lw, uH, 1.5);
-        ctx.fill();
-      } else {
-        const points: Point2D[] = [
-          { x: this.tx, y: tuy },
-          { x: this.tx + this.tw, y: tuy },
-          { x: this.tx + this.tw, y: tuy + uH },
-          { x: this.tx, y: tuy + uH },
-          { x: this.lx, y: luy },
-          { x: this.lx + this.lw, y: luy },
-          { x: this.lx + this.lw, y: luy + uH },
-          { x: this.lx, y: luy + uH },
-        ];
-
-        const hull = computeConvexHull(points);
-
-        ctx.globalAlpha = baseAlpha;
-        ctx.beginPath();
-        ctx.moveTo(hull[0].x, hull[0].y);
-        for (let i = 1; i < hull.length; i++) {
-          ctx.lineTo(hull[i].x, hull[i].y);
+      } else if (config.blinkMode === 'smooth') {
+        const cycle = Math.max(0.5, config.breatheCycle || 1.2);
+        if (elapsed < 0.30) {
+          idleAlpha = 1.0;
+        } else {
+          const phase = ((elapsed - 0.30) / cycle) * Math.PI * 2;
+          idleAlpha = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(phase - Math.PI / 2));
         }
-        ctx.closePath();
-        ctx.fill();
+      } else {
+        idleAlpha = 1.0;
       }
+    }
+
+    if (idleAlpha <= 0.01) return;
+
+    const cursorColorHex =
+      config.color === 'auto' || !config.color
+        ? resolvedThemeColor
+        : config.color;
+
+    ctx.save();
+    ctx.globalAlpha = idleAlpha;
+
+    // Lead Box Corners
+    const lx1 = this.leadX.val;
+    const ly1 = this.leadY.val;
+    const lx2 = this.leadX.val + this.leadW.val;
+    const ly2 = this.leadY.val + this.leadH.val;
+
+    // Trail Box Corners
+    const tx1 = this.trailX.val;
+    const ty1 = this.trailY.val;
+    const tx2 = this.trailX.val + this.trailW.val;
+    const ty2 = this.trailY.val + this.trailH.val;
+
+    // Aerodynamic velocity skew for pure vertical jumps
+    const vy = this.leadY.vel;
+    const skewX = Math.max(-10, Math.min(10, vy * 0.010));
+
+    STATIC_POINTS[0].x = lx1; STATIC_POINTS[0].y = ly1;
+    STATIC_POINTS[1].x = lx2; STATIC_POINTS[1].y = ly1;
+    STATIC_POINTS[2].x = lx2; STATIC_POINTS[2].y = ly2;
+    STATIC_POINTS[3].x = lx1; STATIC_POINTS[3].y = ly2;
+
+    STATIC_POINTS[4].x = tx1 - skewX; STATIC_POINTS[4].y = ty1;
+    STATIC_POINTS[5].x = tx2 - skewX; STATIC_POINTS[5].y = ty1;
+    STATIC_POINTS[6].x = tx2 + skewX; STATIC_POINTS[6].y = ty2;
+    STATIC_POINTS[7].x = tx1 + skewX; STATIC_POINTS[7].y = ty2;
+
+    const hull = computeConvexHullZeroAlloc(STATIC_POINTS);
+
+    if (config.glow) {
+      ctx.shadowColor = cursorColorHex;
+      ctx.shadowBlur = isMoving ? 14 : 8;
+    }
+
+    ctx.fillStyle = cursorColorHex;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    // 🌟 核心突破 3：水银流体连续圆角连接（Liquid Mercury Fillet Rendering）
+    // 相比 Neovide 锋利锯齿直角，注入柔和流体圆角微倒角，丝滑度拉满
+    const cornerRadius = Math.min(2.5, this.leadW.val * 0.5);
+
+    if (hull.length >= 3) {
+      ctx.beginPath();
+      const hLen = hull.length;
+      for (let i = 0; i < hLen; i++) {
+        const p0 = hull[(i - 1 + hLen) % hLen];
+        const p1 = hull[i];
+        const p2 = hull[(i + 1) % hLen];
+
+        // Compute corner rounding control points
+        const v1x = p0.x - p1.x;
+        const v1y = p0.y - p1.y;
+        const v2x = p2.x - p1.x;
+        const v2y = p2.y - p1.y;
+        const len1 = Math.hypot(v1x, v1y) || 1;
+        const len2 = Math.hypot(v2x, v2y) || 1;
+
+        const r = Math.min(cornerRadius, len1 * 0.35, len2 * 0.35);
+        const startX = p1.x + (v1x / len1) * r;
+        const startY = p1.y + (v1y / len1) * r;
+        const endX = p1.x + (v2x / len2) * r;
+        const endY = p1.y + (v2y / len2) * r;
+
+        if (i === 0) {
+          ctx.moveTo(startX, startY);
+        } else {
+          ctx.lineTo(startX, startY);
+        }
+        ctx.quadraticCurveTo(p1.x, p1.y, endX, endY);
+      }
+      ctx.closePath();
+      ctx.fill();
     } else {
-      // Live 平滑光柱 (2.6px Vertical Beam)
-      if (dist < 0.6) {
-        ctx.globalAlpha = baseAlpha;
+      if (typeof ctx.roundRect === 'function') {
         ctx.beginPath();
-        ctx.roundRect(this.lx, this.ly, this.lw, this.lh, this.lw / 2);
+        ctx.roundRect(lx1, ly1, this.leadW.val, this.leadH.val, cornerRadius);
         ctx.fill();
       } else {
-        const points: Point2D[] = [
-          { x: this.tx, y: this.ty },
-          { x: this.tx + this.tw, y: this.ty },
-          { x: this.tx + this.tw, y: this.ty + this.th },
-          { x: this.tx, y: this.ty + this.th },
-          { x: this.lx, y: this.ly },
-          { x: this.lx + this.lw, y: this.ly },
-          { x: this.lx + this.lw, y: this.ly + this.lh },
-          { x: this.lx, y: this.ly + this.lh },
-        ];
-
-        const hull = computeConvexHull(points);
-
-        ctx.beginPath();
-        ctx.moveTo(hull[0].x, hull[0].y);
-        for (let i = 1; i < hull.length; i++) {
-          ctx.lineTo(hull[i].x, hull[i].y);
-        }
-        ctx.closePath();
-
-        const grad = ctx.createLinearGradient(this.tx, this.ty, this.lx, this.ly);
-        grad.addColorStop(0, `${effectiveColor}35`);
-        grad.addColorStop(1, effectiveColor);
-        ctx.fillStyle = grad;
-        ctx.globalAlpha = baseAlpha;
-        ctx.fill();
-
-        ctx.fillStyle = effectiveColor;
-        ctx.beginPath();
-        ctx.roundRect(this.lx, this.ly, this.lw, this.lh, this.lw / 2);
-        ctx.fill();
+        ctx.fillRect(lx1, ly1, this.leadW.val, this.leadH.val);
       }
     }
 
     ctx.restore();
   }
-}
 
-export { LiveCursorEngine as NeovideEngine };
-export type { LiveCursorConfig as NeovideCursorConfig };
+  public render(ctx: CanvasRenderingContext2D, config: LiveCursorConfig): void {
+    this.draw(ctx, config);
+  }
+}

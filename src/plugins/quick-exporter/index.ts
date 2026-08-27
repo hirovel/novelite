@@ -1,7 +1,13 @@
 import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
 
-async function saveFileContent(filename: string, content: string, filters: { name: string; extensions: string[] }[]) {
-  // Check if running in Tauri
+/**
+ * Handles cross-platform file saving (Tauri native file dialog with browser blob fallback).
+ */
+async function saveFileContent(
+  filename: string,
+  content: string,
+  filters: { name: string; extensions: string[] }[]
+): Promise<boolean> {
   const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window);
   if (isTauri) {
     try {
@@ -17,11 +23,10 @@ async function saveFileContent(filename: string, content: string, filters: { nam
       }
       return false;
     } catch {
-      // Fallback to browser blob download
+      // Fallback to browser blob download if Tauri native plugins are unavailable
     }
   }
 
-  // Web Blob download
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -37,12 +42,12 @@ async function saveFileContent(filename: string, content: string, filters: { nam
 export const QuickExporterPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-quick-exporter',
-    name: '全书导出与出版工坊 (TXT / Markdown)',
+    name: '全书导出与出版工坊',
     version: '2.0.0',
     description: '支持将全书或单章一键排版导出为规范的纯文本 TXT、完整 Markdown 书稿或分卷章节。',
     author: 'Novelite Core',
     icon: 'Download',
-    defaultEnabled: false,
+    defaultEnabled: true,
   },
   init: (ctx: PluginContext) => {
     // 1. Register Standard TXT Exporter
@@ -129,7 +134,7 @@ export const QuickExporterPlugin: NovelitePlugin = {
           { name: '文本文件', extensions: ['txt'] },
         ]);
         if (ok) {
-          c.showToast('✅ 全本 TXT 导出成功！', 'success');
+          c.showToast('全本 TXT 导出成功', 'success');
         }
       },
     });
@@ -159,7 +164,7 @@ export const QuickExporterPlugin: NovelitePlugin = {
           { name: 'Markdown 文件', extensions: ['md', 'markdown'] },
         ]);
         if (ok) {
-          c.showToast('✅ 全本 Markdown 导出成功！', 'success');
+          c.showToast('全本 Markdown 导出成功', 'success');
         }
       },
     });
@@ -167,7 +172,7 @@ export const QuickExporterPlugin: NovelitePlugin = {
     // Command: Export Active Chapter
     ctx.registerCommand({
       id: 'export.download-active-chapter',
-      title: '导出当前正在编辑的章节为 TXT',
+      title: '导出当前编辑章节为 TXT',
       category: '导出发布',
       run: async (c) => {
         const content = c.getEditorContent();
@@ -195,7 +200,7 @@ export const QuickExporterPlugin: NovelitePlugin = {
           { name: '文本文件', extensions: ['txt'] },
         ]);
         if (ok) {
-          c.showToast(`✅ 章节《${chapTitle}》导出成功！`, 'success');
+          c.showToast(`章节《${chapTitle}》导出成功`, 'success');
         }
       },
     });

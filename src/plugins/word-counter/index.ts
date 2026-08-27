@@ -6,8 +6,8 @@ export const WordCounterPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-word-counter',
     name: '实时字数与码字测速仪',
-    version: '1.0.0',
-    description: '在底部终端状态栏实时监控单章字数、全书进度与实时码字速度 (WPM)。',
+    version: '2.0.0',
+    description: '在状态栏与动态岛中实时监控单章字数、全书进度与实时码字速度 (WPM)。',
     author: 'Novelite Core',
     icon: 'Activity',
     defaultEnabled: true,
@@ -22,7 +22,7 @@ export const WordCounterPlugin: NovelitePlugin = {
 
     ctx.registerCommand({
       id: 'stats.show-summary',
-      title: '查看全书详细数据统计与字数看板',
+      title: '查看全书字数与章节看板',
       category: '数据统计',
       shortcut: 'Alt+S',
       run: (c) => {
@@ -35,7 +35,7 @@ export const WordCounterPlugin: NovelitePlugin = {
             chapCount++;
           });
         });
-        c.showToast(`📊 《${proj?.title || '未命名'}》共 ${proj?.volumes?.length || 0} 卷，${chapCount} 章，总计 ${total} 字`, 'info');
+        c.showToast(`《${proj?.title || '未命名'}》共 ${proj?.volumes?.length || 0} 卷，${chapCount} 章，总计 ${total.toLocaleString()} 字`, 'info');
       },
     });
   },

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { PluginContext } from '../../core/plugins/types';
 import { projectStore } from '../../core/storage/ProjectStore';
+import { Zap } from 'lucide-react';
 
 export const WordCounterWidget: React.FC<{ ctx: PluginContext }> = ({ ctx }) => {
   const [chapWords, setChapWords] = useState<number>(0);
@@ -62,7 +63,8 @@ export const WordCounterWidget: React.FC<{ ctx: PluginContext }> = ({ ctx }) => 
 
       {speedWPM > 0 && (
         <div className="hidden md:flex items-center gap-1 text-amber-400 animate-pulse" title="当前码字速率">
-          <span>⚡ {speedWPM} 字/分</span>
+          <Zap className="h-3 w-3" />
+          <span>{speedWPM} 字/分</span>
         </div>
       )}
     </div>

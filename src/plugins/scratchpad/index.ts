@@ -21,7 +21,7 @@ export const ScratchpadPlugin: NovelitePlugin = {
       run: (c) => {
         const text = prompt('请输入要即时插入正文的灵感素材：');
         if (text?.trim()) {
-          c.insertText(`\n> 💡 灵感备忘：${text.trim()}\n`);
+          c.insertText(`\n> 灵感备忘：${text.trim()}\n`);
           c.showToast('已将灵感插入当前段落', 'success');
         }
       },

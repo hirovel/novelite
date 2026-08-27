@@ -2,10 +2,11 @@ import type { Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 
 /**
- * 🌟 稳定防抖打字机居中控制器
- * 修复频繁上下跳动问题：
- * 1. 同行内连续打字时不触发上下滚动（零抖动）。
- * 2. 只有在真正跨行换行或光标偏离黄金安全视口（±50px）时，才平滑微调视口。
+ * Creates the CodeMirror 6 Typewriter mode extension.
+ * Automatically keeps the active line smoothly centered at the golden vertical ratio (40%)
+ * using view.requestMeasure to prevent DOM layout thrashing and dead-zone filtering to avoid jitter.
+ *
+ * @param getEnabled Callback returning whether Typewriter mode is active.
  */
 export function createTypewriterExtension(getEnabled: () => boolean): Extension {
   return ViewPlugin.fromClass(
@@ -28,7 +29,6 @@ export function createTypewriterExtension(getEnabled: () => boolean): Extension 
           const isLineChanged = this.lastLineNumber !== currentLine;
           this.lastLineNumber = currentLine;
 
-          // Only perform centering on line change or explicit navigation
           if (isLineChanged || (!update.docChanged && update.selectionSet)) {
             this.smoothCenter();
           }
@@ -38,29 +38,38 @@ export function createTypewriterExtension(getEnabled: () => boolean): Extension 
       private smoothCenter() {
         if (this.isScrolling) return;
 
-        const head = this.view.state.selection.main.head;
-        const coords = this.view.coordsAtPos(head);
-        if (!coords) return;
+        this.view.requestMeasure({
+          read: (v) => {
+            const head = v.state.selection.main.head;
+            const coords = v.coordsAtPos(head);
+            if (!coords) return null;
 
-        const scrollDOM = this.view.scrollDOM;
-        const rect = scrollDOM.getBoundingClientRect();
-        const targetY = rect.top + rect.height * 0.40; // 40% golden vertical line
+            const scrollDOM = v.scrollDOM;
+            const rect = scrollDOM.getBoundingClientRect();
+            const targetY = rect.top + rect.height * 0.40;
 
-        const currentLineY = (coords.top + coords.bottom) / 2;
-        const diff = currentLineY - targetY;
+            const currentLineY = (coords.top + coords.bottom) / 2;
+            const diff = currentLineY - targetY;
 
-        // 🌟 Dead-zone threshold: If within 35px, do not trigger scroll to avoid jitter
-        if (Math.abs(diff) > 35) {
-          this.isScrolling = true;
-          scrollDOM.scrollBy({
-            top: diff,
-            behavior: 'smooth',
-          });
+            if (Math.abs(diff) > 35) {
+              return diff;
+            }
+            return null;
+          },
+          write: (diff) => {
+            if (diff === null || this.isScrolling) return;
 
-          setTimeout(() => {
-            this.isScrolling = false;
-          }, 120);
-        }
+            this.isScrolling = true;
+            this.view.scrollDOM.scrollBy({
+              top: diff,
+              behavior: 'smooth',
+            });
+
+            setTimeout(() => {
+              this.isScrolling = false;
+            }, 120);
+          },
+        });
       }
     }
   );

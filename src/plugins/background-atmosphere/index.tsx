@@ -6,10 +6,10 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
     id: 'plugin-background-atmosphere',
     name: '艺术空间与背景氛围工坊',
     version: '1.0.0',
-    description: '提供极光流动光晕、暗房胶片颗粒、素描点阵、原稿横线等写作空间氛围渲染。',
+    description: '提供极光流云、暗房胶片颗粒、素描点阵、原稿横线等写作空间氛围渲染。',
     author: 'Novelite Core',
     icon: 'Sparkles',
-    defaultEnabled: false,
+    defaultEnabled: true,
   },
   init: (ctx: PluginContext) => {
     // 1. Aurora Ambient Mesh Glow
@@ -118,7 +118,7 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
         const next = effects[(effects.indexOf(current) + 1) % effects.length];
         c.setSetting('effect', next);
         c.emit('background-effect-changed', next);
-        c.showToast(`已切换空间氛围：${next}`, 'info');
+        c.showToast(`已切换空间氛围: ${next}`, 'info');
       },
     });
   },

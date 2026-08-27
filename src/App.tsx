@@ -18,6 +18,8 @@ import { BackgroundAtmospherePlugin } from './plugins/background-atmosphere';
 import { LiveCursorPlugin } from './plugins/live-cursor';
 import { TypewriterPlugin } from './plugins/typewriter';
 import { ChineseTypographyPlugin } from './plugins/chinese-typography';
+import { FocusModePlugin } from './plugins/focus-mode';
+import { DialogueHighlighterPlugin } from './plugins/dialogue-highlighter';
 import { ScratchpadPlugin } from './plugins/scratchpad';
 import { WordCounterPlugin } from './plugins/word-counter';
 import { QuickExporterPlugin } from './plugins/quick-exporter';
@@ -113,6 +115,8 @@ export const App: React.FC = () => {
     pluginManager.registerPlugin(LiveCursorPlugin);
     pluginManager.registerPlugin(TypewriterPlugin);
     pluginManager.registerPlugin(ChineseTypographyPlugin);
+    pluginManager.registerPlugin(FocusModePlugin);
+    pluginManager.registerPlugin(DialogueHighlighterPlugin);
     pluginManager.registerPlugin(ScratchpadPlugin);
     pluginManager.registerPlugin(WordCounterPlugin);
     pluginManager.registerPlugin(QuickExporterPlugin);

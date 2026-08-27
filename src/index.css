@@ -48,14 +48,16 @@
 
 /* 🌟 Obsidian / Typora 级圆角半透明优雅选区 */
 .cm-selectionLayer {
-  z-index: 1 !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
 }
 
 .cm-selectionBackground {
-  border-radius: 3.5px !important;
-  transition: background-color 0.15s ease-out;
+  border-radius: 4px !important;
+  pointer-events: none !important;
 }
 
 ::selection {
+  background-color: transparent !important;
   color: inherit !important;
 }

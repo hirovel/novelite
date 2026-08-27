@@ -7,8 +7,7 @@ import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
-import { LiveCursorOverlay } from '../../plugins/live-cursor/LiveCursorOverlay';
-import type { CursorOverlayHandle } from '../../plugins/live-cursor/LiveCursorOverlay';
+import { createLiveCursorPluginExtension } from '../../plugins/live-cursor/liveCursorExtension';
 import { EditorBackground } from './EditorBackground';
 import type { BackgroundEffect } from './EditorBackground';
 import { BookOpen, Hash, Pencil, Settings, Sidebar as SidebarIcon, Command } from 'lucide-react';
@@ -49,6 +48,7 @@ function createEditorTheme(theme: Theme, spotlightMode: 'none' | 'paragraph' = '
       outline: 'none !important',
     },
     '.cm-scroller': {
+      position: 'relative',
       overflowY: 'auto',
       overflowX: 'hidden',
       backgroundColor: 'transparent',
@@ -68,15 +68,13 @@ function createEditorTheme(theme: Theme, spotlightMode: 'none' | 'paragraph' = '
         background: `${theme.colors.border}80`,
         borderRadius: '3px',
       },
-      '&::-webkit-scrollbar-thumb:hover': {
-        background: theme.colors.accent,
-      },
     },
     '.cm-content': {
+      width: '100%',
+      maxWidth: '100%',
+      boxSizing: 'border-box',
+      padding: '40px 48px 50vh 48px',
       caretColor: 'transparent !important',
-      WebkitFontSmoothing: 'antialiased',
-      MozOsxFontSmoothing: 'grayscale',
-      textRendering: 'optimizeLegibility',
       fontFeatureSettings: '"kern" 1, "liga" 1',
     },
     '.cm-cursor, .cm-cursor-primary, .cm-cursor-secondary, .cm-dropCursor': {
@@ -86,32 +84,38 @@ function createEditorTheme(theme: Theme, spotlightMode: 'none' | 'paragraph' = '
       borderLeft: 'none !important',
       width: '0 !important',
     },
-    // 🌟 GPU 硬件级段落聚光灯 (零 CPU 渲染开销)
+    // 🌟 GPU 硬件级段落聚光灯与丝滑呼吸行 (零生硬线框)
     '.cm-line': {
       boxSizing: 'border-box',
       width: '100%',
       contain: 'style layout',
+      transition: 'opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease',
     },
     '&.cm-focused .cm-line': {
-      opacity: spotlightMode === 'paragraph' ? '0.34' : '1',
+      opacity: spotlightMode === 'paragraph' ? '0.36' : '1',
     },
     '&.cm-focused .cm-activeLine': {
       opacity: '1 !important',
-      backgroundColor: `${theme.colors.bgHover}1a`,
-      borderRadius: '4px',
-      boxShadow: `0 0 0 1px ${theme.colors.accent}15`,
+      backgroundColor: `${theme.colors.bgHover}14`,
+      borderRadius: '6px',
     },
-    // 🌟 沉浸式圆角半透明选区
+    // 🌟 现代高奢微光流体选区 (单轨纯净渲染、彻底杜绝双层选区与卡死 Bug)
+    '.cm-selectionLayer': {
+      pointerEvents: 'none !important',
+      zIndex: '0 !important',
+    },
     '.cm-selectionBackground': {
-      backgroundColor: `${theme.colors.selection || 'rgba(167, 139, 250, 0.32)'} !important`,
-      borderRadius: '3px',
+      pointerEvents: 'none !important',
+      backgroundColor: `${theme.colors.selection || 'rgba(167, 139, 250, 0.28)'} !important`,
+      borderRadius: '4px',
     },
     '&.cm-focused .cm-selectionBackground': {
-      backgroundColor: `${theme.colors.selection || 'rgba(167, 139, 250, 0.38)'} !important`,
-      borderRadius: '3px',
+      pointerEvents: 'none !important',
+      backgroundColor: `${theme.colors.selection || 'rgba(167, 139, 250, 0.32)'} !important`,
+      borderRadius: '4px',
     },
     '::selection, .cm-content ::selection, .cm-line ::selection, .cm-scroller ::selection': {
-      backgroundColor: `${theme.colors.selection || 'rgba(167, 139, 250, 0.32)'} !important`,
+      backgroundColor: 'transparent !important',
       color: 'inherit !important',
     },
   });
@@ -145,7 +149,6 @@ export const NovelEditor: React.FC<Props> = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorWrapperRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const overlayRef = useRef<CursorOverlayHandle | null>(null);
   const hudWordCountRef = useRef<HTMLSpanElement | null>(null);
   const topWordCountRef = useRef<HTMLSpanElement | null>(null);
   const hudSaveDotRef = useRef<HTMLSpanElement | null>(null);
@@ -167,6 +170,7 @@ export const NovelEditor: React.FC<Props> = ({
 
   const themeCompartmentRef = useRef<Compartment>(new Compartment());
   const pluginsCompartmentRef = useRef<Compartment>(new Compartment());
+  const cursorCompartmentRef = useRef<Compartment>(new Compartment());
 
   const [activeChapterTitle, setActiveChapterTitle] = useState<string>('');
   const [charCount, setCharCount] = useState<number>(0);
@@ -256,11 +260,6 @@ export const NovelEditor: React.FC<Props> = ({
 
       if (update.docChanged || update.selectionSet) {
         const head = update.state.selection.main.head;
-        const coords = update.view.coordsAtPos(head);
-        if (coords && overlayRef.current) {
-          overlayRef.current.syncTarget(coords, false);
-        }
-
         const line = update.state.doc.lineAt(head);
         eventBus.emit('cursor-moved', {
           line: line.number,
@@ -282,6 +281,21 @@ export const NovelEditor: React.FC<Props> = ({
         markdown(),
         EditorView.lineWrapping,
         themeCompartmentRef.current.of(createEditorTheme(initialThemeRef.current, initialSpotlightRef.current)),
+        cursorCompartmentRef.current.of(
+          createLiveCursorPluginExtension(() => ({
+            enabled: true,
+            shape: cursorShape,
+            color: cursorColor,
+            themeColor: initialThemeRef.current.colors.cursor || initialThemeRef.current.colors.accent || '#a78bfa',
+            animationLength: cursorAnimationLength || 0.08,
+            trailSize: cursorTrailSize || 0.75,
+            vfxMode: vfxMode || 'pure',
+            blinkMode: blinkMode || 'smooth',
+            breatheCycle: breatheCycle || 1.2,
+            speedMode: speedMode || 'gentle',
+            glow: true,
+          }))
+        ),
         pluginsCompartmentRef.current.of(pluginExtensions),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         updateListener,
@@ -303,11 +317,6 @@ export const NovelEditor: React.FC<Props> = ({
       isComposingRef.current = false;
       setTimeout(() => {
         view.requestMeasure();
-        const head = view.state.selection.main.head;
-        const coords = view.coordsAtPos(head);
-        if (coords && overlayRef.current) {
-          overlayRef.current.syncTarget(coords, true);
-        }
       }, 10);
     };
 
@@ -328,11 +337,6 @@ export const NovelEditor: React.FC<Props> = ({
 
     const timer = setTimeout(() => {
       view.requestMeasure();
-      const head = view.state.selection.main.head;
-      const coords = view.coordsAtPos(head);
-      if (coords && overlayRef.current) {
-        overlayRef.current.syncTarget(coords, true);
-      }
       view.focus();
     }, 40);
 
@@ -392,7 +396,40 @@ export const NovelEditor: React.FC<Props> = ({
     });
   }, [theme, spotlightMode, editorView]);
 
-  // 🌟 3. 插件编辑器扩展热重载 (Plugin Extensions Hot-Reload)
+  // 🌟 3. Live 灵感光标动态热重载 (Zero-Flicker Hot-Reload via Cursor Compartment)
+  useEffect(() => {
+    if (!editorView) return;
+    editorView.dispatch({
+      effects: cursorCompartmentRef.current.reconfigure(
+        createLiveCursorPluginExtension(() => ({
+          enabled: true,
+          shape: cursorShape,
+          color: cursorColor,
+          themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
+          animationLength: cursorAnimationLength || 0.08,
+          trailSize: cursorTrailSize || 0.75,
+          vfxMode: vfxMode || 'pure',
+          blinkMode: blinkMode || 'smooth',
+          breatheCycle: breatheCycle || 1.2,
+          speedMode: speedMode || 'gentle',
+          glow: true,
+        }))
+      ),
+    });
+  }, [
+    editorView,
+    cursorShape,
+    cursorColor,
+    cursorAnimationLength,
+    cursorTrailSize,
+    vfxMode,
+    blinkMode,
+    breatheCycle,
+    speedMode,
+    theme,
+  ]);
+
+  // 🌟 4. 插件编辑器扩展热重载 (Plugin Extensions Hot-Reload)
   useEffect(() => {
     const handleExtChange = () => {
       if (!editorView) return;
@@ -413,7 +450,7 @@ export const NovelEditor: React.FC<Props> = ({
     };
   }, [editorView]);
 
-  // 🌟 4. 章节切换快速平滑载入
+  // 🌟 5. 章节切换快速平滑载入
   useEffect(() => {
     const handleChapterChange = () => {
       if (!editorView) return;
@@ -437,16 +474,12 @@ export const NovelEditor: React.FC<Props> = ({
 
         setTimeout(() => {
           editorView.requestMeasure();
-          const coords = editorView.coordsAtPos(0);
-          if (coords && overlayRef.current) {
-            overlayRef.current.syncTarget(coords, true);
-          }
         }, 20);
       }
     };
 
-    const unsub = eventBus.on('active-chapter-changed', handleChapterChange);
-    return () => unsub();
+    const unsubChap = eventBus.on('active-chapter-changed', handleChapterChange);
+    return () => unsubChap();
   }, [editorView]);
 
   return (
@@ -477,7 +510,6 @@ export const NovelEditor: React.FC<Props> = ({
             <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-60" style={{ color: theme.colors.accent }} />
             {isEditingTitle ? (
               <input
-                ref={titleInputRef}
                 type="text"
                 value={titleInput}
                 onChange={(e) => setTitleInput(e.target.value)}
@@ -510,27 +542,8 @@ export const NovelEditor: React.FC<Props> = ({
         </div>
       )}
 
-      {/* 🌟 100% 全宽标准编辑器工作区 */}
+      {/* 🌟 100% 全宽标准编辑器工作区 (内联原生 Document-Space 物理光标层) */}
       <div ref={editorWrapperRef} className="relative flex-1 w-full h-full overflow-hidden">
-        <LiveCursorOverlay
-          ref={overlayRef}
-          editorView={editorView}
-          containerRef={editorWrapperRef}
-          config={{
-            enabled: true,
-            shape: cursorShape,
-            color: cursorColor,
-            themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
-            animationLength: cursorAnimationLength || 0.08,
-            trailSize: cursorTrailSize || 0.75,
-            vfxMode: vfxMode || 'pure',
-            blinkMode: blinkMode || 'smooth',
-            breatheCycle: breatheCycle || 1.2,
-            speedMode: speedMode || 'gentle',
-            glow: true,
-          }}
-        />
-
         <div ref={editorRef} className="h-full w-full overflow-hidden" />
       </div>
 
@@ -614,5 +627,3 @@ export const NovelEditor: React.FC<Props> = ({
     </div>
   );
 };
-
-
