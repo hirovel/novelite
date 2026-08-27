@@ -1,11 +1,11 @@
 import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
 import { createLiveCursorPluginExtension } from './liveCursorExtension';
-import type { LiveCursorConfig } from './LiveCursorEngine';
+import type { LiveCursorConfig, StreamPresetId } from './LiveCursorEngine';
 
 export const LiveCursorPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-live-cursor',
-    name: 'Live 灵感光标',
+    name: '灵感光标',
     version: '2.0.0',
     description: '120fps 原生内联 GPU 物理流体光标与视觉动效引擎',
     author: 'Novelite Team',
@@ -13,6 +13,27 @@ export const LiveCursorPlugin: NovelitePlugin = {
   },
 
   init(ctx: PluginContext) {
+    ctx.registerCommand({
+      id: 'live-cursor.cycle-physics',
+      title: '切换光标物理动力学模式 (流体/丝带/极速)',
+      category: '光标',
+      shortcut: 'Alt+P',
+      run: (c: PluginContext) => {
+        const modes: Array<'fluid' | 'ribbon' | 'quantum'> = ['fluid', 'ribbon', 'quantum'];
+        const names: Record<string, string> = {
+          fluid: '流体',
+          ribbon: '丝带',
+          quantum: '极速',
+        };
+        const current = c.getSetting<'fluid' | 'ribbon' | 'quantum'>('physicsMode', 'fluid');
+        const nextIdx = (modes.indexOf(current) + 1) % modes.length;
+        const next = modes[nextIdx];
+        c.setSetting('physicsMode', next);
+        c.emit('live-cursor:physics-changed', next);
+        c.showToast(`动力学模式: ${names[next]}`);
+      },
+    });
+
     ctx.registerCommand({
       id: 'live-cursor.cycle-vfx',
       title: '轮换光标物理动效预设',
@@ -31,13 +52,13 @@ export const LiveCursorPlugin: NovelitePlugin = {
         const next = modes[nextIdx];
         c.setSetting('vfxMode', next);
         c.emit('live-cursor:vfx-changed', next);
-        c.showToast(`光标动效: ${names[next]}`);
+        c.showToast(`粒子特效: ${names[next]}`);
       },
     });
 
     ctx.registerCommand({
       id: 'live-cursor.reset',
-      title: '重置 Live 光标默认设置',
+      title: '重置光标默认设置',
       category: '光标',
       run: (c: PluginContext) => {
         c.setSetting('shape', 'beam');
@@ -46,8 +67,11 @@ export const LiveCursorPlugin: NovelitePlugin = {
         c.setSetting('trailSize', 0.75);
         c.setSetting('vfxMode', 'pure');
         c.setSetting('blinkMode', 'smooth');
+        c.setSetting('physicsMode', 'fluid');
+        c.setSetting('luminescence', true);
+        c.setSetting('streamPreset', 'cyan-violet');
         c.emit('live-cursor:vfx-changed', 'pure');
-        c.showToast('已重置 Live 动态光标设置');
+        c.showToast('已重置光标设置');
       },
     });
   },
@@ -64,6 +88,12 @@ export const LiveCursorPlugin: NovelitePlugin = {
         const blinkMode = ctx.getSetting<'smooth' | 'solid' | 'blink'>('blinkMode', 'smooth');
         const breatheCycle = ctx.getSetting<number>('breatheCycle', 1.2);
         const speedMode = ctx.getSetting<'gentle' | 'balanced' | 'snappy'>('speedMode', 'gentle');
+        const physicsMode = ctx.getSetting<'fluid' | 'ribbon' | 'quantum'>('physicsMode', 'fluid');
+        const luminescence = ctx.getSetting<boolean>('luminescence', true);
+        const inlineSkew = ctx.getSetting<boolean>('inlineSkew', true);
+        const streamPreset = ctx.getSetting<StreamPresetId>('streamPreset', 'theme');
+        const streamHeadColor = ctx.getSetting<string>('streamHeadColor', '#38bdf8');
+        const streamTailColor = ctx.getSetting<string>('streamTailColor', '#a78bfa');
 
         const cfg: LiveCursorConfig = {
           enabled: true,
@@ -76,6 +106,12 @@ export const LiveCursorPlugin: NovelitePlugin = {
           blinkMode,
           breatheCycle,
           speedMode,
+          physicsMode,
+          luminescence,
+          inlineSkew,
+          streamPreset,
+          streamHeadColor,
+          streamTailColor,
           glow: true,
         };
         return cfg;

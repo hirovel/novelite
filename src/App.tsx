@@ -56,6 +56,26 @@ export const App: React.FC = () => {
   const [speedMode, setSpeedMode] = useState<'gentle' | 'balanced' | 'snappy'>(() => {
     return (localStorage.getItem('novelite_cursor_speed_mode') as any) || 'gentle';
   });
+  const [physicsMode, setPhysicsMode] = useState<'fluid' | 'ribbon' | 'quantum'>(() => {
+    return (localStorage.getItem('novelite_cursor_physics_mode') as any) || 'fluid';
+  });
+  const [luminescence, setLuminescence] = useState<boolean>(() => {
+    const saved = localStorage.getItem('novelite_cursor_luminescence');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [inlineSkew, setInlineSkew] = useState<boolean>(() => {
+    const saved = localStorage.getItem('novelite_cursor_inline_skew');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [streamPreset, setStreamPreset] = useState<'theme' | 'cyan-violet' | 'ice-blue' | 'emerald' | 'amber-rose' | 'sakura' | 'mono' | 'custom'>(() => {
+    return (localStorage.getItem('novelite_cursor_stream_preset') as any) || 'theme';
+  });
+  const [streamHeadColor, setStreamHeadColor] = useState<string>(() => {
+    return localStorage.getItem('novelite_cursor_stream_head') || '#38bdf8';
+  });
+  const [streamTailColor, setStreamTailColor] = useState<string>(() => {
+    return localStorage.getItem('novelite_cursor_stream_tail') || '#a78bfa';
+  });
 
   // Background Artistic Effect state
   const [backgroundEffect, setBackgroundEffect] = useState<BackgroundEffect>(() => {
@@ -134,7 +154,13 @@ export const App: React.FC = () => {
     ctx.setSetting('blinkMode', blinkMode);
     ctx.setSetting('breatheCycle', breatheCycle);
     ctx.setSetting('speedMode', speedMode);
-  }, [cursorShape, cursorColor, cursorAnimationLength, cursorTrailSize, vfxMode, blinkMode, breatheCycle, speedMode, theme]);
+    ctx.setSetting('physicsMode', physicsMode);
+    ctx.setSetting('luminescence', luminescence);
+    ctx.setSetting('inlineSkew', inlineSkew);
+    ctx.setSetting('streamPreset', streamPreset);
+    ctx.setSetting('streamHeadColor', streamHeadColor);
+    ctx.setSetting('streamTailColor', streamTailColor);
+  }, [cursorShape, cursorColor, cursorAnimationLength, cursorTrailSize, vfxMode, blinkMode, breatheCycle, speedMode, physicsMode, luminescence, inlineSkew, streamPreset, streamHeadColor, streamTailColor, theme]);
 
   // Update typography & page margin settings into plugin manager
   useEffect(() => {
@@ -163,6 +189,13 @@ export const App: React.FC = () => {
       }
     });
 
+    const unsubPhysics = eventBus.on('live-cursor:physics-changed', (mode: any) => {
+      if (mode) {
+        setPhysicsMode(mode);
+        localStorage.setItem('novelite_cursor_physics_mode', mode);
+      }
+    });
+
     const unsubTypo = eventBus.on('plugin-setting-changed:plugin-chinese-typography', ({ key, value }: any) => {
       if (key === 'indentEnabled' && typeof value === 'boolean') {
         setIndentEnabled(value);
@@ -176,6 +209,7 @@ export const App: React.FC = () => {
     return () => {
       unsubToast();
       unsubVfx();
+      unsubPhysics();
       unsubTypo();
     };
   }, []);
@@ -311,14 +345,24 @@ export const App: React.FC = () => {
     });
   };
 
+  const debounceTimerRef = useRef<Record<string, number>>({});
+  const setDebouncedStorage = (key: string, value: string) => {
+    if (debounceTimerRef.current[key]) {
+      clearTimeout(debounceTimerRef.current[key]);
+    }
+    debounceTimerRef.current[key] = window.setTimeout(() => {
+      localStorage.setItem(key, value);
+    }, 200);
+  };
+
   const handleChangeAnimationLength = (len: number) => {
     setCursorAnimationLength(len);
-    localStorage.setItem('novelite_cursor_anim_length', String(len));
+    setDebouncedStorage('novelite_cursor_anim_length', String(len));
   };
 
   const handleChangeTrailSize = (size: number) => {
     setCursorTrailSize(size);
-    localStorage.setItem('novelite_cursor_trail_size', String(size));
+    setDebouncedStorage('novelite_cursor_trail_size', String(size));
   };
 
   const handleChangeVfxMode = (vfx: 'pure' | 'embers' | 'ripples' | 'feather') => {
@@ -333,12 +377,42 @@ export const App: React.FC = () => {
 
   const handleChangeBreatheCycle = (cycle: number) => {
     setBreatheCycle(cycle);
-    localStorage.setItem('novelite_cursor_breathe_cycle', String(cycle));
+    setDebouncedStorage('novelite_cursor_breathe_cycle', String(cycle));
   };
 
   const handleChangeSpeedMode = (mode: 'gentle' | 'balanced' | 'snappy') => {
     setSpeedMode(mode);
     localStorage.setItem('novelite_cursor_speed_mode', mode);
+  };
+
+  const handleChangePhysicsMode = (mode: 'fluid' | 'ribbon' | 'quantum') => {
+    setPhysicsMode(mode);
+    localStorage.setItem('novelite_cursor_physics_mode', mode);
+  };
+
+  const handleChangeLuminescence = (val: boolean) => {
+    setLuminescence(val);
+    localStorage.setItem('novelite_cursor_luminescence', String(val));
+  };
+
+  const handleChangeInlineSkew = (val: boolean) => {
+    setInlineSkew(val);
+    localStorage.setItem('novelite_cursor_inline_skew', String(val));
+  };
+
+  const handleChangeStreamPreset = (preset: 'theme' | 'cyan-violet' | 'ice-blue' | 'emerald' | 'amber-rose' | 'sakura' | 'mono' | 'custom') => {
+    setStreamPreset(preset);
+    localStorage.setItem('novelite_cursor_stream_preset', preset);
+  };
+
+  const handleChangeStreamHeadColor = (color: string) => {
+    setStreamHeadColor(color);
+    localStorage.setItem('novelite_cursor_stream_head', color);
+  };
+
+  const handleChangeStreamTailColor = (color: string) => {
+    setStreamTailColor(color);
+    localStorage.setItem('novelite_cursor_stream_tail', color);
   };
 
   const handleChangeBackgroundEffect = (eff: BackgroundEffect) => {
@@ -469,6 +543,18 @@ export const App: React.FC = () => {
         onChangeBreatheCycle={handleChangeBreatheCycle}
         speedMode={speedMode}
         onChangeSpeedMode={handleChangeSpeedMode}
+        physicsMode={physicsMode}
+        onChangePhysicsMode={handleChangePhysicsMode}
+        luminescence={luminescence}
+        onChangeLuminescence={handleChangeLuminescence}
+        inlineSkew={inlineSkew}
+        onChangeInlineSkew={handleChangeInlineSkew}
+        streamPreset={streamPreset}
+        onChangeStreamPreset={handleChangeStreamPreset}
+        streamHeadColor={streamHeadColor}
+        onChangeStreamHeadColor={handleChangeStreamHeadColor}
+        streamTailColor={streamTailColor}
+        onChangeStreamTailColor={handleChangeStreamTailColor}
         backgroundEffect={backgroundEffect}
         onChangeBackgroundEffect={handleChangeBackgroundEffect}
         backgroundIntensity={backgroundIntensity}

@@ -27,6 +27,18 @@ interface Props {
   onChangeBreatheCycle: (cycle: number) => void;
   speedMode: 'gentle' | 'balanced' | 'snappy';
   onChangeSpeedMode: (mode: 'gentle' | 'balanced' | 'snappy') => void;
+  physicsMode: 'fluid' | 'ribbon' | 'quantum';
+  onChangePhysicsMode: (mode: 'fluid' | 'ribbon' | 'quantum') => void;
+  luminescence: boolean;
+  onChangeLuminescence: (val: boolean) => void;
+  inlineSkew?: boolean;
+  onChangeInlineSkew?: (val: boolean) => void;
+  streamPreset: 'theme' | 'cyan-violet' | 'ice-blue' | 'emerald' | 'amber-rose' | 'sakura' | 'mono' | 'custom';
+  onChangeStreamPreset: (preset: 'theme' | 'cyan-violet' | 'ice-blue' | 'emerald' | 'amber-rose' | 'sakura' | 'mono' | 'custom') => void;
+  streamHeadColor: string;
+  onChangeStreamHeadColor: (color: string) => void;
+  streamTailColor: string;
+  onChangeStreamTailColor: (color: string) => void;
   backgroundEffect: BackgroundEffect;
   onChangeBackgroundEffect: (effect: BackgroundEffect) => void;
   backgroundIntensity: number;
@@ -74,6 +86,18 @@ export const SettingsDrawer: React.FC<Props> = ({
   onChangeBreatheCycle,
   speedMode,
   onChangeSpeedMode,
+  physicsMode,
+  onChangePhysicsMode,
+  luminescence,
+  onChangeLuminescence,
+  inlineSkew,
+  onChangeInlineSkew,
+  streamPreset,
+  onChangeStreamPreset,
+  streamHeadColor,
+  onChangeStreamHeadColor,
+  streamTailColor,
+  onChangeStreamTailColor,
   backgroundEffect,
   onChangeBackgroundEffect,
   backgroundIntensity,
@@ -138,6 +162,9 @@ export const SettingsDrawer: React.FC<Props> = ({
     onChangeBlinkMode('smooth');
     onChangeBreatheCycle(1.2);
     onChangeSpeedMode('gentle');
+    onChangePhysicsMode('fluid');
+    onChangeLuminescence(true);
+    onChangeStreamPreset('cyan-violet');
   };
 
   const handleResetTypography = () => {
@@ -157,26 +184,26 @@ export const SettingsDrawer: React.FC<Props> = ({
 
   const tabMeta: Record<string, { title: string; desc: string; onReset?: () => void }> = {
     cursor: {
-      title: 'Live 灵感光标 (Physics Caret)',
-      desc: '微分动力学水银光标、粒子微特效与连续流体物理手感调节',
+      title: '灵感光标',
+      desc: '微分动力学光标、粒子微特效与连续流体物理手感调节',
       onReset: handleResetCursor,
     },
     background: {
-      title: '背景艺术与氛围 (Atmosphere)',
+      title: '背景艺术与氛围',
       desc: '深沉流动极光、胶片颗粒与经典信纸排版底纹',
       onReset: handleResetBackground,
     },
     typography: {
-      title: '版心与文学排版 (Typography)',
-      desc: '中文字体预设、黄金比例版心宽度、段落行距与心流聚光灯',
+      title: '版心与文学排版',
+      desc: '中文字体预设、黄金比例版心宽度、段落行距与聚焦聚光灯',
       onReset: handleResetTypography,
     },
     themes: {
-      title: '色彩主题工坊 (Theme Palette)',
-      desc: '8 套顶级作家色彩体系，自适应光标与选区高光',
+      title: '色彩主题工坊',
+      desc: '经典作家色彩体系，自适应光标与选区高光',
     },
     plugins: {
-      title: '插件与扩展中心 (Plugin Studio)',
+      title: '插件与扩展中心',
       desc: '零内存泄露插件沙箱，按需开启分卷树、大纲、快速导出等功能',
     },
   };
@@ -328,79 +355,53 @@ export const SettingsDrawer: React.FC<Props> = ({
           <div className="flex-1 overflow-y-auto p-7 space-y-6 text-xs">
             {/* TAB 1: CURSOR */}
             {activeTab === 'cursor' && (
-              <div className="space-y-6">
-                <div>
-                  <label className="font-semibold text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
-                    光标形态 (Live Cursor Shapes)
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { id: 'beam', name: '平滑光柱 (Beam)', desc: '2.6px 极细垂直柱，清晰专注' },
-                      { id: 'block', name: '极简色块 (Block)', desc: '半透明字符方块，沉浸专注' },
-                      { id: 'underline', name: '水平基准线 (Line)', desc: '底部水平基准线' },
-                    ].map((s) => {
-                      const isCur = cursorShape === s.id;
-                      const effectiveColor = !cursorColor || cursorColor === 'auto' ? (theme.colors.cursor || theme.colors.accent) : cursorColor;
-                      return (
-                        <button
-                          key={s.id}
-                          onClick={() => onSelectCursorShape(s.id as any)}
-                          className={`flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all ${
-                            isCur ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold' : 'hover:border-white/20'
-                          }`}
-                          style={{
-                            backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                            borderColor: isCur ? effectiveColor : theme.colors.border,
-                          }}
-                        >
-                          <span className="text-[12px]" style={{ color: theme.colors.text }}>
-                            {s.name}
-                          </span>
-                          <span className="text-[10px] opacity-50 mt-1" style={{ color: theme.colors.textMuted }}>
-                            {s.desc}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Live Test Arena */}
-                <LiveCursorTestArena
-                  theme={theme}
-                  cursorShape={cursorShape}
-                  cursorColor={cursorColor}
-                  onChangeCursorColor={onChangeCursorColor}
-                  cursorAnimationLength={cursorAnimationLength}
-                  onChangeAnimationLength={onChangeAnimationLength}
-                  cursorTrailSize={cursorTrailSize}
-                  onChangeTrailSize={onChangeTrailSize}
-                  vfxMode={vfxMode}
-                  onChangeVfxMode={onChangeVfxMode}
-                  blinkMode={blinkMode}
-                  onChangeBlinkMode={onChangeBlinkMode}
-                  breatheCycle={breatheCycle}
-                  onChangeBreatheCycle={onChangeBreatheCycle}
-                  speedMode={speedMode}
-                  onChangeSpeedMode={onChangeSpeedMode}
-                />
-              </div>
+              <LiveCursorTestArena
+                theme={theme}
+                cursorShape={cursorShape}
+                onSelectCursorShape={onSelectCursorShape}
+                cursorColor={cursorColor}
+                onChangeCursorColor={onChangeCursorColor}
+                cursorAnimationLength={cursorAnimationLength}
+                onChangeAnimationLength={onChangeAnimationLength}
+                cursorTrailSize={cursorTrailSize}
+                onChangeTrailSize={onChangeTrailSize}
+                vfxMode={vfxMode}
+                onChangeVfxMode={onChangeVfxMode}
+                blinkMode={blinkMode}
+                onChangeBlinkMode={onChangeBlinkMode}
+                breatheCycle={breatheCycle}
+                onChangeBreatheCycle={onChangeBreatheCycle}
+                speedMode={speedMode}
+                onChangeSpeedMode={onChangeSpeedMode}
+                physicsMode={physicsMode}
+                onChangePhysicsMode={onChangePhysicsMode}
+                luminescence={luminescence}
+                onChangeLuminescence={onChangeLuminescence}
+                inlineSkew={inlineSkew}
+                onChangeInlineSkew={onChangeInlineSkew}
+                streamPreset={streamPreset}
+                onChangeStreamPreset={onChangeStreamPreset}
+                streamHeadColor={streamHeadColor}
+                onChangeStreamHeadColor={onChangeStreamHeadColor}
+                streamTailColor={streamTailColor}
+                onChangeStreamTailColor={onChangeStreamTailColor}
+              />
             )}
 
             {/* TAB 2: BACKGROUND */}
             {activeTab === 'background' && (
               <div className="space-y-6">
                 <div>
-                  <label className="font-semibold text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
-                    编辑器背景艺术特效 (Background Atmosphere)
+                  <label className="font-medium text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
+                    编辑器背景艺术
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     {[
-                      { id: 'aurora', name: '极光流云 (Aurora Mesh)', desc: '深沉柔和的径向光晕流动，告别纯色呆板' },
-                      { id: 'grain', name: '暗房胶片 (Film Grain)', desc: '细腻有机纸质胶片噪点纹理，质感丰富' },
-                      { id: 'grid', name: '素描点阵 (Dot Grid)', desc: '微弱工整的手稿点阵，几何秩序之美' },
-                      { id: 'ruled', name: '原稿信纸 (Ruled Lines)', desc: '经典纸质横格信纸基准线，排版典雅' },
-                      { id: 'solid', name: '纯净素色 (Solid Minimal)', desc: '无额外纹理，纯色极简专注' },
+                      { id: 'aurora', name: '极光流云', desc: '深沉柔和的径向光晕流动' },
+                      { id: 'grain', name: '暗房胶片', desc: '细腻有机纸质胶片噪点纹理' },
+                      { id: 'grid', name: '素描点阵', desc: '微弱工整的手稿点阵秩序' },
+                      { id: 'ruled', name: '原稿信纸', desc: '经典纸质横格信纸基准线' },
+                      { id: 'solid', name: '纯净素色', desc: '无额外纹理，纯色专注' },
                     ].map((bg) => {
                       const isCur = backgroundEffect === bg.id;
                       return (

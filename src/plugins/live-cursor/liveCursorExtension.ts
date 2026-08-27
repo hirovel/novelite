@@ -60,8 +60,8 @@ export function createLiveCursorPluginExtension(
 
       const scrollRect = view.scrollDOM.getBoundingClientRect();
       const targetX = coords.left - scrollRect.left + view.scrollDOM.scrollLeft;
-      const targetY = coords.top - scrollRect.top + view.scrollDOM.scrollTop;
-      const targetH = Math.max(18, coords.bottom - coords.top);
+      let targetY = coords.top - scrollRect.top + view.scrollDOM.scrollTop;
+      let targetH = Math.max(18, coords.bottom - coords.top);
 
       let targetW = 2.6;
       if (config.shape === 'block') {
@@ -80,7 +80,20 @@ export function createLiveCursorPluginExtension(
           targetW = 18;
         }
       } else if (config.shape === 'underline') {
-        targetW = 16;
+        try {
+          const char = view.state.doc.sliceString(head, head + 1);
+          const isCJK = /[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/.test(char);
+          const nextCoords = view.coordsAtPos(Math.min(view.state.doc.length, head + 1));
+          if (nextCoords && Math.abs(nextCoords.top - coords.top) < 6 && nextCoords.left > coords.left) {
+            targetW = Math.max(10, nextCoords.left - coords.left);
+          } else {
+            targetW = isCJK ? targetH * 0.85 : 12;
+          }
+        } catch {
+          targetW = 14;
+        }
+        targetY = targetY + targetH - 2.8;
+        targetH = 2.6;
       }
 
       if (immediate) {
