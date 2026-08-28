@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { X, Sparkles, Palette, Type, Puzzle, RotateCcw, Image, Check, SlidersHorizontal, Layers } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Sparkles, Palette, Type, Puzzle, RotateCcw, Image, Check, SlidersHorizontal, Layers, Upload, Crop, Trash2, Image as ImageIcon } from 'lucide-react';
 import type { Theme } from '../../core/themes/types';
 import { THEMES } from '../../core/themes/themeDefinitions';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { LiveCursorTestArena } from './LiveCursorTestArena';
+import { ImageCropModal, type CropParams } from './ImageCropModal';
 import type { BackgroundEffect } from '../editor/EditorBackground';
 
 interface Props {
@@ -43,6 +44,16 @@ interface Props {
   onChangeBackgroundEffect: (effect: BackgroundEffect) => void;
   backgroundIntensity: number;
   onChangeBackgroundIntensity: (intensity: number) => void;
+  customImage?: string | null;
+  onChangeCustomImage: (img: string | null) => void;
+  customImageRaw?: string | null;
+  onChangeCustomImageRaw?: (raw: string | null) => void;
+  cropParams?: CropParams | null;
+  onChangeCropParams?: (params: CropParams | null) => void;
+  customImageBlur?: number;
+  onChangeCustomImageBlur: (blur: number) => void;
+  customImageDim?: number;
+  onChangeCustomImageDim: (dim: number) => void;
   fontPreset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom';
   onSelectFontPreset: (preset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom') => void;
   customFontName: string;
@@ -102,6 +113,16 @@ export const SettingsDrawer: React.FC<Props> = ({
   onChangeBackgroundEffect,
   backgroundIntensity,
   onChangeBackgroundIntensity,
+  customImage,
+  onChangeCustomImage,
+  customImageRaw,
+  onChangeCustomImageRaw,
+  cropParams,
+  onChangeCropParams,
+  customImageBlur = 6,
+  onChangeCustomImageBlur,
+  customImageDim = 0.45,
+  onChangeCustomImageDim,
   fontPreset,
   onSelectFontPreset,
   customFontName,
@@ -126,6 +147,65 @@ export const SettingsDrawer: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'cursor' | 'background' | 'typography' | 'themes' | 'plugins'>('cursor');
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [cropModalOpen, setCropModalOpen] = useState<boolean>(false);
+  const [pendingCropImage, setPendingCropImage] = useState<string | null>(null);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = reader.result as string;
+      // Pre-scale raw image safely if overly large (>2560px) to conserve local storage
+      const img = new window.Image();
+      img.onload = () => {
+        const maxDim = 2560;
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        if (w > maxDim || h > maxDim) {
+          const ratio = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const optimizedRaw = canvas.toDataURL('image/jpeg', 0.88);
+          setPendingCropImage(optimizedRaw);
+          onChangeCustomImageRaw?.(optimizedRaw);
+        } else {
+          setPendingCropImage(src);
+          onChangeCustomImageRaw?.(src);
+        }
+        setCropModalOpen(true);
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleTriggerCropExisting = () => {
+    const source = customImageRaw || customImage;
+    if (source) {
+      setPendingCropImage(source);
+      setCropModalOpen(true);
+    }
+  };
+
+  const handleClearCustomImage = () => {
+    onChangeCustomImage(null);
+    onChangeCustomImageRaw?.(null);
+    onChangeCropParams?.(null);
+    if (backgroundEffect === 'custom') {
+      onChangeBackgroundEffect('aurora');
+    }
+  };
 
   React.useEffect(() => {
     let enterTimer: ReturnType<typeof setTimeout>;
@@ -184,27 +264,27 @@ export const SettingsDrawer: React.FC<Props> = ({
 
   const tabMeta: Record<string, { title: string; desc: string; onReset?: () => void }> = {
     cursor: {
-      title: '灵感光标',
-      desc: '微分动力学光标、粒子微特效与连续流体物理手感调节',
+      title: 'Live 光标',
+      desc: '光标形状、平滑跟随、拖尾与动画速度调节',
       onReset: handleResetCursor,
     },
     background: {
-      title: '背景艺术与氛围',
-      desc: '深沉流动极光、胶片颗粒与经典信纸排版底纹',
+      title: '背景与壁纸',
+      desc: '自定义背景图片、暗化遮罩、模糊度与预设效果',
       onReset: handleResetBackground,
     },
     typography: {
-      title: '版心与文学排版',
-      desc: '中文字体预设、黄金比例版心宽度、段落行距与聚焦聚光灯',
+      title: '排版与字体',
+      desc: '字体选择、版心宽度、字号行距与段落聚焦',
       onReset: handleResetTypography,
     },
     themes: {
-      title: '色彩主题工坊',
-      desc: '经典作家色彩体系，自适应光标与选区高光',
+      title: '主题配色',
+      desc: '界面与文字色彩方案',
     },
     plugins: {
-      title: '插件与扩展中心',
-      desc: '零内存泄露插件沙箱，按需开启分卷树、大纲、快速导出等功能',
+      title: '插件管理',
+      desc: '按需启用或禁用功能插件',
     },
   };
 
@@ -391,17 +471,189 @@ export const SettingsDrawer: React.FC<Props> = ({
             {/* TAB 2: BACKGROUND */}
             {activeTab === 'background' && (
               <div className="space-y-6">
+                {/* 🌟 1. 自定义壁纸工坊 (Custom Wallpaper Studio) */}
+                <div
+                  className="rounded-3xl border p-5 space-y-4 transition-all"
+                  style={{
+                    borderColor: backgroundEffect === 'custom' ? theme.colors.accent : theme.colors.border,
+                    backgroundColor: `${theme.colors.bgSecondary}80`,
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="h-6 w-6 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: `${theme.colors.accent}20`, color: theme.colors.accent }}
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      </div>
+                      <div>
+                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                          自定义背景图片
+                        </span>
+                        <span className="text-[10px] opacity-40 ml-2 font-mono">
+                          {customImage ? '已设置自定义背景' : '支持上传并裁剪本地图片'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {customImage && (
+                      <div className="flex items-center gap-2">
+                        {backgroundEffect !== 'custom' ? (
+                          <button
+                            onClick={() => onChangeBackgroundEffect('custom')}
+                            className="px-2.5 py-1 rounded-lg text-xs font-mono border border-cyan-400/40 text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20 transition-all"
+                          >
+                            应用背景
+                          </button>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[10px] font-mono text-cyan-400 bg-cyan-400/15 border border-cyan-400/30 px-2 py-0.5 rounded-full font-semibold">
+                            <Check className="h-3 w-3" />
+                            <span>生效中</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hidden File Input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+
+                  {/* Custom Image Preview & Action Card */}
+                  {customImage ? (
+                    <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 rounded-2xl border border-white/10 bg-black/25">
+                      {/* Mini Live Preview Thumbnail */}
+                      <div className="relative w-full sm:w-48 aspect-video rounded-xl overflow-hidden border border-white/10 shrink-0 shadow-md">
+                        <div
+                          className="absolute inset-0 bg-cover bg-center transition-all duration-300"
+                          style={{
+                            backgroundImage: `url("${customImage}")`,
+                            filter: `blur(${customImageBlur}px)`,
+                            opacity: backgroundIntensity,
+                          }}
+                        />
+                        <div
+                          className="absolute inset-0 transition-colors"
+                          style={{
+                            backgroundColor: theme.isDark
+                              ? `rgba(0, 0, 0, ${customImageDim})`
+                              : `rgba(255, 255, 255, ${customImageDim * 0.7})`,
+                          }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-white/90 drop-shadow">
+                          <span>效果预览</span>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex-1 flex flex-wrap sm:flex-col gap-2 w-full">
+                        <button
+                          onClick={handleTriggerCropExisting}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono transition-all"
+                          style={{ color: theme.colors.text }}
+                        >
+                          <Crop className="h-3.5 w-3.5 text-cyan-400" />
+                          <span>调整位置与裁剪</span>
+                        </button>
+                        <button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono transition-all"
+                          style={{ color: theme.colors.text }}
+                        >
+                          <Upload className="h-3.5 w-3.5 opacity-60" />
+                          <span>更换图片</span>
+                        </button>
+                        <button
+                          onClick={handleClearCustomImage}
+                          className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-500/20 text-red-400 bg-red-500/5 hover:bg-red-500/15 text-xs font-mono transition-all"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>移除背景</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Empty Upload Dropzone */
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full border-2 border-dashed border-white/15 hover:border-cyan-400/60 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group cursor-pointer"
+                    >
+                      <div className="h-10 w-10 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Upload className="h-5 w-5 opacity-60 group-hover:text-cyan-400 group-hover:opacity-100 transition-colors" />
+                      </div>
+                      <span className="font-semibold text-xs group-hover:text-cyan-400 transition-colors" style={{ color: theme.colors.text }}>
+                        选择或上传本地图片
+                      </span>
+                      <span className="text-[10px] font-mono opacity-40">
+                        支持 PNG、JPG、WebP 格式
+                      </span>
+                    </button>
+                  )}
+
+                  {/* Wallpaper Fine-Tuning Sliders */}
+                  {customImage && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/5">
+                      {/* Dimming Mask */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-medium opacity-75" style={{ color: theme.colors.text }}>
+                            暗化遮罩
+                          </span>
+                          <span className="font-mono text-cyan-400 text-[10px] font-bold">
+                            {Math.round(customImageDim * 100)}%
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.0"
+                          max="0.85"
+                          step="0.05"
+                          value={customImageDim}
+                          onChange={(e) => onChangeCustomImageDim(Number(e.target.value))}
+                          className="w-full accent-cyan-400 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Gaussian Blur */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-medium opacity-75" style={{ color: theme.colors.text }}>
+                            模糊程度
+                          </span>
+                          <span className="font-mono text-cyan-400 text-[10px] font-bold">
+                            {customImageBlur} px
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="24"
+                          step="1"
+                          value={customImageBlur}
+                          onChange={(e) => onChangeCustomImageBlur(Number(e.target.value))}
+                          className="w-full accent-cyan-400 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 🌟 2. 预设背景效果 (Presets) */}
                 <div>
                   <label className="font-medium text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
-                    编辑器背景艺术
+                    预设背景效果
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     {[
-                      { id: 'aurora', name: '极光流云', desc: '深沉柔和的径向光晕流动' },
-                      { id: 'grain', name: '暗房胶片', desc: '细腻有机纸质胶片噪点纹理' },
-                      { id: 'grid', name: '素描点阵', desc: '微弱工整的手稿点阵秩序' },
-                      { id: 'ruled', name: '原稿信纸', desc: '经典纸质横格信纸基准线' },
-                      { id: 'solid', name: '纯净素色', desc: '无额外纹理，纯色专注' },
+                      { id: 'aurora', name: '极光流云', desc: '柔和渐变流动氛围' },
+                      { id: 'ruled', name: '信纸横线', desc: '文本真实对齐横线' },
+                      { id: 'solid', name: '纯色背景', desc: '无纹理纯色底板' },
                     ].map((bg) => {
                       const isCur = backgroundEffect === bg.id;
                       return (
@@ -428,7 +680,7 @@ export const SettingsDrawer: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Intensity Slider */}
+                {/* Global Effect Intensity Slider */}
                 {backgroundEffect !== 'solid' && (
                   <div
                     className="rounded-2xl border p-5 space-y-3 animate-in fade-in duration-150"
@@ -436,7 +688,7 @@ export const SettingsDrawer: React.FC<Props> = ({
                   >
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        背景氛围浓度 (Effect Intensity)
+                        效果强度
                       </span>
                       <span className="font-mono text-cyan-400 font-bold px-2 py-0.5 rounded bg-cyan-400/10">
                         {Math.round(backgroundIntensity * 100)}%
@@ -452,8 +704,8 @@ export const SettingsDrawer: React.FC<Props> = ({
                       className="w-full accent-cyan-400 cursor-pointer"
                     />
                     <div className="flex justify-between text-[10px] opacity-40 font-mono">
-                      <span>微弱隐约 (10%)</span>
-                      <span>浓郁饱满 (100%)</span>
+                      <span>较弱 (10%)</span>
+                      <span>较强 (100%)</span>
                     </div>
                   </div>
                 )}
@@ -465,15 +717,15 @@ export const SettingsDrawer: React.FC<Props> = ({
               <div className="space-y-6">
                 <div>
                   <label className="font-semibold text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
-                    字体方案预设
+                    字体设置
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {[
-                      { id: 'lxgw', name: '霞鹜文楷 / 楷体', desc: '典雅手写文学风' },
-                      { id: 'songti', name: '思源宋体 / 明体', desc: '经典出版物印刷风' },
-                      { id: 'sans', name: '苹方 / 微软雅黑', desc: '现代极简清晰黑体' },
-                      { id: 'mono', name: '等宽终端 / 编程体', desc: '极客等宽字形' },
-                      { id: 'custom', name: '自定义字体', desc: '使用本地安装的任何字体' },
+                      { id: 'lxgw', name: '霞鹜文楷 / 楷体', desc: '中文楷体字形' },
+                      { id: 'songti', name: '思源宋体 / 明体', desc: '印刷宋体字形' },
+                      { id: 'sans', name: '苹方 / 微软雅黑', desc: '标准无衬线黑体' },
+                      { id: 'mono', name: '等宽字体', desc: '固定字符宽度' },
+                      { id: 'custom', name: '自定义字体', desc: '输入系统已安装的字体名称' },
                     ].map((f) => {
                       const isCur = fontPreset === f.id;
                       return (
@@ -642,15 +894,15 @@ export const SettingsDrawer: React.FC<Props> = ({
                 >
                   <div>
                     <label className="font-semibold text-xs block mb-1" style={{ color: theme.colors.text }}>
-                      心流聚光灯模式 (Spotlight Focus Mode)
+                      段落聚焦 (聚光灯模式)
                     </label>
                     <p className="text-[10px] opacity-50 mb-3">
-                      打字时聚焦当前段落发光，上下其余段落柔和暗化至 34%，彻底消除长文视觉疲劳
+                      编辑时高亮当前段落，其他段落适度暗化
                     </p>
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { id: 'paragraph', name: '🌟 段落聚光 (推荐)', desc: '当前输入段落高亮，其余暗化' },
-                        { id: 'none', name: '关闭聚光灯', desc: '全文保持恒定正常亮度' },
+                        { id: 'paragraph', name: '段落高亮', desc: '高亮当前正在编辑的段落' },
+                        { id: 'none', name: '关闭聚焦', desc: '全文保持正常亮度' },
                       ].map((mode) => {
                         const isCur = spotlightMode === mode.id;
                         return (
@@ -680,9 +932,9 @@ export const SettingsDrawer: React.FC<Props> = ({
                   <div className="flex items-center justify-between pt-3 border-t border-white/5">
                     <div>
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        无界纯净稿纸 (Zero-Chrome Layout)
+                        极简全屏模式
                       </span>
-                      <p className="text-[10px] opacity-50">隐藏所有顶部栏与固定底栏，仅保留纯粹稿纸与右下角悬浮动态岛</p>
+                      <p className="text-[10px] opacity-50">隐藏顶部与固定底部栏，保留纯净写作界面</p>
                     </div>
                     <button
                       onClick={onToggleZeroChrome}
@@ -692,7 +944,7 @@ export const SettingsDrawer: React.FC<Props> = ({
                           : 'bg-white/5 text-neutral-400 border border-white/5'
                       }`}
                     >
-                      {zeroChrome ? '已开启无界稿纸' : '经典状态栏'}
+                      {zeroChrome ? '已开启' : '未开启'}
                     </button>
                   </div>
                 </div>
@@ -856,6 +1108,20 @@ export const SettingsDrawer: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
+      {/* ✂️ Image Crop & Viewport Modal */}
+      <ImageCropModal
+        isOpen={cropModalOpen}
+        imageSrc={pendingCropImage}
+        initialParams={cropParams}
+        theme={theme}
+        onClose={() => setCropModalOpen(false)}
+        onApply={(croppedUrl, params) => {
+          onChangeCustomImage(croppedUrl);
+          onChangeCropParams?.(params);
+          onChangeBackgroundEffect('custom');
+        }}
+      />
     </div>
   );
 };

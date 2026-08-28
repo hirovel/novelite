@@ -244,7 +244,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
             </div>
             <div>
               <h3 className="text-xs font-bold tracking-tight" style={{ color: theme.colors.text }}>
-                分卷大纲与章节树
+                章节目录
               </h3>
               <p className="text-[10px] font-mono opacity-50" style={{ color: theme.colors.textMuted }}>
                 {project.volumes.length} 卷 · {totalChapters} 章 · {totalWords.toLocaleString()} 字
@@ -261,7 +261,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                   ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
                   : 'border-white/5 opacity-50 hover:opacity-100 hover:bg-white/10'
               }`}
-              title={isPinned ? '已常驻浮动 (点击取消常驻)' : '固定常驻大纲'}
+              title={isPinned ? '取消固定' : '固定面板'}
             >
               {isPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
             </button>
@@ -288,7 +288,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="快速检索章节或分卷..."
+              placeholder="搜索章节或分卷..."
               className="w-full bg-transparent text-xs outline-none placeholder:opacity-40 font-mono"
               style={{ color: theme.colors.text }}
             />

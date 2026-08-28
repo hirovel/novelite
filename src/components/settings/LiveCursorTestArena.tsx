@@ -68,11 +68,6 @@ export const LiveCursorTestArena: React.FC<Props> = ({
 }) => {
   const [text, setText] = useState<string>('这是一个测试文本！\n这也是！');
 
-  // Local responsive slider state for 120fps zero-lag scrubbing
-  const [localAnimLength, setLocalAnimLength] = useState(cursorAnimationLength);
-  const [localTrailSize, setLocalTrailSize] = useState(cursorTrailSize);
-  const [localBreatheCycle, setLocalBreatheCycle] = useState(breatheCycle);
-
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const mirrorRef = useRef<HTMLSpanElement | null>(null);
@@ -87,28 +82,16 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   const effectiveColor = isAutoColor ? (theme.colors.cursor || theme.colors.accent || '#a78bfa') : cursorColor;
 
   useEffect(() => {
-    setLocalAnimLength(cursorAnimationLength);
-  }, [cursorAnimationLength]);
-
-  useEffect(() => {
-    setLocalTrailSize(cursorTrailSize);
-  }, [cursorTrailSize]);
-
-  useEffect(() => {
-    setLocalBreatheCycle(breatheCycle);
-  }, [breatheCycle]);
-
-  useEffect(() => {
     configRef.current = {
       enabled: true,
       shape: cursorShape,
       color: cursorColor,
       themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
-      animationLength: localAnimLength,
-      trailSize: localTrailSize,
+      animationLength: cursorAnimationLength,
+      trailSize: cursorTrailSize,
       vfxMode,
       blinkMode,
-      breatheCycle: localBreatheCycle,
+      breatheCycle,
       speedMode: speedMode || 'gentle',
       physicsMode,
       luminescence,
@@ -118,7 +101,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
       streamTailColor,
       glow: true,
     };
-  }, [cursorShape, cursorColor, localAnimLength, localTrailSize, vfxMode, blinkMode, localBreatheCycle, speedMode, physicsMode, luminescence, inlineSkew, streamPreset, streamHeadColor, streamTailColor, theme]);
+  }, [cursorShape, cursorColor, cursorAnimationLength, cursorTrailSize, vfxMode, blinkMode, breatheCycle, speedMode, physicsMode, luminescence, inlineSkew, streamPreset, streamHeadColor, streamTailColor, theme]);
 
   const colorPresets = [
     { name: '极光紫', value: '#a78bfa' },
@@ -509,11 +492,11 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 🌟 4. 卡片三：灵感流光与微粒子 (Luminescence & Aura) */}
+      {/* 🌟 4. 卡片三：流光与粒子效果 */}
       <div className="space-y-4 p-4 rounded-2xl border border-white/10 bg-white/[0.02]">
         <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
           <Sparkles className="h-3.5 w-3.5 opacity-75 text-cyan-400" />
-          <span>流光与微粒子</span>
+          <span>流光与粒子效果</span>
         </div>
 
         {/* 流光渐变开关 */}
@@ -523,7 +506,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
               <div className="font-medium text-xs" style={{ color: theme.colors.text }}>
                 流光色彩渐变
               </div>
-              <div className="text-[10px] opacity-50">位移与打字时呈现平滑双色渐变流光色彩</div>
+              <div className="text-[10px] opacity-50">位移与输入时光标显示渐变色彩</div>
             </div>
             <button
               onClick={() => onChangeLuminescence?.(!luminescence)}
@@ -564,7 +547,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
               {streamPreset === 'custom' && (
                 <div className="flex items-center gap-3 pt-1 px-1">
                   <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
-                    <span className="text-[10.5px] opacity-75">流光前锋</span>
+                    <span className="text-[10.5px] opacity-75">起始色</span>
                     <div className="relative flex items-center gap-1.5">
                       <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamHeadColor }} />
                       <input
@@ -578,7 +561,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                   </label>
 
                   <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
-                    <span className="text-[10.5px] opacity-75">流光尾梢</span>
+                    <span className="text-[10.5px] opacity-75">结束色</span>
                     <div className="relative flex items-center gap-1.5">
                       <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamTailColor }} />
                       <input
@@ -600,14 +583,14 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-white/5">
           <div className="space-y-2">
             <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-              微粒子效果
+              按键粒子效果
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { id: 'pure', name: '无', desc: '不开启粒子' },
-                { id: 'embers', name: '微星', desc: '击键产生微光点' },
-                { id: 'ripples', name: '水纹', desc: '换行展开微水纹' },
-                { id: 'feather', name: '轻芒', desc: '散发呼吸微芒' },
+                { id: 'embers', name: '星火', desc: '击键产生微光点' },
+                { id: 'ripples', name: '波纹', desc: '换行展开微水纹' },
+                { id: 'feather', name: '轻芒', desc: '散发呼吸微光' },
               ].map((vfx) => {
                 const isCur = vfxMode === vfx.id;
                 return (
@@ -658,7 +641,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                     <span className="text-[10.5px] font-medium" style={{ color: isCur ? theme.colors.text : theme.colors.textMuted }}>
                       {bm.name}
                     </span>
-                    <span className="text-[8.5px] opacity-50 mt-0.5">{bm.desc}</span>
+                    <span className="text-[9px] opacity-50 mt-0.5">{bm.desc}</span>
                   </button>
                 );
               })}
@@ -667,7 +650,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 🌟 5. 卡片四：参数调整 (Tactile Precision Sliders) */}
+      {/* 🌟 5. 参数调整 */}
       <div className="space-y-3 p-4 rounded-2xl border border-white/10 bg-white/[0.02]">
         <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
           <Sliders className="h-3.5 w-3.5 opacity-75 text-cyan-400" />
@@ -678,9 +661,9 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           {/* Slider 1: Response Time */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">物理响应时间</span>
+              <span className="text-[11px] font-medium opacity-75">动画时长</span>
               <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md bg-white/10 text-cyan-300 font-semibold shadow-inner">
-                {Math.round(localAnimLength * 1000)} ms
+                {Math.round(cursorAnimationLength * 1000)} ms
               </span>
             </div>
 
@@ -690,17 +673,16 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 min="0.03"
                 max="0.25"
                 step="0.01"
-                value={localAnimLength}
+                value={cursorAnimationLength}
                 onChange={(e) => {
                   const val = Number(e.target.value);
-                  setLocalAnimLength(val);
                   onChangeAnimationLength(val);
                 }}
                 className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 accent-cyan-400 transition-all hover:bg-white/30 focus:outline-none"
               />
               <div className="flex justify-between px-1">
                 {[30, 80, 140, 200, 250].map((tick) => {
-                  const isCurrent = Math.abs(Math.round(localAnimLength * 1000) - tick) <= 15;
+                  const isCurrent = Math.abs(Math.round(cursorAnimationLength * 1000) - tick) <= 15;
                   return (
                     <div key={tick} className="flex flex-col items-center gap-0.5">
                       <div className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'bg-cyan-400 h-2' : 'bg-white/20'}`} />
@@ -715,9 +697,9 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           {/* Slider 2: Trail Stretch */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">流体拖尾拉伸量</span>
+              <span className="text-[11px] font-medium opacity-75">拖尾长度</span>
               <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md bg-white/10 text-cyan-300 font-semibold shadow-inner">
-                {Math.round(localTrailSize * 100)} %
+                {Math.round(cursorTrailSize * 100)} %
               </span>
             </div>
 
@@ -727,17 +709,16 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 min="0.2"
                 max="1.0"
                 step="0.05"
-                value={localTrailSize}
+                value={cursorTrailSize}
                 onChange={(e) => {
                   const val = Number(e.target.value);
-                  setLocalTrailSize(val);
                   onChangeTrailSize(val);
                 }}
                 className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 accent-cyan-400 transition-all hover:bg-white/30 focus:outline-none"
               />
               <div className="flex justify-between px-1">
                 {[20, 40, 60, 80, 100].map((tick) => {
-                  const isCurrent = Math.abs(Math.round(localTrailSize * 100) - tick) <= 10;
+                  const isCurrent = Math.abs(Math.round(cursorTrailSize * 100) - tick) <= 10;
                   return (
                     <div key={tick} className="flex flex-col items-center gap-0.5">
                       <div className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'bg-cyan-400 h-2' : 'bg-white/20'}`} />
@@ -752,9 +733,9 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           {/* Slider 3: Breathe Cycle */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">静止呼吸周期</span>
+              <span className="text-[11px] font-medium opacity-75">呼吸周期</span>
               <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md bg-white/10 text-cyan-300 font-semibold shadow-inner">
-                {localBreatheCycle.toFixed(1)} s
+                {breatheCycle.toFixed(1)} s
               </span>
             </div>
 
@@ -764,17 +745,16 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 min="0.4"
                 max="2.5"
                 step="0.1"
-                value={localBreatheCycle}
+                value={breatheCycle}
                 onChange={(e) => {
                   const val = Number(e.target.value);
-                  setLocalBreatheCycle(val);
                   onChangeBreatheCycle(val);
                 }}
                 className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 accent-cyan-400 transition-all hover:bg-white/30 focus:outline-none"
               />
               <div className="flex justify-between px-1">
                 {[0.5, 1.0, 1.5, 2.0, 2.5].map((tick) => {
-                  const isCurrent = Math.abs(localBreatheCycle - tick) <= 0.2;
+                  const isCurrent = Math.abs(breatheCycle - tick) <= 0.2;
                   return (
                     <div key={tick} className="flex flex-col items-center gap-0.5">
                       <div className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'bg-cyan-400 h-2' : 'bg-white/20'}`} />

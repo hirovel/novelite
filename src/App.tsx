@@ -6,6 +6,7 @@ import { FloatingChapterTree } from './components/tree/FloatingChapterTree';
 import { TerminalBar } from './components/statusbar/TerminalBar';
 import { CommandPalette } from './components/palette/CommandPalette';
 import { SettingsDrawer } from './components/settings/SettingsDrawer';
+import type { CropParams } from './components/settings/ImageCropModal';
 import { pluginManager } from './core/plugins/PluginManager';
 import { commandRegistry } from './core/plugins/CommandRegistry';
 import { eventBus } from './core/events/EventBus';
@@ -79,10 +80,31 @@ export const App: React.FC = () => {
 
   // Background Artistic Effect state
   const [backgroundEffect, setBackgroundEffect] = useState<BackgroundEffect>(() => {
-    return (localStorage.getItem('novelite_bg_effect') as any) || 'aurora';
+    const saved = localStorage.getItem('novelite_bg_effect');
+    if (saved === 'aurora' || saved === 'ruled' || saved === 'solid' || saved === 'custom') {
+      return saved;
+    }
+    return 'aurora';
   });
   const [backgroundIntensity, setBackgroundIntensity] = useState<number>(() => {
     return Number(localStorage.getItem('novelite_bg_intensity')) || 0.65;
+  });
+  const [customImage, setCustomImage] = useState<string | null>(() => {
+    return localStorage.getItem('novelite_custom_image') || null;
+  });
+  const [customImageRaw, setCustomImageRaw] = useState<string | null>(() => {
+    return localStorage.getItem('novelite_custom_image_raw') || null;
+  });
+  const [cropParams, setCropParams] = useState<CropParams | null>(() => {
+    const saved = localStorage.getItem('novelite_crop_params');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [customImageBlur, setCustomImageBlur] = useState<number>(() => {
+    return Number(localStorage.getItem('novelite_custom_image_blur')) || 6;
+  });
+  const [customImageDim, setCustomImageDim] = useState<number>(() => {
+    const val = localStorage.getItem('novelite_custom_image_dim');
+    return val !== null ? Number(val) : 0.45;
   });
 
   // Typography & Page Margins state
@@ -425,6 +447,43 @@ export const App: React.FC = () => {
     localStorage.setItem('novelite_bg_intensity', String(intensity));
   };
 
+  const handleChangeCustomImage = (img: string | null) => {
+    setCustomImage(img);
+    if (img) {
+      localStorage.setItem('novelite_custom_image', img);
+    } else {
+      localStorage.removeItem('novelite_custom_image');
+    }
+  };
+
+  const handleChangeCustomImageRaw = (raw: string | null) => {
+    setCustomImageRaw(raw);
+    if (raw) {
+      localStorage.setItem('novelite_custom_image_raw', raw);
+    } else {
+      localStorage.removeItem('novelite_custom_image_raw');
+    }
+  };
+
+  const handleChangeCropParams = (params: CropParams | null) => {
+    setCropParams(params);
+    if (params) {
+      localStorage.setItem('novelite_crop_params', JSON.stringify(params));
+    } else {
+      localStorage.removeItem('novelite_crop_params');
+    }
+  };
+
+  const handleChangeCustomImageBlur = (blur: number) => {
+    setCustomImageBlur(blur);
+    setDebouncedStorage('novelite_custom_image_blur', String(blur));
+  };
+
+  const handleChangeCustomImageDim = (dim: number) => {
+    setCustomImageDim(dim);
+    setDebouncedStorage('novelite_custom_image_dim', String(dim));
+  };
+
   const handleSelectSpotlightMode = (mode: 'none' | 'paragraph') => {
     setSpotlightMode(mode);
     localStorage.setItem('novelite_spotlight_mode', mode);
@@ -478,6 +537,9 @@ export const App: React.FC = () => {
             speedMode={speedMode}
             backgroundEffect={backgroundEffect}
             backgroundIntensity={backgroundIntensity}
+            customImage={customImage}
+            customImageBlur={customImageBlur}
+            customImageDim={customImageDim}
             fontPreset={fontPreset}
             customFontName={customFontName}
             fontSize={fontSize}
@@ -559,6 +621,16 @@ export const App: React.FC = () => {
         onChangeBackgroundEffect={handleChangeBackgroundEffect}
         backgroundIntensity={backgroundIntensity}
         onChangeBackgroundIntensity={handleChangeBackgroundIntensity}
+        customImage={customImage}
+        onChangeCustomImage={handleChangeCustomImage}
+        customImageRaw={customImageRaw}
+        onChangeCustomImageRaw={handleChangeCustomImageRaw}
+        cropParams={cropParams}
+        onChangeCropParams={handleChangeCropParams}
+        customImageBlur={customImageBlur}
+        onChangeCustomImageBlur={handleChangeCustomImageBlur}
+        customImageDim={customImageDim}
+        onChangeCustomImageDim={handleChangeCustomImageDim}
         fontPreset={fontPreset}
         onSelectFontPreset={handleSelectFontPreset}
         customFontName={customFontName}

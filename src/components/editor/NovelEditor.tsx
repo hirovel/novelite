@@ -25,6 +25,9 @@ interface Props {
   speedMode: 'gentle' | 'balanced' | 'snappy';
   backgroundEffect: BackgroundEffect;
   backgroundIntensity: number;
+  customImage?: string | null;
+  customImageBlur?: number;
+  customImageDim?: number;
   fontPreset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom';
   customFontName: string;
   fontSize: number;
@@ -38,7 +41,19 @@ interface Props {
   isSidebarOpen?: boolean;
 }
 
-function createEditorTheme(theme: Theme, spotlightMode: 'none' | 'paragraph' = 'paragraph') {
+function createEditorTheme(
+  theme: Theme,
+  spotlightMode: 'none' | 'paragraph' = 'paragraph',
+  backgroundEffect: BackgroundEffect = 'solid',
+  backgroundIntensity: number = 0.65,
+  lineHeight: number = 1.95
+) {
+  const isRuled = backgroundEffect === 'ruled';
+  const ruledAlpha = Math.max(0.15, Math.min(0.65, (backgroundIntensity || 0.65) * 0.45));
+  const ruledColor = theme.colors.accent
+    ? `${theme.colors.accent}${Math.round(ruledAlpha * 255).toString(16).padStart(2, '0')}`
+    : (theme.isDark ? `rgba(255, 255, 255, ${ruledAlpha})` : `rgba(0, 0, 0, ${ruledAlpha * 0.8})`);
+
   return EditorView.theme({
     '&': {
       height: '100%',
@@ -84,12 +99,20 @@ function createEditorTheme(theme: Theme, spotlightMode: 'none' | 'paragraph' = '
       borderLeft: 'none !important',
       width: '0 !important',
     },
-    // 🌟 GPU 硬件级段落聚光灯与丝滑呼吸行 (零生硬线框)
+    // 🌟 GPU 硬件级段落聚光灯与真实文本精准对齐横线 (True Baseline-Aligned Ruled Lines)
     '.cm-line': {
       boxSizing: 'border-box',
       width: '100%',
       contain: 'style layout',
       transition: 'opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease',
+      ...(isRuled
+        ? {
+            backgroundImage: `linear-gradient(to bottom, transparent calc(${lineHeight}em - 1px), ${ruledColor} calc(${lineHeight}em - 1px), ${ruledColor} 100%)`,
+            backgroundSize: `100% ${lineHeight}em`,
+            backgroundRepeat: 'repeat-y',
+            backgroundPosition: '0 0',
+          }
+        : {}),
     },
     '&.cm-focused .cm-line': {
       opacity: spotlightMode === 'paragraph' ? '0.36' : '1',
@@ -99,7 +122,7 @@ function createEditorTheme(theme: Theme, spotlightMode: 'none' | 'paragraph' = '
       backgroundColor: `${theme.colors.bgHover}14`,
       borderRadius: '6px',
     },
-    // 🌟 现代高奢微光流体选区 (单轨纯净渲染、彻底杜绝双层选区与卡死 Bug)
+    // 🌟 现代微光流体选区
     '.cm-selectionLayer': {
       pointerEvents: 'none !important',
       zIndex: '0 !important',
@@ -134,10 +157,13 @@ export const NovelEditor: React.FC<Props> = ({
   speedMode,
   backgroundEffect,
   backgroundIntensity,
+  customImage,
+  customImageBlur,
+  customImageDim,
   fontPreset: _fontPreset,
   customFontName: _customFontName,
   fontSize: _fontSize,
-  lineHeight: _lineHeight,
+  lineHeight = 1.95,
   contentMaxWidth: _contentMaxWidth,
   spotlightMode = 'paragraph',
   zeroChrome = true,
@@ -280,7 +306,15 @@ export const NovelEditor: React.FC<Props> = ({
         highlightActiveLine(),
         markdown(),
         EditorView.lineWrapping,
-        themeCompartmentRef.current.of(createEditorTheme(initialThemeRef.current, initialSpotlightRef.current)),
+        themeCompartmentRef.current.of(
+          createEditorTheme(
+            initialThemeRef.current,
+            initialSpotlightRef.current,
+            backgroundEffect,
+            backgroundIntensity,
+            lineHeight
+          )
+        ),
         cursorCompartmentRef.current.of(
           createLiveCursorPluginExtension(() => ({
             enabled: true,
@@ -388,13 +422,15 @@ export const NovelEditor: React.FC<Props> = ({
     };
   }, []);
 
-  // 🌟 2. 主题与聚光灯动态无缝热重载 (Zero-Flicker Hot-Reload via Compartment)
+  // 🌟 2. 主题、聚光灯与背景横线动态无缝热重载 (Zero-Flicker Hot-Reload via Compartment)
   useEffect(() => {
     if (!editorView) return;
     editorView.dispatch({
-      effects: themeCompartmentRef.current.reconfigure(createEditorTheme(theme, spotlightMode)),
+      effects: themeCompartmentRef.current.reconfigure(
+        createEditorTheme(theme, spotlightMode, backgroundEffect, backgroundIntensity, lineHeight)
+      ),
     });
-  }, [theme, spotlightMode, editorView]);
+  }, [theme, spotlightMode, backgroundEffect, backgroundIntensity, lineHeight, editorView]);
 
   // 🌟 3. Live 灵感光标动态热重载 (Zero-Flicker Hot-Reload via Cursor Compartment)
   useEffect(() => {
@@ -494,6 +530,9 @@ export const NovelEditor: React.FC<Props> = ({
         theme={theme}
         effect={backgroundEffect}
         intensity={backgroundIntensity}
+        customImage={customImage}
+        customImageBlur={customImageBlur}
+        customImageDim={customImageDim}
       />
 
       {/* 🌟 经典模式下的顶部栏 (仅在 zeroChrome 为 false 时显示) */}

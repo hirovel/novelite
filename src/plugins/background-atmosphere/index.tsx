@@ -17,31 +17,29 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
       id: 'aurora',
       name: '极光流云',
       render: (theme: Theme, intensity: number) => {
-        const accentColor = theme.colors.accent || '#8b5cf6';
-        const clampedIntensity = Math.max(0.05, Math.min(1.0, intensity));
+        const accent = theme.colors.accent || '#a78bfa';
+        const cursor = theme.colors.cursor || accent;
+        const opacity = Math.max(0.15, Math.min(1.0, intensity));
         return (
-          <div
-            className="absolute inset-0 transition-opacity duration-700 pointer-events-none"
-            style={{ opacity: clampedIntensity }}
-          >
+          <div className="absolute inset-0 transition-opacity duration-700 pointer-events-none" style={{ opacity }}>
             <div
-              className="absolute -top-32 -right-32 h-[520px] w-[520px] rounded-full blur-[110px] animate-pulse"
+              className="absolute -top-24 -right-24 h-[560px] w-[560px] rounded-full blur-[100px] animate-pulse"
               style={{
-                background: `radial-gradient(circle, ${accentColor}28 0%, ${theme.colors.bgHover}10 70%, transparent 100%)`,
-                animationDuration: '9s',
+                background: `radial-gradient(circle, ${accent}55 0%, ${accent}18 50%, transparent 75%)`,
+                animationDuration: '8s',
               }}
             />
             <div
-              className="absolute -bottom-40 -left-40 h-[600px] w-[600px] rounded-full blur-[130px] animate-pulse"
+              className="absolute -bottom-32 -left-32 h-[640px] w-[640px] rounded-full blur-[120px] animate-pulse"
               style={{
-                background: `radial-gradient(circle, ${theme.colors.cursor || accentColor}22 0%, ${theme.colors.bgSecondary}15 70%, transparent 100%)`,
-                animationDuration: '12s',
+                background: `radial-gradient(circle, ${cursor}45 0%, ${accent}12 50%, transparent 75%)`,
+                animationDuration: '11s',
               }}
             />
             <div
-              className="absolute top-1/3 left-1/2 -translate-x-1/2 h-[450px] w-[650px] rounded-full blur-[140px]"
+              className="absolute top-1/4 left-1/2 -translate-x-1/2 h-[480px] w-[700px] rounded-full blur-[130px]"
               style={{
-                background: `radial-gradient(ellipse, ${accentColor}12 0%, transparent 75%)`,
+                background: `radial-gradient(ellipse, ${accent}28 0%, transparent 70%)`,
               }}
             />
           </div>
@@ -49,59 +47,20 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
       },
     });
 
-    // 2. Cinematic Analog Film Grain
-    ctx.registerBackgroundRenderer({
-      id: 'grain',
-      name: '暗房胶片',
-      render: (_theme: Theme, intensity: number) => {
-        const clampedIntensity = Math.max(0.05, Math.min(1.0, intensity));
-        return (
-          <div
-            className="absolute inset-0 mix-blend-overlay transition-opacity duration-500 pointer-events-none"
-            style={{
-              opacity: clampedIntensity * 0.45,
-              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
-            }}
-          />
-        );
-      },
-    });
-
-    // 3. Subtle Dot Matrix Grid
-    ctx.registerBackgroundRenderer({
-      id: 'grid',
-      name: '素描点阵',
-      render: (theme: Theme, intensity: number) => {
-        const clampedIntensity = Math.max(0.05, Math.min(1.0, intensity));
-        return (
-          <div
-            className="absolute inset-0 transition-opacity duration-500 pointer-events-none"
-            style={{
-              opacity: clampedIntensity * 0.4,
-              backgroundImage: `radial-gradient(${theme.colors.textMuted} 1px, transparent 1px)`,
-              backgroundSize: '24px 24px',
-              backgroundPosition: '0 0',
-            }}
-          />
-        );
-      },
-    });
-
-    // 4. Classic Manuscript Ruled Lines
+    // 2. Classic Manuscript Ruled Lines
     ctx.registerBackgroundRenderer({
       id: 'ruled',
-      name: '原稿信纸',
+      name: '信纸横线',
       render: (theme: Theme, intensity: number) => {
-        const clampedIntensity = Math.max(0.05, Math.min(1.0, intensity));
+        const opacity = Math.max(0.1, Math.min(1.0, intensity)) * (theme.isDark ? 0.35 : 0.25);
+        const marginGuideColor = theme.colors.accent || (theme.isDark ? '#e11d48' : '#dc2626');
         return (
-          <div
-            className="absolute inset-0 transition-opacity duration-500 pointer-events-none"
-            style={{
-              opacity: clampedIntensity * 0.25,
-              backgroundImage: `linear-gradient(to bottom, transparent 35px, ${theme.colors.border} 36px)`,
-              backgroundSize: '100% 36px',
-            }}
-          />
+          <div className="absolute inset-0 pointer-events-none transition-opacity duration-500 overflow-hidden" style={{ opacity }}>
+            <div
+              className="absolute top-0 bottom-0 left-12 sm:left-16 w-px opacity-30 pointer-events-none"
+              style={{ backgroundColor: marginGuideColor }}
+            />
+          </div>
         );
       },
     });
@@ -113,12 +72,21 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
       category: '视觉沉浸',
       shortcut: 'Alt+B',
       run: (c) => {
-        const effects = ['solid', 'aurora', 'grain', 'grid', 'ruled'];
+        const hasCustom = !!localStorage.getItem('novelite_custom_image');
+        const effects = hasCustom
+          ? ['custom', 'solid', 'aurora', 'ruled']
+          : ['solid', 'aurora', 'ruled'];
         const current = c.getSetting('effect', 'aurora');
         const next = effects[(effects.indexOf(current) + 1) % effects.length];
         c.setSetting('effect', next);
         c.emit('background-effect-changed', next);
-        c.showToast(`已切换空间氛围: ${next}`, 'info');
+        const nameMap: Record<string, string> = {
+          custom: '自定义背景',
+          solid: '纯色背景',
+          aurora: '极光流云',
+          ruled: '信纸横线',
+        };
+        c.showToast(`已切换空间氛围: ${nameMap[next] || next}`, 'info');
       },
     });
   },
