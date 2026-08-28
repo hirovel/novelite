@@ -143,6 +143,18 @@ export const App: React.FC = () => {
     return saved !== null ? saved === 'true' : true;
   });
 
+  // Typewriter Mode state
+  const [typewriterEnabled, setTypewriterEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('novelite_typewriter_enabled');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [typewriterRatio, setTypewriterRatio] = useState<number>(() => {
+    return Number(localStorage.getItem('novelite_typewriter_ratio')) || 0.38;
+  });
+  const [typewriterSpeed, setTypewriterSpeed] = useState<'gentle' | 'balanced' | 'snappy' | 'instant'>(() => {
+    return (localStorage.getItem('novelite_typewriter_speed') as any) || 'balanced';
+  });
+
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
@@ -163,6 +175,10 @@ export const App: React.FC = () => {
     pluginManager.registerPlugin(WordCounterPlugin);
     pluginManager.registerPlugin(QuickExporterPlugin);
     pluginManager.registerPlugin(SampleUserPlugin);
+
+    if (typewriterEnabled) {
+      pluginManager.enablePlugin('plugin-typewriter');
+    }
   }, []);
 
   // Update cursor settings into plugin manager
@@ -197,6 +213,14 @@ export const App: React.FC = () => {
     ctx.setSetting('indentEnabled', indentEnabled);
   }, [fontPreset, customFontName, fontSize, lineHeight, contentMaxWidth, horizontalPadding, paragraphSpacing, indentEnabled]);
 
+  // Update typewriter settings into plugin manager
+  useEffect(() => {
+    const ctx = pluginManager.createPluginContext('plugin-typewriter');
+    ctx.setSetting('enabled', typewriterEnabled);
+    ctx.setSetting('anchorRatio', typewriterRatio);
+    ctx.setSetting('speedMode', typewriterSpeed);
+  }, [typewriterEnabled, typewriterRatio, typewriterSpeed]);
+
   useEffect(() => {
     const unsubToast = eventBus.on('show-toast', ({ message, type }: any) => {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -228,11 +252,25 @@ export const App: React.FC = () => {
       }
     });
 
+    const unsubTypewriter = eventBus.on('plugin-setting-changed:plugin-typewriter', ({ key, value }: any) => {
+      if (key === 'enabled' && typeof value === 'boolean') {
+        setTypewriterEnabled(value);
+        localStorage.setItem('novelite_typewriter_enabled', String(value));
+      } else if (key === 'anchorRatio' && typeof value === 'number') {
+        setTypewriterRatio(value);
+        localStorage.setItem('novelite_typewriter_ratio', String(value));
+      } else if (key === 'speedMode' && typeof value === 'string') {
+        setTypewriterSpeed(value as any);
+        localStorage.setItem('novelite_typewriter_speed', value);
+      }
+    });
+
     return () => {
       unsubToast();
       unsubVfx();
       unsubPhysics();
       unsubTypo();
+      unsubTypewriter();
     };
   }, []);
 
@@ -497,6 +535,27 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleToggleTypewriter = (enabled: boolean) => {
+    setTypewriterEnabled(enabled);
+    localStorage.setItem('novelite_typewriter_enabled', String(enabled));
+    if (enabled) {
+      pluginManager.enablePlugin('plugin-typewriter');
+    }
+    const ctx = pluginManager.createPluginContext('plugin-typewriter');
+    ctx.setSetting('enabled', enabled);
+    eventBus.emit('editor-extensions-changed');
+  };
+
+  const handleChangeTypewriterRatio = (ratio: number) => {
+    setTypewriterRatio(ratio);
+    localStorage.setItem('novelite_typewriter_ratio', String(ratio));
+  };
+
+  const handleChangeTypewriterSpeed = (speed: 'gentle' | 'balanced' | 'snappy' | 'instant') => {
+    setTypewriterSpeed(speed);
+    localStorage.setItem('novelite_typewriter_speed', speed);
+  };
+
   return (
     <div
       className="flex h-screen w-screen flex-col overflow-hidden font-sans select-none antialiased"
@@ -651,6 +710,12 @@ export const App: React.FC = () => {
         onSelectSpotlightMode={handleSelectSpotlightMode}
         zeroChrome={zeroChrome}
         onToggleZeroChrome={handleToggleZeroChrome}
+        typewriterEnabled={typewriterEnabled}
+        onToggleTypewriter={handleToggleTypewriter}
+        typewriterRatio={typewriterRatio}
+        onChangeTypewriterRatio={handleChangeTypewriterRatio}
+        typewriterSpeed={typewriterSpeed}
+        onChangeTypewriterSpeed={handleChangeTypewriterSpeed}
       />
     </div>
   );

@@ -74,6 +74,12 @@ interface Props {
   onSelectSpotlightMode: (mode: 'none' | 'paragraph') => void;
   zeroChrome: boolean;
   onToggleZeroChrome: () => void;
+  typewriterEnabled?: boolean;
+  onToggleTypewriter?: (enabled: boolean) => void;
+  typewriterRatio?: number;
+  onChangeTypewriterRatio?: (ratio: number) => void;
+  typewriterSpeed?: 'gentle' | 'balanced' | 'snappy' | 'instant';
+  onChangeTypewriterSpeed?: (speed: 'gentle' | 'balanced' | 'snappy' | 'instant') => void;
 }
 
 export const SettingsDrawer: React.FC<Props> = ({
@@ -143,6 +149,12 @@ export const SettingsDrawer: React.FC<Props> = ({
   onSelectSpotlightMode,
   zeroChrome,
   onToggleZeroChrome,
+  typewriterEnabled = false,
+  onToggleTypewriter,
+  typewriterRatio = 0.38,
+  onChangeTypewriterRatio,
+  typewriterSpeed = 'balanced',
+  onChangeTypewriterSpeed,
 }) => {
   const [activeTab, setActiveTab] = useState<'cursor' | 'background' | 'typography' | 'themes' | 'plugins'>('cursor');
   const [shouldRender, setShouldRender] = useState(isOpen);
@@ -947,6 +959,116 @@ export const SettingsDrawer: React.FC<Props> = ({
                       {zeroChrome ? '已开启' : '未开启'}
                     </button>
                   </div>
+                </div>
+
+                {/* 🌟 打字机居中模式设置卡片 (Typewriter Mode Card) */}
+                <div
+                  className="space-y-4 rounded-2xl border p-5 transition-all"
+                  style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                          打字机居中模式
+                        </span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 opacity-60">
+                          Alt+T
+                        </span>
+                      </div>
+                      <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
+                        平滑自动推移视口，保持光标与当前编辑行处于舒适视线高度
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => onToggleTypewriter?.(!typewriterEnabled)}
+                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all ${
+                        typewriterEnabled
+                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-semibold shadow-xs'
+                          : 'bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {typewriterEnabled && <Check className="h-3 w-3" />}
+                      <span>{typewriterEnabled ? '已开启' : '未开启'}</span>
+                    </button>
+                  </div>
+
+                  {typewriterEnabled && (
+                    <div className="space-y-4 pt-3 border-t border-white/5 animate-in fade-in duration-200">
+                      {/* 垂直锚点位置 */}
+                      <div>
+                        <label className="font-medium text-[11px] block mb-2 opacity-80" style={{ color: theme.colors.text }}>
+                          视口垂直锁定位置
+                        </label>
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {[
+                            { value: 0.38, name: '38% 黄金视线', desc: '微仰舒适阅读位' },
+                            { value: 0.50, name: '50% 视口正中', desc: '经典打字机正中' },
+                            { value: 0.60, name: '60% 沉浸低位', desc: '自上而下宏观视野' },
+                          ].map((item) => {
+                            const isCur = Math.abs((typewriterRatio ?? 0.38) - item.value) < 0.04;
+                            return (
+                              <button
+                                key={item.value}
+                                onClick={() => onChangeTypewriterRatio?.(item.value)}
+                                className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
+                                  isCur ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold' : 'hover:border-white/20'
+                                }`}
+                                style={{
+                                  backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bgSecondary,
+                                  borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                                }}
+                              >
+                                <span className="text-[11px]" style={{ color: theme.colors.text }}>
+                                  {item.name}
+                                </span>
+                                <span className="text-[9.5px] opacity-40 mt-0.5 font-mono" style={{ color: theme.colors.textMuted }}>
+                                  {item.desc}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 平滑滚动节奏 */}
+                      <div>
+                        <label className="font-medium text-[11px] block mb-2 opacity-80" style={{ color: theme.colors.text }}>
+                          平滑推移节奏
+                        </label>
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {[
+                            { id: 'gentle', name: '舒缓流体', desc: '柔和运镜平滑推移' },
+                            { id: 'balanced', name: '自然阻尼', desc: '平衡响应顺滑到位' },
+                            { id: 'snappy', name: '敏捷极速', desc: '高频紧跟快速响应' },
+                          ].map((sp) => {
+                            const isCur = (typewriterSpeed ?? 'balanced') === sp.id;
+                            return (
+                              <button
+                                key={sp.id}
+                                onClick={() => onChangeTypewriterSpeed?.(sp.id as any)}
+                                className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
+                                  isCur ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold' : 'hover:border-white/20'
+                                }`}
+                                style={{
+                                  backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bgSecondary,
+                                  borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                                }}
+                              >
+                                <span className="text-[11px]" style={{ color: theme.colors.text }}>
+                                  {sp.name}
+                                </span>
+                                <span className="text-[9.5px] opacity-40 mt-0.5 font-mono" style={{ color: theme.colors.textMuted }}>
+                                  {sp.desc}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -88,7 +88,7 @@ function createEditorTheme(
       width: '100%',
       maxWidth: '100%',
       boxSizing: 'border-box',
-      padding: '40px 48px 50vh 48px',
+      padding: '40px 48px 65vh 48px',
       caretColor: 'transparent !important',
       fontFeatureSettings: '"kern" 1, "liga" 1',
     },
