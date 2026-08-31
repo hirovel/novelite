@@ -6,10 +6,10 @@ import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
 export const SampleUserPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-sample-custom',
-    name: '我的自定义插件 (示例)',
+    name: '写作快捷工具集 (示例)',
     version: '1.0.0',
     description: '演示如何通过 Novelite SDK 快速扩展专属命令与写作小工具。',
-    author: 'Novelite Developer',
+    author: 'hirovel',
     icon: 'Terminal',
     defaultEnabled: true,
   },

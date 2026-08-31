@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { THEMES, DEFAULT_THEME_ID } from './core/themes/themeDefinitions';
 import type { Theme } from './core/themes/types';
 import { NovelEditor } from './components/editor/NovelEditor';
-import { FloatingChapterTree } from './components/tree/FloatingChapterTree';
+import { TopSeamlessTitlebar } from './components/navigation/TopSeamlessTitlebar';
 import { TerminalBar } from './components/statusbar/TerminalBar';
 import { CommandPalette } from './components/palette/CommandPalette';
 import { SettingsDrawer } from './components/settings/SettingsDrawer';
 import type { CropParams } from './components/settings/ImageCropModal';
 import { pluginManager } from './core/plugins/PluginManager';
+import { dynamicPluginLoader } from './core/plugins/DynamicPluginLoader';
 import { commandRegistry } from './core/plugins/CommandRegistry';
 import { eventBus } from './core/events/EventBus';
 import { projectStore } from './core/storage/ProjectStore';
@@ -24,6 +25,9 @@ import { DialogueHighlighterPlugin } from './plugins/dialogue-highlighter';
 import { ScratchpadPlugin } from './plugins/scratchpad';
 import { WordCounterPlugin } from './plugins/word-counter';
 import { QuickExporterPlugin } from './plugins/quick-exporter';
+import { EditorToolkitPlugin } from './plugins/editor-toolkit';
+import { SplitViewPlugin } from './plugins/split-view';
+import { SplitViewPane } from './plugins/split-view/SplitViewPane';
 import { SampleUserPlugin } from './plugins/custom-template/sampleUserPlugin';
 
 export const App: React.FC = () => {
@@ -131,7 +135,23 @@ export const App: React.FC = () => {
   });
   const [indentEnabled, setIndentEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('novelite_indent_enabled');
+    return saved !== null ? saved === 'true' : false;
+  });
+  const [indentSize, setIndentSize] = useState<'2em' | '1em' | '3em' | '0'>(() => {
+    return (localStorage.getItem('novelite_indent_size') as any) || '2em';
+  });
+  const [kinsokuStrictness, setKinsokuStrictness] = useState<'strict' | 'loose' | 'native'>(() => {
+    return (localStorage.getItem('novelite_kinsoku_strictness') as any) || 'strict';
+  });
+  const [punctuationHalt, setPunctuationHalt] = useState<boolean>(() => {
+    const saved = localStorage.getItem('novelite_punctuation_halt');
     return saved !== null ? saved === 'true' : true;
+  });
+  const [textAlignment, setTextAlignment] = useState<'justify' | 'left'>(() => {
+    return (localStorage.getItem('novelite_text_alignment') as any) || 'justify';
+  });
+  const [letterSpacing, setLetterSpacing] = useState<number>(() => {
+    return Number(localStorage.getItem('novelite_letter_spacing')) || 0.02;
   });
 
   // Spotlight Focus & Zero-Chrome Layout state
@@ -155,7 +175,62 @@ export const App: React.FC = () => {
     return (localStorage.getItem('novelite_typewriter_speed') as any) || 'balanced';
   });
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    return localStorage.getItem('novelite_sidebar_open') !== 'false';
+  });
+  const [isSplitViewOpen, setIsSplitViewOpen] = useState<boolean>(false);
+  const [splitDirection, setSplitDirection] = useState<'vertical' | 'horizontal'>(() => {
+    return (localStorage.getItem('novelite_split_direction') as any) || 'vertical';
+  });
+  const [splitRatio, setSplitRatio] = useState<number>(() => {
+    const saved = localStorage.getItem('novelite_split_ratio');
+    return saved ? Number(saved) : 0.5;
+  });
+
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState<boolean>(false);
+
+  const handleToggleSplitDirection = () => {
+    const next = splitDirection === 'vertical' ? 'horizontal' : 'vertical';
+    setSplitDirection(next);
+    localStorage.setItem('novelite_split_direction', next);
+    eventBus.emit('show-toast', { message: next === 'horizontal' ? '已切换为上下水平分栏' : '已切换为左右垂直分栏', type: 'info' });
+  };
+
+  const handleSplitRatioChange = (ratio: number) => {
+    const clamped = Math.max(0.2, Math.min(0.8, ratio));
+    setSplitRatio(clamped);
+    localStorage.setItem('novelite_split_ratio', String(clamped));
+  };
+
+  const handleSplitterPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    setIsDraggingSplitter(true);
+
+    const onPointerMove = (moveEvt: PointerEvent) => {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      if (splitDirection === 'vertical') {
+        const offset = moveEvt.clientX - rect.left;
+        const mainRatio = offset / rect.width;
+        handleSplitRatioChange(1 - mainRatio);
+      } else {
+        const offset = moveEvt.clientY - rect.top;
+        const mainRatio = offset / rect.height;
+        handleSplitRatioChange(1 - mainRatio);
+      }
+    };
+
+    const onPointerUp = () => {
+      setIsDraggingSplitter(false);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
+
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
@@ -174,7 +249,12 @@ export const App: React.FC = () => {
     pluginManager.registerPlugin(ScratchpadPlugin);
     pluginManager.registerPlugin(WordCounterPlugin);
     pluginManager.registerPlugin(QuickExporterPlugin);
+    pluginManager.registerPlugin(EditorToolkitPlugin);
+    pluginManager.registerPlugin(SplitViewPlugin);
     pluginManager.registerPlugin(SampleUserPlugin);
+
+    // Initialize previously installed community and custom JS plugins
+    dynamicPluginLoader.init();
 
     if (typewriterEnabled) {
       pluginManager.enablePlugin('plugin-typewriter');
@@ -211,7 +291,26 @@ export const App: React.FC = () => {
     ctx.setSetting('horizontalPadding', horizontalPadding);
     ctx.setSetting('paragraphSpacing', paragraphSpacing);
     ctx.setSetting('indentEnabled', indentEnabled);
-  }, [fontPreset, customFontName, fontSize, lineHeight, contentMaxWidth, horizontalPadding, paragraphSpacing, indentEnabled]);
+    ctx.setSetting('indentSize', indentSize);
+    ctx.setSetting('kinsokuStrictness', kinsokuStrictness);
+    ctx.setSetting('punctuationHalt', punctuationHalt);
+    ctx.setSetting('textAlignment', textAlignment);
+    ctx.setSetting('letterSpacing', letterSpacing);
+  }, [
+    fontPreset,
+    customFontName,
+    fontSize,
+    lineHeight,
+    contentMaxWidth,
+    horizontalPadding,
+    paragraphSpacing,
+    indentEnabled,
+    indentSize,
+    kinsokuStrictness,
+    punctuationHalt,
+    textAlignment,
+    letterSpacing,
+  ]);
 
   // Update typewriter settings into plugin manager
   useEffect(() => {
@@ -226,6 +325,13 @@ export const App: React.FC = () => {
       if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       setToast({ message, type });
       toastTimeoutRef.current = setTimeout(() => setToast(null), 2500);
+    });
+
+    const unsubTheme = eventBus.on('theme-changed', (newId: any) => {
+      if (THEMES[newId]) {
+        setThemeId(newId);
+        localStorage.setItem('novelite_theme_id', newId);
+      }
     });
 
     const unsubVfx = eventBus.on('live-cursor:vfx-changed', (mode: any) => {
@@ -265,12 +371,18 @@ export const App: React.FC = () => {
       }
     });
 
+    const unsubSplitView = eventBus.on('split-view:toggle', () => {
+      setIsSplitViewOpen((prev) => !prev);
+    });
+
     return () => {
       unsubToast();
+      unsubTheme();
       unsubVfx();
       unsubPhysics();
       unsubTypo();
       unsubTypewriter();
+      unsubSplitView();
     };
   }, []);
 
@@ -336,7 +448,8 @@ export const App: React.FC = () => {
       for (const cmd of commands) {
         if (cmd.shortcut && matchesShortcut(e, cmd.shortcut)) {
           e.preventDefault();
-          const ctx = pluginManager.createPluginContext(cmd.id);
+          const targetId = cmd.pluginId || cmd.id;
+          const ctx = pluginManager.getPluginContext(targetId) || pluginManager.createPluginContext(targetId);
           cmd.run(ctx);
           return;
         }
@@ -403,6 +516,34 @@ export const App: React.FC = () => {
       localStorage.setItem('novelite_indent_enabled', String(next));
       return next;
     });
+  };
+
+  const handleChangeIndentSize = (size: '2em' | '1em' | '3em' | '0') => {
+    setIndentSize(size);
+    localStorage.setItem('novelite_indent_size', size);
+  };
+
+  const handleChangeKinsoku = (val: 'strict' | 'loose' | 'native') => {
+    setKinsokuStrictness(val);
+    localStorage.setItem('novelite_kinsoku_strictness', val);
+  };
+
+  const handleTogglePunctuationHalt = () => {
+    setPunctuationHalt((prev) => {
+      const next = !prev;
+      localStorage.setItem('novelite_punctuation_halt', String(next));
+      return next;
+    });
+  };
+
+  const handleChangeTextAlignment = (align: 'justify' | 'left') => {
+    setTextAlignment(align);
+    localStorage.setItem('novelite_text_alignment', align);
+  };
+
+  const handleChangeLetterSpacing = (val: number) => {
+    setLetterSpacing(val);
+    setDebouncedStorage('novelite_letter_spacing', String(val));
   };
 
   const debounceTimerRef = useRef<Record<string, number>>({});
@@ -564,25 +705,32 @@ export const App: React.FC = () => {
         color: theme.colors.text,
       }}
     >
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-          <div
-            className="flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium shadow-xl backdrop-blur-md"
-            style={{
-              backgroundColor: `${theme.colors.bgSecondary}ee`,
-              borderColor: theme.colors.accent,
-              color: theme.colors.text,
-            }}
-          >
-            <span>{toast.message}</span>
-          </div>
-        </div>
+      {/* 🌟 Top Seamless Titlebar (Zero background seam, Horizon Island Capsule & Windows 3 Controls) */}
+      {!isZenMode && (
+        <TopSeamlessTitlebar
+          theme={theme}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        />
       )}
 
-      {/* Main Area */}
-      <div className="relative flex flex-1 overflow-hidden">
-        <main className="relative flex flex-1 flex-col overflow-hidden">
+      {/* Main Area / Split Layout Host */}
+      <div
+        ref={splitContainerRef}
+        className={`relative flex flex-1 overflow-hidden ${
+          isSplitViewOpen && splitDirection === 'horizontal' ? 'flex-col' : 'flex-row'
+        } ${isDraggingSplitter ? (splitDirection === 'vertical' ? 'select-none cursor-col-resize' : 'select-none cursor-row-resize') : ''}`}
+      >
+        {/* Main Editor Canvas (Dynamic Size & Full Literary Canvas) */}
+        <main
+          className="relative flex flex-col overflow-hidden transition-[width,height] duration-75 ease-out"
+          style={{
+            width: isSplitViewOpen && splitDirection === 'vertical' ? `${(1 - splitRatio) * 100}%` : '100%',
+            height: isSplitViewOpen && splitDirection === 'horizontal' ? `${(1 - splitRatio) * 100}%` : '100%',
+            minWidth: isSplitViewOpen && splitDirection === 'vertical' ? '280px' : undefined,
+            minHeight: isSplitViewOpen && splitDirection === 'horizontal' ? '200px' : undefined,
+          }}
+        >
           <NovelEditor
             theme={theme}
             cursorShape={cursorShape}
@@ -608,18 +756,61 @@ export const App: React.FC = () => {
             zeroChrome={zeroChrome}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+            onToggleSidebar={() => {
+              const next = !isSidebarOpen;
+              setIsSidebarOpen(next);
+              localStorage.setItem('novelite_sidebar_open', String(next));
+            }}
             isSidebarOpen={isSidebarOpen}
           />
         </main>
-      </div>
 
-      {/* Floating Chapter Tree Sheet (Ctrl+B) */}
-      <FloatingChapterTree
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        theme={theme}
-      />
+        {/* Resizable Hairline Splitter Divider */}
+        {isSplitViewOpen && (
+          <div
+            onPointerDown={handleSplitterPointerDown}
+            onDoubleClick={() => handleSplitRatioChange(0.5)}
+            title="按住拖拽调节分屏比例，双击恢复 50:50 对等"
+            className={`group flex items-center justify-center relative z-30 transition-colors ${
+              splitDirection === 'vertical'
+                ? 'w-2 -mx-1 cursor-col-resize hover:bg-cyan-400/20 active:bg-cyan-400/40'
+                : 'h-2 -my-1 cursor-row-resize hover:bg-cyan-400/20 active:bg-cyan-400/40'
+            }`}
+          >
+            <div
+              className={`bg-white/10 group-hover:bg-cyan-400 transition-colors rounded-full ${
+                splitDirection === 'vertical' ? 'w-[1.5px] h-10' : 'h-[1.5px] w-10'
+              }`}
+            />
+          </div>
+        )}
+
+        {/* Split View Secondary Pane (Right/Bottom Pane) */}
+        {isSplitViewOpen && (
+          <div
+            style={{
+              width: splitDirection === 'vertical' ? `${splitRatio * 100}%` : '100%',
+              height: splitDirection === 'horizontal' ? `${splitRatio * 100}%` : '100%',
+              minWidth: splitDirection === 'vertical' ? '280px' : undefined,
+              minHeight: splitDirection === 'horizontal' ? '200px' : undefined,
+            }}
+            className="flex flex-col relative overflow-hidden"
+          >
+            <SplitViewPane
+              isOpen={isSplitViewOpen}
+              onClose={() => setIsSplitViewOpen(false)}
+              theme={theme}
+              direction={splitDirection}
+              onToggleDirection={handleToggleSplitDirection}
+              splitRatio={splitRatio}
+              onChangeSplitRatio={handleSplitRatioChange}
+              fontPreset={fontPreset}
+              fontSize={fontSize}
+              lineHeight={lineHeight}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Bottom Bar (Only visible when zeroChrome is turned off) */}
       {!isZenMode && !zeroChrome && (
@@ -706,6 +897,16 @@ export const App: React.FC = () => {
         onChangeParagraphSpacing={handleChangeParagraphSpacing}
         indentEnabled={indentEnabled}
         onToggleIndent={handleToggleIndent}
+        indentSize={indentSize}
+        onChangeIndentSize={handleChangeIndentSize}
+        kinsokuStrictness={kinsokuStrictness}
+        onChangeKinsoku={handleChangeKinsoku}
+        punctuationHalt={punctuationHalt}
+        onTogglePunctuationHalt={handleTogglePunctuationHalt}
+        textAlignment={textAlignment}
+        onChangeTextAlignment={handleChangeTextAlignment}
+        letterSpacing={letterSpacing}
+        onChangeLetterSpacing={handleChangeLetterSpacing}
         spotlightMode={spotlightMode}
         onSelectSpotlightMode={handleSelectSpotlightMode}
         zeroChrome={zeroChrome}
@@ -717,6 +918,22 @@ export const App: React.FC = () => {
         typewriterSpeed={typewriterSpeed}
         onChangeTypewriterSpeed={handleChangeTypewriterSpeed}
       />
+
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div
+            className="flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-medium shadow-xl backdrop-blur-md"
+            style={{
+              backgroundColor: `${theme.colors.bgSecondary}ee`,
+              borderColor: theme.colors.accent,
+              color: theme.colors.text,
+            }}
+          >
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

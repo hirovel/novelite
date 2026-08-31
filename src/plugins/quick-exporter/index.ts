@@ -45,7 +45,7 @@ export const QuickExporterPlugin: NovelitePlugin = {
     name: '全书导出与出版工坊',
     version: '2.0.0',
     description: '支持将全书或单章一键排版导出为规范的纯文本 TXT、完整 Markdown 书稿或分卷章节。',
-    author: 'Novelite Core',
+    author: 'hirovel',
     icon: 'Download',
     defaultEnabled: true,
   },

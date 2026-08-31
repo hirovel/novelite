@@ -4,10 +4,10 @@ import { createTypographyExtension } from './typographyExtension';
 export const ChineseTypographyPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-chinese-typography',
-    name: '中文文学排版与字体风格',
-    version: '2.0.0',
-    description: '提供标准的中文小说 2 字符 CSS 缩进渲染、自定义字体支持与出版级排版。',
-    author: 'Novelite Core',
+    name: '中文文学排版与字体系统',
+    version: '2.2.0',
+    description: '提供标准的中文小说 2 字符 CSS 缩进渲染、GB/T 15834 标点避头尾、标点半角挤压与出版级版心。',
+    author: 'hirovel',
     icon: 'Type',
     defaultEnabled: true,
   },
@@ -16,12 +16,11 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
       id: 'typography.toggle-indent',
       title: '切换中文首行缩进 (2 字符)',
       category: '排版沉浸',
-      shortcut: 'Alt+I',
       run: (c) => {
-        const current = c.getSetting<boolean>('indentEnabled', true);
+        const current = c.getSetting<boolean>('indentEnabled', false);
         const next = !current;
         c.setSetting('indentEnabled', next);
-        c.showToast(next ? '已开启首行缩进 (2em)' : '已关闭首行缩进', 'info');
+        c.showToast(next ? '已开启首行缩进 (2 字符)' : '已关闭首行缩进', 'info');
       },
     });
 
@@ -29,7 +28,6 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
       id: 'typography.font-increase',
       title: '增大编辑器字号',
       category: '排版沉浸',
-      shortcut: 'Ctrl+=',
       run: (c) => {
         const size = c.getSetting<number>('fontSize', 18);
         const newSize = Math.min(32, size + 1);
@@ -42,7 +40,6 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
       id: 'typography.font-decrease',
       title: '减小编辑器字号',
       category: '排版沉浸',
-      shortcut: 'Ctrl+-',
       run: (c) => {
         const size = c.getSetting<number>('fontSize', 18);
         const newSize = Math.max(12, size - 1);
@@ -59,7 +56,12 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
         const fontSize = ctx.getSetting<number>('fontSize', 18);
         const lineHeight = ctx.getSetting<number>('lineHeight', 1.95);
         const paragraphSpacing = ctx.getSetting<number>('paragraphSpacing', 0.7);
-        const indentEnabled = ctx.getSetting<boolean>('indentEnabled', true);
+        const indentEnabled = ctx.getSetting<boolean>('indentEnabled', false);
+        const indentSize = ctx.getSetting<'2em' | '1em' | '3em' | '0'>('indentSize', '2em');
+        const kinsokuStrictness = ctx.getSetting<'strict' | 'loose' | 'native'>('kinsokuStrictness', 'strict');
+        const punctuationHalt = ctx.getSetting<boolean>('punctuationHalt', true);
+        const textAlignment = ctx.getSetting<'justify' | 'left'>('textAlignment', 'justify');
+        const letterSpacing = ctx.getSetting<number>('letterSpacing', 0.02);
         const contentMaxWidth = ctx.getSetting<number>('contentMaxWidth', 780);
         const horizontalPadding = ctx.getSetting<number>('horizontalPadding', 32);
 
@@ -70,6 +72,11 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
           lineHeight,
           paragraphSpacing,
           indentEnabled,
+          indentSize,
+          kinsokuStrictness,
+          punctuationHalt,
+          textAlignment,
+          letterSpacing,
           contentMaxWidth,
           horizontalPadding,
         };

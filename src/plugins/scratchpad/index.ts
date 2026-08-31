@@ -8,7 +8,7 @@ export const ScratchpadPlugin: NovelitePlugin = {
     name: '灵感便签与素材卡片',
     version: '2.0.0',
     description: '随时记录小说伏笔、人物线索、场景描写，并支持一键将灵感插入当前正文光标处。',
-    author: 'Novelite Core',
+    author: 'hirovel',
     icon: 'Sparkles',
     defaultEnabled: true,
   },

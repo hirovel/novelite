@@ -1,46 +1,120 @@
 import type { Extension } from '@codemirror/state';
-import { MatchDecorator, ViewPlugin, Decoration, EditorView } from '@codemirror/view';
+import { MatchDecorator, ViewPlugin, Decoration, type DecorationSet, EditorView, type ViewUpdate } from '@codemirror/view';
+
+export type DialogueColorPreset = 'theme' | 'cyan' | 'amber' | 'emerald' | 'rose' | 'violet' | 'gold' | 'custom';
+
+export const DIALOGUE_COLOR_MAP: Record<Exclude<DialogueColorPreset, 'custom'>, { name: string; hex: string }> = {
+  theme: { name: '跟随主题', hex: '#38bdf8' },
+  cyan: { name: '淡青', hex: '#38bdf8' },
+  amber: { name: '暖黄', hex: '#fbbf24' },
+  emerald: { name: '淡绿', hex: '#34d399' },
+  rose: { name: '粉红', hex: '#fb7185' },
+  violet: { name: '柔紫', hex: '#a78bfa' },
+  gold: { name: '淡金', hex: '#f59e0b' },
+};
+
+export interface DialogueHighlighterConfig {
+  enabled: boolean;
+  colorPreset: DialogueColorPreset;
+  customColor?: string;
+  highlightThoughts: boolean;
+}
 
 /**
- * Creates the CodeMirror 6 Dialogue Highlighter extension.
- * Highlights novel quotes and character dialogues wrapped in quotation marks with subtle theme glow.
+ * Creates the CodeMirror 6 Dialogue & Inner-Thoughts Highlighter Extension 2.0.
  *
- * @param getEnabled Callback returning whether dialogue highlighting is active.
- * @param getAccentColor Callback returning the active theme accent color.
+ * Supports:
+ * - Dialogue quotation marks: “……”, "……", 「……」, 『……』
+ * - Inner monologue thoughts (optional): （……）, (...)
+ * - Arbitrary Custom Hex Colors & 7 Literary Color Presets
+ * - Viewport-bounded MatchDecorator (instant 0-overhead performance)
  */
 export function createDialogueHighlighterExtension(
-  getEnabled: () => boolean,
-  getAccentColor: () => string
+  getConfig: () => DialogueHighlighterConfig,
+  getThemeAccent?: () => string
 ): Extension {
   const dialogueDecorator = new MatchDecorator({
-    regexp: /(“[^”\n]*”|"([^"\n]*)"|「[^」\n]*」)/g,
+    regexp: /(“[^”\n]*”|"([^"\n]*)"|「[^」\n]*」|『[^』\n]*』)/g,
     decoration: () => Decoration.mark({ class: 'cm-dialogue-quote' }),
   });
 
-  const plugin = ViewPlugin.define(
-    (view) => ({
-      decorations: getEnabled() ? dialogueDecorator.createDeco(view) : Decoration.none,
-      update(u) {
-        if (!getEnabled()) {
-          this.decorations = Decoration.none;
+  const thoughtDecorator = new MatchDecorator({
+    regexp: /(（[^）\n]+）|\([^)\n]+\))/g,
+    decoration: () => Decoration.mark({ class: 'cm-dialogue-thought' }),
+  });
+
+  const plugin = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+
+      constructor(view: EditorView) {
+        this.decorations = this.buildDeco(view);
+      }
+
+      update(update: ViewUpdate) {
+        const config = getConfig();
+        if (!config.enabled) {
+          if (this.decorations !== Decoration.none) {
+            this.decorations = Decoration.none;
+          }
           return;
         }
-        this.decorations = dialogueDecorator.updateDeco(u, this.decorations);
-      },
-    }),
+
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.buildDeco(update.view);
+        }
+      }
+
+      private buildDeco(view: EditorView): DecorationSet {
+        const config = getConfig();
+        if (!config.enabled) return Decoration.none;
+
+        let deco = dialogueDecorator.createDeco(view);
+        if (config.highlightThoughts) {
+          const thoughtDeco = thoughtDecorator.createDeco(view);
+          deco = deco.update({ add: thoughtDeco as any });
+        }
+        return deco;
+      }
+    },
     {
       decorations: (v) => v.decorations,
     }
   );
 
+  const attributes = EditorView.editorAttributes.of(() => {
+    const config = getConfig();
+    if (!config.enabled) return null;
+
+    let targetHex = '#38bdf8';
+    if (config.colorPreset === 'custom' && config.customColor) {
+      targetHex = config.customColor;
+    } else if (config.colorPreset === 'theme') {
+      const themeAcc = getThemeAccent?.();
+      if (themeAcc) targetHex = themeAcc;
+      else targetHex = '#38bdf8';
+    } else if (config.colorPreset in DIALOGUE_COLOR_MAP) {
+      targetHex = DIALOGUE_COLOR_MAP[config.colorPreset as keyof typeof DIALOGUE_COLOR_MAP].hex;
+    }
+
+    return {
+      style: `--novelite-dialogue-color: ${targetHex};`,
+    };
+  });
+
   const theme = EditorView.theme({
     '.cm-dialogue-quote': {
-      get color() {
-        return `${getAccentColor() || '#a5b4fc'} !important`;
-      },
-      textShadow: '0 0 8px rgba(165, 180, 252, 0.25)',
+      color: 'var(--novelite-dialogue-color, #38bdf8) !important',
+      fontWeight: '500',
+      transition: 'color 0.15s ease',
+    },
+    '.cm-dialogue-thought': {
+      color: 'var(--novelite-dialogue-color, #38bdf8) !important',
+      opacity: '0.85',
+      fontStyle: 'italic',
+      transition: 'color 0.15s ease, opacity 0.15s ease',
     },
   });
 
-  return [plugin, theme];
+  return [plugin, attributes, theme];
 }

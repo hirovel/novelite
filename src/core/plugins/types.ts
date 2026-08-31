@@ -14,6 +14,7 @@ export interface PluginMetadata {
 
 export interface Command {
   id: string;
+  pluginId?: string;
   title: string;
   category?: string;
   shortcut?: string;

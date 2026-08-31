@@ -1,9 +1,9 @@
-import type { Extension } from '@codemirror/state';
+import { Prec, type Extension } from '@codemirror/state';
 import { RangeSetBuilder } from '@codemirror/state';
-import { EditorView, ViewPlugin, ViewUpdate, Decoration, type DecorationSet } from '@codemirror/view';
+import { EditorView, ViewPlugin, ViewUpdate, Decoration, type DecorationSet, keymap } from '@codemirror/view';
 
 /**
- * Configuration options for Chinese typography styling and layout.
+ * Detailed configuration options for Chinese typography styling and layout.
  */
 export interface TypographyConfig {
   fontPreset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom';
@@ -12,6 +12,10 @@ export interface TypographyConfig {
   lineHeight: number;
   paragraphSpacing?: number;
   indentEnabled?: boolean;
+  indentSize?: '2em' | '1em' | '3em' | '0';
+  kinsokuStrictness?: 'strict' | 'loose' | 'native';
+  punctuationHalt?: boolean;
+  textAlignment?: 'justify' | 'left';
   contentMaxWidth?: number;
   horizontalPadding?: number;
   letterSpacing?: number;
@@ -46,9 +50,24 @@ const codeDeco = Decoration.line({
 });
 
 /**
+ * Checks if a line text is exempt from auto indentation (e.g. Markdown Header, Blockquote, Divider, Code fence, List)
+ */
+export function isExemptLine(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  if (/^(?:#|＃)\s/.test(trimmed)) return true; // # Header
+  if (/^(?:##|＃＃)\s/.test(trimmed)) return true;
+  if (/^(?:###|＃＃＃)\s/.test(trimmed)) return true;
+  if (/^(?:####|＃＃＃＃)\s/.test(trimmed)) return true;
+  if (/^(?:>|》)\s/.test(trimmed)) return true; // > Blockquote
+  if (/^[-*_]{3,}$/.test(trimmed)) return true; // --- Divider
+  if (/^[-*+•·]\s/.test(trimmed) || /^\d+[.、]\s/.test(trimmed)) return true; // List
+  if (trimmed.startsWith('```') || trimmed.startsWith('~~~') || trimmed.startsWith('|')) return true; // Code / Table
+  return false;
+}
+
+/**
  * CodeMirror 6 ViewPlugin for Chinese structural line decorations.
- * Automatically exempts Chapter Headings (# ), Blockquotes (> ), Dividers (---), Lists, Code Blocks,
- * and already manually-indented pasted text from duplicate 2em text-indent.
  */
 const chineseLineDecorator = ViewPlugin.fromClass(
   class {
@@ -99,11 +118,7 @@ const chineseLineDecorator = ViewPlugin.fromClass(
           else if (trimmed.startsWith('```') || trimmed.startsWith('~~~') || trimmed.startsWith('|')) {
             builder.add(line.from, line.from, codeDeco);
           }
-          // 6. Prevent quadruple indent when pasting text with manual fullwidth '　　' or 4 spaces
-          else if (text.startsWith('　　') || text.startsWith('    ')) {
-            builder.add(line.from, line.from, noIndentDeco);
-          }
-          // 7. Blank lines
+          // 6. Blank lines
           else if (trimmed.length === 0) {
             builder.add(line.from, line.from, noIndentDeco);
           }
@@ -120,10 +135,7 @@ const chineseLineDecorator = ViewPlugin.fromClass(
 );
 
 /**
- * Creates CodeMirror 6 typography and layout theme extensions based on dynamic configuration.
- * Fully decoupled and configurable via Plugin Settings.
- *
- * @param getConfig Callback returning the active TypographyConfig.
+ * Creates CodeMirror 6 typography and physical indentation extension.
  */
 export function createTypographyExtension(
   getConfig: () => TypographyConfig
@@ -146,9 +158,148 @@ export function createTypographyExtension(
     }
   };
 
+  const resolveLineBreak = (cfg: TypographyConfig): string => {
+    if (cfg.kinsokuStrictness === 'native') return 'normal';
+    if (cfg.kinsokuStrictness === 'loose') return 'loose';
+    return 'strict';
+  };
+
+  const resolveFontFeatures = (cfg: TypographyConfig): string => {
+    const halt = cfg.punctuationHalt !== false ? '"halt" 1, ' : '';
+    return `${halt}"kern" 1, "liga" 1, "palt" 1`;
+  };
+
+  /**
+   * 🌟 1. Physical Indentation Enter Keymap
+   * Automatically inserts '\n\u3000\u3000' (two physical fullwidth Chinese spaces) on Enter for normal prose.
+   */
+  const physicalIndentKeymap = Prec.high(
+    keymap.of([
+      {
+        key: 'Enter',
+        run: (view: EditorView) => {
+          const cfg = getConfig();
+          if (cfg.indentEnabled === false) return false;
+
+          const state = view.state;
+          const head = state.selection.main.head;
+          const line = state.doc.lineAt(head);
+          const lineText = line.text;
+
+          // If the line is only fullwidth/halfwidth spaces and user hits Enter, clear it to create clean blank line
+          if (lineText.trim() === '' && lineText.length > 0 && head === line.to) {
+            view.dispatch({
+              changes: [
+                { from: line.from, to: line.to, insert: '' },
+                { from: line.from, to: line.from, insert: '\n' },
+              ],
+              selection: { anchor: line.from + 1 },
+              userEvent: 'input',
+            });
+            return true;
+          }
+
+          // If header, quote, divider, or list -> insert normal newline without indent
+          if (isExemptLine(lineText)) {
+            view.dispatch({
+              changes: { from: head, to: state.selection.main.to, insert: '\n' },
+              selection: { anchor: head + 1 },
+              userEvent: 'input',
+            });
+            return true;
+          }
+
+          // Normal prose paragraph -> insert '\n\u3000\u3000'
+          const indentStr = '\n\u3000\u3000';
+          view.dispatch({
+            changes: { from: head, to: state.selection.main.to, insert: indentStr },
+            selection: { anchor: head + indentStr.length },
+            userEvent: 'input',
+          });
+          return true;
+        },
+      },
+      {
+        key: 'Backspace',
+        run: (view: EditorView) => {
+          const cfg = getConfig();
+          if (cfg.indentEnabled === false) return false;
+
+          const state = view.state;
+          if (!state.selection.main.empty) return false;
+
+          const head = state.selection.main.head;
+          const line = state.doc.lineAt(head);
+
+          // If cursor is at column 2 (immediately after '\u3000\u3000'), delete both fullwidth spaces at once
+          if (head === line.from + 2 && line.text.startsWith('\u3000\u3000')) {
+            view.dispatch({
+              changes: { from: line.from, to: line.from + 2, insert: '' },
+              selection: { anchor: line.from },
+              userEvent: 'delete',
+            });
+            return true;
+          }
+
+          return false;
+        },
+      },
+    ])
+  );
+
+  /**
+   * 🌟 2. Physical Indentation Paste Normalizer
+   * When pasting unindented Chinese text, automatically format with physical '\u3000\u3000'.
+   */
+  const pasteNormalizer = EditorView.domEventHandlers({
+    paste(e, view) {
+      const cfg = getConfig();
+      if (cfg.indentEnabled === false) return false;
+
+      const text = e.clipboardData?.getData('text/plain');
+      if (!text) return false;
+
+      const lines = text.split(/\r?\n/);
+      let needsFormatting = false;
+
+      const formattedLines = lines.map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || isExemptLine(line)) return line;
+
+        if (line.startsWith('\u3000\u3000')) {
+          return line;
+        }
+
+        if (line.startsWith('    ')) {
+          needsFormatting = true;
+          return '\u3000\u3000' + line.replace(/^ {4}/, '');
+        }
+
+        needsFormatting = true;
+        return '\u3000\u3000' + line.replace(/^[ \t\u3000\u00A0]+/, '');
+      });
+
+      if (needsFormatting) {
+        e.preventDefault();
+        const formatted = formattedLines.join('\n');
+        const sel = view.state.selection.main;
+        view.dispatch({
+          changes: { from: sel.from, to: sel.to, insert: formatted },
+          selection: { anchor: sel.from + formatted.length },
+          userEvent: 'input.paste',
+        });
+        return true;
+      }
+
+      return false;
+    },
+  });
+
   return [
     EditorView.lineWrapping,
     chineseLineDecorator,
+    physicalIndentKeymap,
+    pasteNormalizer,
     EditorView.theme({
       '&': {
         height: '100%',
@@ -162,8 +313,13 @@ export function createTypographyExtension(
         get fontFamily() {
           return resolveFontFamily(getConfig());
         },
-        letterSpacing: '0.02em',
-        fontFeatureSettings: '"halt" 1, "kern" 1, "liga" 1',
+        get letterSpacing() {
+          const lSp = getConfig().letterSpacing;
+          return lSp !== undefined ? `${lSp}em` : '0.02em';
+        },
+        get fontFeatureSettings() {
+          return resolveFontFeatures(getConfig());
+        },
         textRendering: 'optimizeLegibility',
         WebkitFontSmoothing: 'antialiased',
         MozOsxFontSmoothing: 'grayscale',
@@ -202,14 +358,12 @@ export function createTypographyExtension(
         pointerEvents: 'none !important',
       },
 
-      // 🌟 标准中文首行 2 字符缩进与国标标点避头尾断行 (GB/T 15834 Kinsoku)
+      // 🌟 物理空格真实缩进（text-indent 设为 0，完全由正文物理空格 \u3000\u3000 驱动，所见即所得，落盘与复制 100% 保持）
       '.cm-line': {
         boxSizing: 'border-box',
         width: '100%',
         margin: '0 !important',
-        get textIndent() {
-          return getConfig().indentEnabled !== false ? '2em' : '0';
-        },
+        textIndent: '0 !important',
         get paddingBottom() {
           const spacing = getConfig().paragraphSpacing ?? 0.7;
           return `${(spacing * 0.45) * (getConfig().fontSize || 18)}px`;
@@ -218,11 +372,15 @@ export function createTypographyExtension(
         paddingLeft: '0',
         paddingRight: '0',
         letterSpacing: 'inherit',
-        lineBreak: 'strict',
+        get lineBreak() {
+          return resolveLineBreak(getConfig());
+        },
         wordBreak: 'break-all',
         overflowWrap: 'break-word',
         textWrap: 'pretty',
-        textAlign: 'justify',
+        get textAlign() {
+          return getConfig().textAlignment === 'left' ? 'left' : 'justify';
+        },
         textJustify: 'inter-ideograph',
       },
 

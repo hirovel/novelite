@@ -7,8 +7,8 @@ export const LiveCursorPlugin: NovelitePlugin = {
     id: 'plugin-live-cursor',
     name: '灵感光标',
     version: '2.0.0',
-    description: '120fps 原生内联 GPU 物理流体光标与视觉动效引擎',
-    author: 'Novelite Team',
+    description: '随屏幕刷新率垂直同步的原生 GPU 物理流体光标与视觉动效引擎',
+    author: 'hirovel',
     defaultEnabled: true,
   },
 

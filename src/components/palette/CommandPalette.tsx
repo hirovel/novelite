@@ -3,6 +3,7 @@ import { Search, FileText, Terminal } from 'lucide-react';
 import { commandRegistry } from '../../core/plugins/CommandRegistry';
 import { projectStore } from '../../core/storage/ProjectStore';
 import { pluginManager } from '../../core/plugins/PluginManager';
+import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
 import { KeyboardShortcutBadge } from '../common/KeyboardShortcutBadge';
 
@@ -59,6 +60,65 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
   const items: PaletteItem[] = [];
   const project = projectStore.getProject();
 
+  // 0. Primary Navigation & Bookshelf Commands
+  items.push(
+    {
+      id: 'cmd_open_outline',
+      type: 'command',
+      title: '大纲速览：打开全景大纲手稿台 (Ulysses Flight Deck)',
+      subtitle: '大纲与章节速览',
+      shortcut: 'Ctrl+J',
+      action: () => {
+        eventBus.emit('quick-search:open');
+        onClose();
+      },
+    },
+    {
+      id: 'cmd_open_bookshelf',
+      type: 'command',
+      title: '作品书架：管理与切换小说作品',
+      subtitle: '小说创作库',
+      shortcut: 'Ctrl+Shift+B',
+      action: () => {
+        eventBus.emit('bookshelf:open');
+        onClose();
+      },
+    },
+    {
+      id: 'cmd_next_chapter',
+      type: 'command',
+      title: '章节导航：快速瞬移至下一章',
+      subtitle: '章节穿梭',
+      shortcut: 'Ctrl+]',
+      action: () => {
+        projectStore.navigateToNextChapter();
+        onClose();
+      },
+    },
+    {
+      id: 'cmd_prev_chapter',
+      type: 'command',
+      title: '章节导航：快速瞬移至上一章',
+      subtitle: '章节穿梭',
+      shortcut: 'Ctrl+[',
+      action: () => {
+        projectStore.navigateToPrevChapter();
+        onClose();
+      },
+    },
+    {
+      id: 'cmd_auto_number',
+      type: 'command',
+      title: '规范大纲：全书章节智能规范重编号',
+      subtitle: '排版大纲',
+      action: () => {
+        const count = projectStore.autoNumberChapters();
+        eventBus.emit('show-toast', { message: `已规范全书 ${count} 章节序号`, type: 'success' });
+        onClose();
+      },
+    }
+  );
+
   // 1. Chapters
   project.volumes.forEach((vol) => {
     vol.chapters.forEach((chap) => {
@@ -85,7 +145,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
       subtitle: cmd.category || '快捷命令',
       shortcut: cmd.shortcut,
       action: () => {
-        const ctx = pluginManager.createPluginContext('command-palette');
+        const targetId = cmd.pluginId || cmd.id;
+        const ctx = pluginManager.getPluginContext(targetId) || pluginManager.createPluginContext(targetId);
         cmd.run(ctx);
         onClose();
       },

@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, keymap, highlightActiveLine, drawSelection } from '@codemirror/view';
+import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
+import { fileSystemStore } from '../../core/storage/FileSystemStore';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
 import { createLiveCursorPluginExtension } from '../../plugins/live-cursor/liveCursorExtension';
+import { FloatingSearchHUD } from '../../plugins/editor-toolkit/FloatingSearchHUD';
 import { EditorBackground } from './EditorBackground';
 import type { BackgroundEffect } from './EditorBackground';
-import { BookOpen, Hash, Pencil, Settings, Sidebar as SidebarIcon, Command } from 'lucide-react';
+import { Hash, Pencil, Settings, Sidebar as SidebarIcon, Command } from 'lucide-react';
 
 interface Props {
   theme: Theme;
@@ -43,7 +45,6 @@ interface Props {
 
 function createEditorTheme(
   theme: Theme,
-  spotlightMode: 'none' | 'paragraph' = 'paragraph',
   backgroundEffect: BackgroundEffect = 'solid',
   backgroundIntensity: number = 0.65,
   lineHeight: number = 1.95
@@ -114,13 +115,29 @@ function createEditorTheme(
           }
         : {}),
     },
-    '&.cm-focused .cm-line': {
-      opacity: spotlightMode === 'paragraph' ? '0.36' : '1',
+    // 🌟 稿纸/信纸模式对于大标题、分卷标题与特殊块的精准适配 (Clean Heading Alignment)
+    '.cm-line.cm-line-h1': {
+      backgroundImage: 'none !important',
+      ...(isRuled
+        ? {
+            borderBottom: `1.5px solid ${ruledColor}`,
+            paddingBottom: '10px !important',
+            marginBottom: '16px !important',
+          }
+        : {}),
     },
-    '&.cm-focused .cm-activeLine': {
-      opacity: '1 !important',
-      backgroundColor: `${theme.colors.bgHover}14`,
-      borderRadius: '6px',
+    '.cm-line.cm-line-h2': {
+      backgroundImage: 'none !important',
+      ...(isRuled
+        ? {
+            borderBottom: `1px solid ${ruledColor}`,
+            paddingBottom: '8px !important',
+            marginBottom: '12px !important',
+          }
+        : {}),
+    },
+    '.cm-line.cm-line-h3, .cm-line.cm-line-h4, .cm-line.cm-line-hr, .cm-line.cm-line-code': {
+      backgroundImage: 'none !important',
     },
     // 🌟 现代微光流体选区
     '.cm-selectionLayer': {
@@ -165,7 +182,7 @@ export const NovelEditor: React.FC<Props> = ({
   fontSize: _fontSize,
   lineHeight = 1.95,
   contentMaxWidth: _contentMaxWidth,
-  spotlightMode = 'paragraph',
+  spotlightMode: _spotlightMode = 'paragraph',
   zeroChrome = true,
   onOpenSettings,
   onOpenCommandPalette,
@@ -192,7 +209,6 @@ export const NovelEditor: React.FC<Props> = ({
   const titleInputRef = useRef<HTMLInputElement | null>(null);
 
   const initialThemeRef = useRef<Theme>(theme);
-  const initialSpotlightRef = useRef<'none' | 'paragraph'>(spotlightMode);
 
   const themeCompartmentRef = useRef<Compartment>(new Compartment());
   const pluginsCompartmentRef = useRef<Compartment>(new Compartment());
@@ -275,6 +291,7 @@ export const NovelEditor: React.FC<Props> = ({
             const curChap = projectStore.getActiveChapter();
             if (curChap) {
               projectStore.updateChapterContent(curChap.id, newContent);
+              fileSystemStore.writeChapterDirectToDisk(curChap.id, newContent);
             }
             const exactCount = countWordsFast(newContent);
             setCharCount(exactCount);
@@ -303,13 +320,11 @@ export const NovelEditor: React.FC<Props> = ({
       extensions: [
         history(),
         drawSelection(),
-        highlightActiveLine(),
         markdown(),
         EditorView.lineWrapping,
         themeCompartmentRef.current.of(
           createEditorTheme(
             initialThemeRef.current,
-            initialSpotlightRef.current,
             backgroundEffect,
             backgroundIntensity,
             lineHeight
@@ -422,15 +437,15 @@ export const NovelEditor: React.FC<Props> = ({
     };
   }, []);
 
-  // 🌟 2. 主题、聚光灯与背景横线动态无缝热重载 (Zero-Flicker Hot-Reload via Compartment)
+  // 🌟 2. 主题与背景横线动态无缝热重载 (Zero-Flicker Hot-Reload via Compartment)
   useEffect(() => {
     if (!editorView) return;
     editorView.dispatch({
       effects: themeCompartmentRef.current.reconfigure(
-        createEditorTheme(theme, spotlightMode, backgroundEffect, backgroundIntensity, lineHeight)
+        createEditorTheme(theme, backgroundEffect, backgroundIntensity, lineHeight)
       ),
     });
-  }, [theme, spotlightMode, backgroundEffect, backgroundIntensity, lineHeight, editorView]);
+  }, [theme, backgroundEffect, backgroundIntensity, lineHeight, editorView]);
 
   // 🌟 3. Live 灵感光标动态热重载 (Zero-Flicker Hot-Reload via Cursor Compartment)
   useEffect(() => {
@@ -546,7 +561,6 @@ export const NovelEditor: React.FC<Props> = ({
           }}
         >
           <div className="flex items-center gap-2 max-w-[65%] group">
-            <BookOpen className="h-3.5 w-3.5 shrink-0 opacity-60" style={{ color: theme.colors.accent }} />
             {isEditingTitle ? (
               <input
                 type="text"
@@ -663,6 +677,9 @@ export const NovelEditor: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* 🔍 Floating Search & Replace HUD */}
+      <FloatingSearchHUD view={editorView} theme={theme} />
     </div>
   );
 };

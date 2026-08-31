@@ -8,7 +8,7 @@ export const NovelTreePlugin: NovelitePlugin = {
     name: '小说分卷大纲与章节目录',
     version: '2.0.0',
     description: '提供专业的小说分卷、章节层级管理、排序重组、状态标记与单章导出。',
-    author: 'Novelite Core',
+    author: 'hirovel',
     icon: 'BookOpen',
     defaultEnabled: true,
   },

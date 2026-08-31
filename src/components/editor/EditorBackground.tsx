@@ -98,17 +98,8 @@ export const EditorBackground: React.FC<Props> = React.memo(({
       }
 
       case 'ruled': {
-        const opacity = Math.max(0.1, Math.min(1.0, intensity)) * (theme.isDark ? 0.35 : 0.25);
-        const marginGuideColor = theme.colors.accent || (theme.isDark ? '#e11d48' : '#dc2626');
-        return (
-          <div className="absolute inset-0 pointer-events-none transition-opacity duration-500 overflow-hidden" style={{ opacity }}>
-            {/* Subtle Classic Manuscript Vertical Red Margin Guide Line */}
-            <div
-              className="absolute top-0 bottom-0 left-12 sm:left-16 w-px opacity-30 pointer-events-none"
-              style={{ backgroundColor: marginGuideColor }}
-            />
-          </div>
-        );
+        // True baseline-aligned ruled lines are rendered directly on .cm-line in CodeMirror
+        return null;
       }
 
       default:

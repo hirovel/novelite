@@ -56,7 +56,7 @@ class Spring1D {
  * 4. Zero-jank requestMeasure DOM batching
  */
 export function createTypewriterExtension(getConfig: () => TypewriterConfig): Extension {
-  return ViewPlugin.fromClass(
+  const plugin = ViewPlugin.fromClass(
     class {
       private view: EditorView;
       private spring = new Spring1D();
@@ -85,6 +85,8 @@ export function createTypewriterExtension(getConfig: () => TypewriterConfig): Ex
         scrollDOM.addEventListener('wheel', this.onWheelBound, { passive: true });
         scrollDOM.addEventListener('touchmove', this.onTouchMoveBound, { passive: true });
         view.contentDOM.addEventListener('keydown', this.onKeyDownBound, { passive: true });
+
+        this.view.dom.classList.toggle('cm-typewriter-active', !!getConfig().enabled);
 
         // Initial centering on initialization if enabled
         setTimeout(() => {
@@ -125,6 +127,8 @@ export function createTypewriterExtension(getConfig: () => TypewriterConfig): Ex
 
       update(update: ViewUpdate) {
         const config = getConfig();
+        this.view.dom.classList.toggle('cm-typewriter-active', !!config.enabled);
+
         if (!config.enabled) {
           this.wasEnabled = false;
           this.stopAnimation();
@@ -247,6 +251,7 @@ export function createTypewriterExtension(getConfig: () => TypewriterConfig): Ex
 
       destroy() {
         this.stopAnimation();
+        this.view.dom.classList.remove('cm-typewriter-active');
         if (this.userScrollTimeout) {
           clearTimeout(this.userScrollTimeout);
         }
@@ -257,4 +262,12 @@ export function createTypewriterExtension(getConfig: () => TypewriterConfig): Ex
       }
     }
   );
+
+  const typewriterTheme = EditorView.theme({
+    '&.cm-typewriter-active .cm-content': {
+      paddingBottom: '60vh !important',
+    },
+  });
+
+  return [plugin, typewriterTheme];
 }

@@ -7,7 +7,7 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
     name: '艺术空间与背景氛围工坊',
     version: '1.0.0',
     description: '提供极光流云、暗房胶片颗粒、素描点阵、原稿横线等写作空间氛围渲染。',
-    author: 'Novelite Core',
+    author: 'hirovel',
     icon: 'Sparkles',
     defaultEnabled: true,
   },
@@ -47,21 +47,12 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
       },
     });
 
-    // 2. Classic Manuscript Ruled Lines
+    // 2. Classic Manuscript Ruled Lines (Horizontal baselines rendered directly in CodeMirror)
     ctx.registerBackgroundRenderer({
       id: 'ruled',
       name: '信纸横线',
-      render: (theme: Theme, intensity: number) => {
-        const opacity = Math.max(0.1, Math.min(1.0, intensity)) * (theme.isDark ? 0.35 : 0.25);
-        const marginGuideColor = theme.colors.accent || (theme.isDark ? '#e11d48' : '#dc2626');
-        return (
-          <div className="absolute inset-0 pointer-events-none transition-opacity duration-500 overflow-hidden" style={{ opacity }}>
-            <div
-              className="absolute top-0 bottom-0 left-12 sm:left-16 w-px opacity-30 pointer-events-none"
-              style={{ backgroundColor: marginGuideColor }}
-            />
-          </div>
-        );
+      render: () => {
+        return null;
       },
     });
 

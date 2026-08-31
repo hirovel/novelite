@@ -8,7 +8,7 @@ export const WordCounterPlugin: NovelitePlugin = {
     name: '实时字数与码字测速仪',
     version: '2.0.0',
     description: '在状态栏与动态岛中实时监控单章字数、全书进度与实时码字速度 (WPM)。',
-    author: 'Novelite Core',
+    author: 'hirovel',
     icon: 'Activity',
     defaultEnabled: true,
   },

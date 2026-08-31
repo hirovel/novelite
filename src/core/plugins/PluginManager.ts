@@ -112,7 +112,10 @@ export class PluginManager {
   public createPluginContext(pluginId: string): PluginContext {
     return {
       registerCommand: (command) => {
-        const unbind = commandRegistry.register(command);
+        const unbind = commandRegistry.register({
+          ...command,
+          pluginId,
+        });
         return this.addDisposable(pluginId, unbind);
       },
       registerSidebarTab: (tab) => {
@@ -249,6 +252,10 @@ export class PluginManager {
     };
   }
 
+  public getPluginContext(pluginId: string): PluginContext {
+    return this.createPluginContext(pluginId);
+  }
+
   public registerPlugin(plugin: NovelitePlugin): void {
     this.plugins.set(plugin.metadata.id, plugin);
     
@@ -327,6 +334,21 @@ export class PluginManager {
     this.disposePluginResources(id);
 
     eventBus.emit('plugins-changed');
+    this.notify();
+  }
+
+  public unregisterPlugin(id: string): void {
+    const plugin = this.plugins.get(id);
+    if (!plugin) return;
+
+    if (this.enabledPluginIds.has(id)) {
+      this.disablePlugin(id);
+    }
+
+    this.plugins.delete(id);
+    this.disposePluginResources(id);
+    eventBus.emit('plugins-changed');
+    eventBus.emit('editor-extensions-changed');
     this.notify();
   }
 

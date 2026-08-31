@@ -6,8 +6,6 @@ import {
   Trash2,
   Edit3,
   Search,
-  Pin,
-  PinOff,
   X,
   GripVertical,
   Copy,
@@ -20,15 +18,18 @@ import {
   Folder,
   FolderOpen,
   Palette,
+  History,
+  PanelLeftClose,
 } from 'lucide-react';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import type { NovelProject, Volume, Chapter } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
+import { VersionHistoryModal } from './VersionHistoryModal';
 
 interface Props {
   isOpen: boolean;
-  onClose: () => void;
+  onToggle: () => void;
   theme: Theme;
 }
 
@@ -40,7 +41,6 @@ interface ContextMenuState {
   chapTitle: string;
 }
 
-// 🎨 Real Global Themes Available
 const THEME_PRESETS = [
   { id: 'obsidian-minimal', name: '黑曜极简 (Obsidian)', dark: true, dot: '#8b5cf6' },
   { id: 'cyber-noir', name: '极夜冷黑 (Pure Void)', dark: true, dot: '#38bdf8' },
@@ -49,15 +49,12 @@ const THEME_PRESETS = [
   { id: 'tokyo-night', name: '暗夜深蓝 (Tokyo)', dark: true, dot: '#7aa2f7' },
 ];
 
-export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme }) => {
+export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }) => {
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isPinned, setIsPinned] = useState<boolean>(() => {
-    return localStorage.getItem('novelite_tree_pinned') === 'true';
-  });
   const [activeChapterId, setActiveChapterId] = useState<string | null>(() => projectStore.getActiveChapter()?.id || null);
 
-  // Theme dropdown popup in tree
+  // Theme dropdown popup
   const [showThemePicker, setShowThemePicker] = useState<boolean>(false);
 
   // Inline creation states
@@ -82,38 +79,12 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-  // Transition animation presence
-  const [shouldRender, setShouldRender] = useState<boolean>(isOpen);
-  const [isAnimatingIn, setIsAnimatingIn] = useState<boolean>(false);
+  // Version History Modal State
+  const [historyModalTarget, setHistoryModalTarget] = useState<{ chapId: string; chapTitle: string } | null>(null);
 
   const editInputRef = useRef<HTMLInputElement | null>(null);
   const newVolInputRef = useRef<HTMLInputElement | null>(null);
   const newChapInputRef = useRef<HTMLInputElement | null>(null);
-  const treeContainerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    let enterTimer: ReturnType<typeof setTimeout>;
-    let exitTimer: ReturnType<typeof setTimeout>;
-
-    if (isOpen) {
-      enterTimer = setTimeout(() => {
-        setShouldRender(true);
-        setIsAnimatingIn(true);
-      }, 0);
-    } else {
-      enterTimer = setTimeout(() => {
-        setIsAnimatingIn(false);
-      }, 0);
-      exitTimer = setTimeout(() => {
-        setShouldRender(false);
-      }, 180);
-    }
-
-    return () => {
-      clearTimeout(enterTimer);
-      clearTimeout(exitTimer);
-    };
-  }, [isOpen]);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -160,20 +131,10 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
     return () => window.removeEventListener('click', handleDocClick);
   }, []);
 
-  if (!shouldRender) return null;
-
-  const handleTogglePin = () => {
-    const next = !isPinned;
-    setIsPinned(next);
-    localStorage.setItem('novelite_tree_pinned', String(next));
-  };
-
   const handleSelectChapter = (chapId: string) => {
+    // 🌟 Never close the sidebar on chapter click!
     projectStore.setActiveChapter(chapId);
     setActiveChapterId(chapId);
-    if (!isPinned) {
-      onClose();
-    }
   };
 
   const handleToggleVolume = (vol: Volume) => {
@@ -364,51 +325,34 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
   const totalWords = projectStore.getTotalWordCount();
   const totalChapters = project.volumes.reduce((acc, v) => acc + v.chapters.length, 0);
 
+  if (!isOpen) return null;
+
   return (
     <>
-      {/* Background Dimmer Backdrop */}
-      {!isPinned && (
-        <div
-          className={`fixed inset-0 z-40 transition-opacity duration-150 ${
-            isAnimatingIn ? 'bg-black/30 backdrop-blur-[2px] opacity-100' : 'bg-black/0 opacity-0 pointer-events-none'
-          }`}
-          onClick={onClose}
-        />
-      )}
-
-      {/* 🌟 Pure Minimalist File Storage Tree (Obsidian / Bear / VSCode Standard) */}
-      <div
-        ref={treeContainerRef}
-        tabIndex={0}
-        className={`fixed left-4 sm:left-6 top-8 bottom-8 z-50 w-72 sm:w-80 rounded-2xl border flex flex-col overflow-hidden select-none outline-none transition-all duration-200 ease-out ${
-          isAnimatingIn
-            ? 'opacity-100 translate-x-0 scale-100'
-            : 'opacity-0 -translate-x-4 scale-98 pointer-events-none'
-        }`}
+      {/* 🌟 Integrated Seamless Studio Tree Pane */}
+      <aside
+        className="w-68 sm:w-76 h-full flex flex-col shrink-0 border-r select-none relative z-20 transition-all duration-200 ease-out"
         style={{
-          backgroundColor: `${theme.colors.bgSecondary}FA`,
-          borderColor: `${theme.colors.border}60`,
-          boxShadow: '0 20px 48px -12px rgba(0, 0, 0, 0.5)',
-          backdropFilter: 'blur(36px)',
+          backgroundColor: theme.colors.bgSecondary || '#13141c',
+          borderColor: `${theme.colors.border}40`,
         }}
         onClick={(e) => {
           e.stopPropagation();
           setContextMenu(null);
         }}
       >
-        {/* 1. Header: Book Title & Quick Actions */}
+        {/* 1. Header: Book Title & Clean Actions */}
         <div
           className="pt-3 px-3.5 pb-2.5 flex items-center justify-between border-b"
           style={{ borderColor: `${theme.colors.border}30` }}
         >
-          <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex items-center gap-1.5 overflow-hidden flex-1 mr-1">
             <h3 className="font-semibold text-xs truncate tracking-wide" style={{ color: theme.colors.text }}>
               {project.title || '长篇小说大纲'}
             </h3>
           </div>
 
-          {/* Header Action Buttons */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0">
             {/* Quick Add Chapter */}
             {project.volumes[0] && (
               <button
@@ -426,7 +370,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
               </button>
             )}
 
-            {/* Global Theme Switcher */}
+            {/* Global Theme Switcher Popover */}
             <div className="relative">
               <button
                 onClick={(e) => {
@@ -440,7 +384,6 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                 <Palette className="h-3.5 w-3.5" />
               </button>
 
-              {/* Theme Dropdown */}
               {showThemePicker && (
                 <div
                   className="absolute right-0 top-7 z-60 w-44 rounded-xl border p-1 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-100"
@@ -470,25 +413,14 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
               )}
             </div>
 
-            {/* Pin */}
+            {/* Collapse Sidebar Button */}
             <button
-              onClick={handleTogglePin}
-              className={`p-1 rounded-md transition-all cursor-pointer ${
-                isPinned ? 'text-cyan-400 font-semibold' : 'opacity-40 hover:opacity-100 hover:bg-white/10'
-              }`}
-              title={isPinned ? '取消固定' : '固定在左侧'}
-            >
-              {isPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
-            </button>
-
-            {/* Close */}
-            <button
-              onClick={onClose}
+              onClick={onToggle}
               className="p-1 rounded-md opacity-40 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
               style={{ color: theme.colors.text }}
-              title="关闭 (Esc)"
+              title="收起侧栏 (Ctrl+B)"
             >
-              <X className="h-3.5 w-3.5" />
+              <PanelLeftClose className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -543,14 +475,14 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                 onDrop={(e) => handleDrop(e, 'vol', vol.id)}
                 className={`rounded-xl transition-all ${isDropInsideVol ? 'bg-white/5' : ''}`}
               >
-                {/* Volume / Folder Row */}
+                {/* Volume Row */}
                 <div
                   onClick={() => handleToggleVolume(vol)}
                   className="group flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-white/[0.04] rounded-lg transition-colors"
                 >
                   <div className="flex items-center gap-1.5 overflow-hidden flex-1">
                     <span className="opacity-40 group-hover:opacity-80 transition-opacity">
-                      {vol.isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                      {vol.isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                     </span>
 
                     <span className="opacity-50 group-hover:opacity-80">
@@ -812,7 +744,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
           <div
             className="fixed z-60 w-44 rounded-xl border shadow-2xl backdrop-blur-2xl p-1 text-xs animate-in fade-in zoom-in-95 duration-100"
             style={{
-              top: Math.min(contextMenu.y, window.innerHeight - 300),
+              top: Math.min(contextMenu.y, window.innerHeight - 320),
               left: Math.min(contextMenu.x, window.innerWidth - 190),
               backgroundColor: `${theme.colors.bgSecondary}FD`,
               borderColor: `${theme.colors.border}80`,
@@ -839,6 +771,18 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
             >
               <Copy className="h-3 w-3 opacity-50" />
               <span>创建副本</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setHistoryModalTarget({ chapId: contextMenu.chapId, chapTitle: contextMenu.chapTitle });
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              style={{ color: theme.colors.text }}
+            >
+              <History className="h-3 w-3 opacity-50" />
+              <span>历史版本快照</span>
             </button>
 
             <button
@@ -904,7 +848,18 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
             </div>
           </div>
         )}
-      </div>
+      </aside>
+
+      {/* ⏳ Version History Modal */}
+      {historyModalTarget && (
+        <VersionHistoryModal
+          isOpen={Boolean(historyModalTarget)}
+          onClose={() => setHistoryModalTarget(null)}
+          chapterId={historyModalTarget.chapId}
+          chapterTitle={historyModalTarget.chapTitle}
+          theme={theme}
+        />
+      )}
     </>
   );
 };

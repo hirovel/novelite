@@ -7,7 +7,7 @@ export const TypewriterPlugin: NovelitePlugin = {
     name: '打字机模式',
     version: '2.1.0',
     description: '保持当前编辑行平滑锁定在黄金视线高度，免去频繁手动滚动的疲劳。',
-    author: 'Novelite Core',
+    author: 'hirovel',
     icon: 'AlignVerticalSpaceAround',
     defaultEnabled: true,
   },
@@ -16,7 +16,6 @@ export const TypewriterPlugin: NovelitePlugin = {
       id: 'typewriter.toggle',
       title: '切换打字机居中模式',
       category: '排版沉浸',
-      shortcut: 'Alt+T',
       run: (c) => {
         const enabled = c.getSetting<boolean>('enabled', false);
         const next = !enabled;

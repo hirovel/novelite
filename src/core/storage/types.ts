@@ -19,13 +19,25 @@ export interface DocumentNode {
   updatedAt: number;
 }
 
+export interface ChapterSnapshot {
+  id: string;
+  timestamp: number;
+  title: string;
+  content: string;
+  wordCount: number;
+  summary?: string;
+}
+
 export interface Chapter {
   id: string;
   title: string;
   content: string;
   wordCount: number;
   updatedAt: number;
-  synopsis?: string;
+  synopsis?: string; // 50~100 字本章大纲剧情梗概 / 伏笔备忘
+  targetWords?: number; // 目标字数（如 3000）
+  isArchived?: boolean;
+  snapshots?: ChapterSnapshot[]; // 历史快照版本
 }
 
 export interface Volume {
@@ -33,6 +45,7 @@ export interface Volume {
   title: string;
   isExpanded: boolean;
   chapters: Chapter[];
+  synopsis?: string;
 }
 
 export interface NovelProject {
@@ -43,7 +56,7 @@ export interface NovelProject {
   volumes: Volume[];
   activeChapterId: string | null;
   scratchpad: string;
+  trashBin?: Chapter[]; // 废纸篓与历史归档
   createdAt: number;
   updatedAt: number;
 }
-
