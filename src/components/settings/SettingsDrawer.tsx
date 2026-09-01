@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   X,
   Sparkles,
@@ -17,12 +17,7 @@ import {
   Search,
   ChevronRight,
   Focus,
-  MessageSquare,
   FolderTree,
-  BarChart2,
-  StickyNote,
-  FileDown,
-  AlignVerticalSpaceAround,
   Download,
   AlignJustify,
   AlignLeft,
@@ -35,6 +30,13 @@ import {
   RefreshCw,
   Keyboard,
   Replace,
+  Columns,
+  Edit2,
+  AlertTriangle,
+  FileText,
+  Compass,
+  BookOpen,
+  Play,
 } from 'lucide-react';
 import type { Theme } from '../../core/themes/types';
 import { THEMES } from '../../core/themes/themeDefinitions';
@@ -49,6 +51,8 @@ import { type DialogueColorPreset, DIALOGUE_COLOR_MAP } from '../../plugins/dial
 import { cleanChineseNovelText } from '../../plugins/editor-toolkit/chineseTextCleaner';
 import { projectStore } from '../../core/storage/ProjectStore';
 import { eventBus } from '../../core/events/EventBus';
+import { keymapRegistry } from '../../core/keymap/KeymapRegistry';
+import type { KeybindingCategory, KeybindingItem } from '../../core/keymap/types';
 
 const COMMUNITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Clock,
@@ -61,6 +65,38 @@ interface Props {
   onClose: () => void;
   theme: Theme;
   onSelectTheme: (themeId: string) => void;
+  // Font settings
+  fontPreset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom';
+  onSelectFontPreset: (preset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom') => void;
+  customFontName: string;
+  onChangeCustomFontName: (name: string) => void;
+  fontSize: number;
+  onChangeFontSize: (size: number) => void;
+  lineHeight: number;
+  onChangeLineHeight: (height: number) => void;
+  contentMaxWidth: number;
+  onChangeContentMaxWidth: (width: number) => void;
+  horizontalPadding: number;
+  onChangeHorizontalPadding: (pad: number) => void;
+  paragraphSpacing: number;
+  onChangeParagraphSpacing: (spacing: number) => void;
+  indentEnabled: boolean;
+  onToggleIndent: () => void;
+  indentSize?: '2em' | '1em' | '3em' | '0';
+  onChangeIndentSize?: (size: '2em' | '1em' | '3em' | '0') => void;
+  kinsokuStrictness?: 'strict' | 'loose' | 'native';
+  onChangeKinsoku?: (val: 'strict' | 'loose' | 'native') => void;
+  punctuationHalt?: boolean;
+  onTogglePunctuationHalt?: () => void;
+  textAlignment?: 'justify' | 'left';
+  onChangeTextAlignment?: (align: 'justify' | 'left') => void;
+  letterSpacing?: number;
+  onChangeLetterSpacing?: (spacing: number) => void;
+  spotlightMode?: 'none' | 'paragraph';
+  onSelectSpotlightMode?: (mode: 'none' | 'paragraph') => void;
+  zeroChrome: boolean;
+  onToggleZeroChrome: () => void;
+  // Cursor settings
   cursorShape: 'beam' | 'block' | 'underline';
   onSelectCursorShape: (shape: 'beam' | 'block' | 'underline') => void;
   cursorColor: string;
@@ -77,62 +113,34 @@ interface Props {
   onChangeBreatheCycle: (cycle: number) => void;
   speedMode: 'gentle' | 'balanced' | 'snappy';
   onChangeSpeedMode: (mode: 'gentle' | 'balanced' | 'snappy') => void;
-  physicsMode: 'fluid' | 'ribbon' | 'quantum';
-  onChangePhysicsMode: (mode: 'fluid' | 'ribbon' | 'quantum') => void;
-  luminescence: boolean;
-  onChangeLuminescence: (val: boolean) => void;
+  physicsMode?: 'fluid' | 'ribbon' | 'quantum';
+  onChangePhysicsMode?: (mode: 'fluid' | 'ribbon' | 'quantum') => void;
+  luminescence?: boolean;
+  onChangeLuminescence?: (val: boolean) => void;
   inlineSkew?: boolean;
   onChangeInlineSkew?: (val: boolean) => void;
-  streamPreset: 'theme' | 'cyan-violet' | 'ice-blue' | 'emerald' | 'amber-rose' | 'sakura' | 'mono' | 'custom';
-  onChangeStreamPreset: (preset: 'theme' | 'cyan-violet' | 'ice-blue' | 'emerald' | 'amber-rose' | 'sakura' | 'mono' | 'custom') => void;
-  streamHeadColor: string;
-  onChangeStreamHeadColor: (color: string) => void;
-  streamTailColor: string;
-  onChangeStreamTailColor: (color: string) => void;
+  streamPreset?: any;
+  onChangeStreamPreset?: (preset: any) => void;
+  streamHeadColor?: string;
+  onChangeStreamHeadColor?: (color: string) => void;
+  streamTailColor?: string;
+  onChangeStreamTailColor?: (color: string) => void;
+  // Background settings
   backgroundEffect: BackgroundEffect;
   onChangeBackgroundEffect: (effect: BackgroundEffect) => void;
   backgroundIntensity: number;
   onChangeBackgroundIntensity: (intensity: number) => void;
-  customImage?: string | null;
+  customImage: string | null;
   onChangeCustomImage: (img: string | null) => void;
-  customImageRaw?: string | null;
-  onChangeCustomImageRaw?: (raw: string | null) => void;
-  cropParams?: CropParams | null;
-  onChangeCropParams?: (params: CropParams | null) => void;
-  customImageBlur?: number;
+  customImageRaw: string | null;
+  onChangeCustomImageRaw: (raw: string | null) => void;
+  cropParams: CropParams | null;
+  onChangeCropParams: (crop: CropParams | null) => void;
+  customImageBlur: number;
   onChangeCustomImageBlur: (blur: number) => void;
-  customImageDim?: number;
+  customImageDim: number;
   onChangeCustomImageDim: (dim: number) => void;
-  fontPreset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom';
-  onSelectFontPreset: (preset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom') => void;
-  customFontName: string;
-  onChangeCustomFontName: (name: string) => void;
-  fontSize: number;
-  onChangeFontSize: (size: number) => void;
-  lineHeight: number;
-  onChangeLineHeight: (height: number) => void;
-  contentMaxWidth: number;
-  onChangeContentMaxWidth: (width: number) => void;
-  horizontalPadding: number;
-  onChangeHorizontalPadding: (padding: number) => void;
-  paragraphSpacing: number;
-  onChangeParagraphSpacing: (spacing: number) => void;
-  indentEnabled: boolean;
-  onToggleIndent: () => void;
-  indentSize?: '2em' | '1em' | '3em' | '0';
-  onChangeIndentSize?: (size: '2em' | '1em' | '3em' | '0') => void;
-  kinsokuStrictness?: 'strict' | 'loose' | 'native';
-  onChangeKinsoku?: (val: 'strict' | 'loose' | 'native') => void;
-  punctuationHalt?: boolean;
-  onTogglePunctuationHalt?: () => void;
-  textAlignment?: 'justify' | 'left';
-  onChangeTextAlignment?: (align: 'justify' | 'left') => void;
-  letterSpacing?: number;
-  onChangeLetterSpacing?: (val: number) => void;
-  spotlightMode?: 'none' | 'paragraph';
-  onSelectSpotlightMode?: (mode: 'none' | 'paragraph') => void;
-  zeroChrome: boolean;
-  onToggleZeroChrome: () => void;
+  // Typewriter settings
   typewriterEnabled?: boolean;
   onToggleTypewriter?: (enabled: boolean) => void;
   typewriterRatio?: number;
@@ -141,111 +149,54 @@ interface Props {
   onChangeTypewriterSpeed?: (speed: 'gentle' | 'balanced' | 'snappy' | 'instant') => void;
 }
 
-interface PluginRichInfo {
-  category: '排版核心' | '沉浸体验' | '视觉光标' | '大纲与工具';
-  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
-  author: string;
-  targetTab?: 'cursor' | 'background' | 'typography' | 'themes';
-  highlights: string[];
-  shortcuts: string[];
-  slots: string[];
-}
-
-const PLUGIN_RICH_INFO: Record<string, PluginRichInfo> = {
+const PLUGIN_RICH_INFO: Record<
+  string,
+  {
+    category: string;
+    icon: any;
+    targetTab?: 'cursor' | 'background' | 'typography' | 'themes' | 'keymap';
+    author?: string;
+  }
+> = {
   'plugin-chinese-typography': {
-    category: '排版核心',
+    category: '排版系统',
     icon: Type,
-    author: 'Novelite Core',
+    author: 'hirovel',
     targetTab: 'typography',
-    highlights: ['中文首行 2 字符缩进', '章回大标题智能免缩进', 'GB/T 15834 标点避头尾', '出版级两端对齐', '霞鹜文楷 WebFont'],
-    shortcuts: ['设置面板切换 / 一键排版规范化'],
-    slots: ['CodeMirror 排版扩展', '行装饰器', '快捷键系统'],
   },
-  'plugin-typewriter': {
-    category: '排版核心',
-    icon: AlignVerticalSpaceAround,
-    author: 'Novelite Core',
-    targetTab: 'typography',
-    highlights: ['二阶谐振物理弹簧推移', '滚轮手势智能接管', '38% 黄金视线锁定', '三档平滑节奏调节'],
-    shortcuts: ['设置面板切换 / 命令中心触发'],
-    slots: ['CodeMirror 视口扩展', '物理动画引擎', '手势监听'],
-  },
-  'plugin-live-cursor': {
-    category: '视觉光标',
-    icon: Sparkles,
-    author: 'Novelite Core',
-    targetTab: 'cursor',
-    highlights: ['二阶谐振动力学质点', '行内倾角切变 (Inline Skew)', '多质点流体骨骼拖尾', '微光呼吸与发光粒子'],
-    shortcuts: ['实时光标动力学追踪'],
-    slots: ['GPU Canvas 渲染层', '物理粒子系统', 'IME 生命周期监听'],
-  },
-  'plugin-focus-mode': {
-    category: '沉浸体验',
+  'plugin-immersion': {
+    category: '沉浸写作',
     icon: Focus,
-    author: 'Novelite Core',
+    author: 'hirovel',
     targetTab: 'typography',
-    highlights: ['逻辑长段落完整聚光', '单句推敲模式 (。！？断句)', '三行微光渐变视野', '200ms 物理平滑淡入淡出'],
-    shortcuts: ['Alt+F (切换专注聚光)', 'Alt+Shift+F (切换范围)'],
-    slots: ['CodeMirror 聚光扩展', 'DOM 状态监听', '行装饰器'],
   },
-  'plugin-dialogue-highlighter': {
-    category: '沉浸体验',
-    icon: MessageSquare,
-    author: 'Novelite Core',
-    targetTab: 'typography',
-    highlights: ['双引号 / 角引号 / 双角引号全识别', '心理独白括号柔和识别', '7 套朴素文学色彩预设', '视口增量 0 耗损渲染'],
-    shortcuts: ['排版设置内配置'],
-    slots: ['CodeMirror 台词扩展', '语法标记器'],
-  },
-  'plugin-novel-tree': {
-    category: '大纲与工具',
+  'plugin-novel-files': {
+    category: '大纲与文件',
     icon: FolderTree,
-    author: 'Novelite Core',
-    highlights: ['多卷与章节树状管理', '原位双击重命名', '章节拖拽重排', '实时章节字数追踪'],
-    shortcuts: ['侧边栏常驻'],
-    slots: ['左侧抽屉面板', '项目存储持久化'],
-  },
-  'plugin-word-counter': {
-    category: '大纲与工具',
-    icon: BarChart2,
-    author: 'Novelite Core',
-    highlights: ['纯 DOM 毫秒级字数反馈', '阅读时长智能预估', '段落与字符精准度量'],
-    shortcuts: ['底部 HUD 常驻'],
-    slots: ['底部状态栏', '写作心流引擎'],
+    author: 'hirovel',
   },
   'plugin-background-atmosphere': {
-    category: '视觉光标',
+    category: '背景与氛围',
     icon: Image,
-    author: 'Novelite Core',
+    author: 'hirovel',
     targetTab: 'background',
-    highlights: ['沉浸式原画与纸张纹理', '智能视口裁切与平移', '磨砂虚化与明暗调节', '零闪烁热重载'],
-    shortcuts: ['视觉常驻'],
-    slots: ['全屏背景渲染层', '图像处理模块'],
   },
-  'plugin-scratchpad': {
-    category: '大纲与工具',
-    icon: StickyNote,
-    author: 'Novelite Core',
-    highlights: ['侧边常驻灵感便签', '随手记录伏笔与人设', '本地自动持久化存储'],
-    shortcuts: ['侧边栏切换'],
-    slots: ['右侧浮动抽屉', '便签存储桥接'],
+  'plugin-live-cursor': {
+    category: '灵感光标',
+    icon: Sparkles,
+    author: 'hirovel',
+    targetTab: 'cursor',
   },
-  'plugin-quick-exporter': {
-    category: '大纲与工具',
-    icon: FileDown,
-    author: 'Novelite Core',
-    highlights: ['纯净 Markdown 导出', '排版格式 TXT 导出', '章节批量打包下载'],
-    shortcuts: ['命令中心 (Ctrl+P)'],
-    slots: ['导出桥接引擎', '命令注册'],
+  'plugin-split-view': {
+    category: '分屏对照',
+    icon: Columns,
+    author: 'hirovel',
   },
-  'plugin-editor-toolkit': {
-    category: '排版核心',
+  'plugin-keymap': {
+    category: '快捷键管理',
     icon: Keyboard,
-    author: 'Novelite Core',
-    targetTab: 'typography',
-    highlights: ['极简悬浮查找与批量替换 (Ctrl+F/H)', '段落与剧情瞬移 (Alt+↑/↓)', '中文小说排版一键智能清洗', '自定义全局快捷键映射'],
-    shortcuts: ['Ctrl+F (查找)', 'Ctrl+H (替换)', 'Alt+↑/↓ (挪段)', 'Ctrl+Shift+L (清洗)'],
-    slots: ['CodeMirror 按键映射', '悬浮 HUD 渲染层', '文本清洗引擎'],
+    author: 'hirovel',
+    targetTab: 'keymap',
   },
 };
 
@@ -331,12 +282,24 @@ export const SettingsDrawer: React.FC<Props> = ({
   typewriterSpeed = 'balanced',
   onChangeTypewriterSpeed,
 }) => {
-  const [activeTab, setActiveTab] = useState<'cursor' | 'background' | 'typography' | 'themes' | 'plugins'>('cursor');
+  const [activeTab, setActiveTab] = useState<'cursor' | 'background' | 'typography' | 'themes' | 'plugins' | 'keymap'>('cursor');
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
 
   const [pluginSearch, setPluginSearch] = useState<string>('');
   const [, setPluginsVersion] = useState<number>(0);
+
+  useEffect(() => {
+    const unsub = pluginManager.subscribe(() => {
+      setPluginsVersion((v) => v + 1);
+    });
+    return unsub;
+  }, []);
+
+  const isChineseTypographyEnabled = pluginManager.isPluginEnabled('plugin-chinese-typography');
+  const isImmersionEnabled = pluginManager.isPluginEnabled('plugin-immersion');
+  const isLiveCursorEnabled = pluginManager.isPluginEnabled('plugin-live-cursor');
+  const isBackgroundEnabled = pluginManager.isPluginEnabled('plugin-background-atmosphere');
 
   const [pluginFilter, setPluginFilter] = useState<'all' | 'installed' | 'available'>('all');
   const [isRefreshingRegistry, setIsRefreshingRegistry] = useState<boolean>(false);
@@ -393,87 +356,173 @@ return {
     setPluginsVersion((v) => v + 1);
   };
 
+  // 🌟 Keymap Management State
+  const [keymapSearch, setKeymapSearch] = useState<string>('');
+  const [keymapCategory, setKeymapCategory] = useState<KeybindingCategory | 'all'>('all');
+  const [keymapItems, setKeymapItems] = useState<KeybindingItem[]>(() => keymapRegistry.getAll());
+  const [recordingKeymapId, setRecordingKeymapId] = useState<string | null>(null);
+  const [recordedKeymapStr, setRecordedKeymapStr] = useState<string>('');
+  const [conflictKeymapItem, setConflictKeymapItem] = useState<KeybindingItem | null>(null);
+
+  useEffect(() => {
+    const handleKeymapUpdate = () => {
+      setKeymapItems(keymapRegistry.getAll());
+    };
+    const unsub = keymapRegistry.subscribe(handleKeymapUpdate);
+    const unsubBus = eventBus.on('keymap:changed', handleKeymapUpdate);
+    return () => {
+      unsub();
+      unsubBus();
+    };
+  }, []);
+
+  // Key Recording Listener in Settings Drawer
+  useEffect(() => {
+    if (!recordingKeymapId) return;
+
+    const handleRecordKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (e.key === 'Escape') {
+        setRecordingKeymapId(null);
+        setRecordedKeymapStr('');
+        setConflictKeymapItem(null);
+        return;
+      }
+
+      if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) {
+        return;
+      }
+
+      const keyStr = keymapRegistry.normalizeEvent(e);
+      if (keyStr) {
+        setRecordedKeymapStr(keyStr);
+        const conflicts = keymapRegistry.findConflicts(keyStr, recordingKeymapId);
+        setConflictKeymapItem(conflicts.length > 0 ? conflicts[0] : null);
+      }
+    };
+
+    window.addEventListener('keydown', handleRecordKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', handleRecordKeyDown, { capture: true });
+    };
+  }, [recordingKeymapId]);
+
+  const filteredKeymapItems = useMemo(() => {
+    return keymapItems.filter((item) => {
+      const matchCat = keymapCategory === 'all' || item.category === keymapCategory;
+      if (!matchCat) return false;
+      if (!keymapSearch.trim()) return true;
+      const q = keymapSearch.toLowerCase().trim();
+      return (
+        item.title.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q) ||
+        item.currentKey.toLowerCase().includes(q) ||
+        item.id.toLowerCase().includes(q)
+      );
+    });
+  }, [keymapItems, keymapCategory, keymapSearch]);
+
+  const handleSaveKeymapRecording = (id: string) => {
+    if (recordedKeymapStr) {
+      keymapRegistry.updateBinding(id, recordedKeymapStr);
+      eventBus.emit('show-toast', { message: `快捷键已修改为 ${recordedKeymapStr}`, type: 'success' });
+    }
+    setRecordingKeymapId(null);
+    setRecordedKeymapStr('');
+    setConflictKeymapItem(null);
+  };
+
+  const handleResetSingleKeymap = (id: string) => {
+    keymapRegistry.resetBinding(id);
+    eventBus.emit('show-toast', { message: '已恢复默认按键', type: 'info' });
+    setRecordingKeymapId(null);
+    setRecordedKeymapStr('');
+    setConflictKeymapItem(null);
+  };
+
   const [focusEnabled, setFocusEnabled] = useState<boolean>(() => {
-    return pluginManager.getPluginContext('plugin-focus-mode')?.getSetting<boolean>('enabled', false) ?? false;
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<boolean>('focusEnabled', false) ?? false;
   });
   const [focusScope, setFocusScope] = useState<FocusScope>(() => {
-    return pluginManager.getPluginContext('plugin-focus-mode')?.getSetting<FocusScope>('scope', 'paragraph') ?? 'paragraph';
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<FocusScope>('focusScope', 'paragraph') ?? 'paragraph';
   });
   const [focusDimOpacity, setFocusDimOpacity] = useState<number>(() => {
-    return pluginManager.getPluginContext('plugin-focus-mode')?.getSetting<number>('dimOpacity', 0.28) ?? 0.28;
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<number>('focusDimOpacity', 0.28) ?? 0.28;
   });
 
   const handleToggleFocusMode = () => {
-    const ctx = pluginManager.getPluginContext('plugin-focus-mode');
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     const next = !focusEnabled;
     setFocusEnabled(next);
-    ctx?.setSetting('enabled', next);
+    ctx?.setSetting('focusEnabled', next);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
 
   const handleChangeFocusScope = (scope: FocusScope) => {
-    const ctx = pluginManager.getPluginContext('plugin-focus-mode');
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     setFocusScope(scope);
-    ctx?.setSetting('scope', scope);
+    ctx?.setSetting('focusScope', scope);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
 
   const handleChangeFocusDimOpacity = (opacity: number) => {
-    const ctx = pluginManager.getPluginContext('plugin-focus-mode');
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     setFocusDimOpacity(opacity);
-    ctx?.setSetting('dimOpacity', opacity);
+    ctx?.setSetting('focusDimOpacity', opacity);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
 
   const [dialogueEnabled, setDialogueEnabled] = useState<boolean>(() => {
-    return pluginManager.getPluginContext('plugin-dialogue-highlighter')?.getSetting<boolean>('enabled', true) ?? true;
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<boolean>('dialogueEnabled', true) ?? true;
   });
   const [dialogueColorPreset, setDialogueColorPreset] = useState<DialogueColorPreset>(() => {
-    return pluginManager.getPluginContext('plugin-dialogue-highlighter')?.getSetting<DialogueColorPreset>('colorPreset', 'theme') ?? 'theme';
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<DialogueColorPreset>('dialogueColorPreset', 'theme') ?? 'theme';
   });
   const [dialogueHighlightThoughts, setDialogueHighlightThoughts] = useState<boolean>(() => {
-    return pluginManager.getPluginContext('plugin-dialogue-highlighter')?.getSetting<boolean>('highlightThoughts', true) ?? true;
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<boolean>('dialogueHighlightThoughts', true) ?? true;
   });
 
   const [dialogueCustomColor, setDialogueCustomColor] = useState<string>(() => {
-    return pluginManager.getPluginContext('plugin-dialogue-highlighter')?.getSetting<string>('customColor', '#38bdf8') ?? '#38bdf8';
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<string>('dialogueCustomColor', '#38bdf8') ?? '#38bdf8';
   });
 
   const handleToggleDialogue = () => {
-    const ctx = pluginManager.getPluginContext('plugin-dialogue-highlighter');
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     const next = !dialogueEnabled;
     setDialogueEnabled(next);
-    ctx?.setSetting('enabled', next);
+    ctx?.setSetting('dialogueEnabled', next);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
 
   const handleChangeDialogueColorPreset = (preset: DialogueColorPreset) => {
-    const ctx = pluginManager.getPluginContext('plugin-dialogue-highlighter');
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     setDialogueColorPreset(preset);
-    ctx?.setSetting('colorPreset', preset);
+    ctx?.setSetting('dialogueColorPreset', preset);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
 
   const handleChangeDialogueCustomColor = (color: string) => {
-    const ctx = pluginManager.getPluginContext('plugin-dialogue-highlighter');
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     setDialogueCustomColor(color);
     setDialogueColorPreset('custom');
-    ctx?.setSetting('colorPreset', 'custom');
-    ctx?.setSetting('customColor', color);
+    ctx?.setSetting('dialogueColorPreset', 'custom');
+    ctx?.setSetting('dialogueCustomColor', color);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
 
   const handleToggleDialogueThoughts = () => {
-    const ctx = pluginManager.getPluginContext('plugin-dialogue-highlighter');
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     const next = !dialogueHighlightThoughts;
     setDialogueHighlightThoughts(next);
-    ctx?.setSetting('highlightThoughts', next);
+    ctx?.setSetting('dialogueHighlightThoughts', next);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
@@ -485,9 +534,9 @@ return {
     if (changesCount > 0 && cleanedText !== curChap.content) {
       projectStore.updateChapterContent(curChap.id, cleanedText);
       eventBus.emit('chapter-content-updated', { chapterId: curChap.id, content: cleanedText });
-      eventBus.emit('show-toast', { message: `已将本章 ${changesCount} 处段落规范化为真实物理全角空格缩进`, type: 'success' });
+      eventBus.emit('show-toast', { message: `已规范本章 ${changesCount} 处段落的段首缩进`, type: 'success' });
     } else {
-      eventBus.emit('show-toast', { message: '本章段落已具备规范的真实物理全角空格缩进', type: 'info' });
+      eventBus.emit('show-toast', { message: '本章段落已具备规范的段首缩进', type: 'info' });
     }
   };
 
@@ -605,9 +654,9 @@ return {
     onChangeBlinkMode('smooth');
     onChangeBreatheCycle(1.2);
     onChangeSpeedMode('gentle');
-    onChangePhysicsMode('fluid');
-    onChangeLuminescence(true);
-    onChangeStreamPreset('cyan-violet');
+    onChangePhysicsMode?.('fluid');
+    onChangeLuminescence?.(true);
+    onChangeStreamPreset?.('cyan-violet');
   };
 
   const handleResetTypography = () => {
@@ -627,18 +676,18 @@ return {
 
   const tabMeta: Record<string, { title: string; desc: string; onReset?: () => void }> = {
     cursor: {
-      title: 'Live 光标',
-      desc: '光标形状、平滑跟随、拖尾与动画速度调节',
+      title: '灵感光标',
+      desc: isLiveCursorEnabled ? '光标形状、平滑跟随、拖尾与动画速度调节' : '「灵感光标」插件当前已禁用',
       onReset: handleResetCursor,
     },
     background: {
-      title: '背景与壁纸',
-      desc: '自定义背景图片、暗化遮罩、模糊度与预设效果',
+      title: '背景与氛围',
+      desc: isBackgroundEnabled ? '自定义背景图片、暗化遮罩、模糊度与预设效果' : '「背景与氛围」插件当前已禁用',
       onReset: handleResetBackground,
     },
     typography: {
       title: '排版与字体',
-      desc: '字体选择、版心宽度、字号行距与段落聚焦',
+      desc: (isChineseTypographyEnabled || isImmersionEnabled) ? '字体选择、版心宽度、字号行距与沉浸写作' : '「中文排版」与「沉浸写作」插件当前已禁用',
       onReset: handleResetTypography,
     },
     themes: {
@@ -648,6 +697,14 @@ return {
     plugins: {
       title: '插件管理',
       desc: '按需启用或禁用功能插件',
+    },
+    keymap: {
+      title: '快捷键管理',
+      desc: '全景快捷键速查、自定义改键与按键冲突检测',
+      onReset: () => {
+        keymapRegistry.resetAll();
+        eventBus.emit('show-toast', { message: '所有快捷键已恢复默认设置', type: 'success' });
+      },
     },
   };
 
@@ -698,11 +755,12 @@ return {
             {/* Navigation Tab Pills */}
             <nav className="space-y-1">
               {[
-                { id: 'cursor', label: '灵感光标', icon: Sparkles, badge: 'GPU' },
-                { id: 'background', label: '背景艺术', icon: Image },
-                { id: 'typography', label: '版心排版', icon: Type },
+                { id: 'cursor', label: '灵感光标', icon: Sparkles, badge: isLiveCursorEnabled ? 'GPU' : '已禁用', isOff: !isLiveCursorEnabled },
+                { id: 'background', label: '背景艺术', icon: Image, badge: !isBackgroundEnabled ? '已禁用' : undefined, isOff: !isBackgroundEnabled },
+                { id: 'typography', label: '版心排版', icon: Type, badge: (!isChineseTypographyEnabled && !isImmersionEnabled) ? '已禁用' : undefined, isOff: (!isChineseTypographyEnabled && !isImmersionEnabled) },
                 { id: 'themes', label: '主题外观', icon: Palette, badge: '8套' },
                 { id: 'plugins', label: '扩展插件', icon: Puzzle },
+                { id: 'keymap', label: '快捷键管理', icon: Keyboard, badge: keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl+/') },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -710,14 +768,16 @@ return {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium transition-all duration-150 ${
+                    className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium transition-all duration-150 cursor-pointer ${
                       isActive
                         ? 'shadow-md font-semibold scale-[1.02]'
+                        : tab.isOff
+                        ? 'opacity-45 hover:opacity-80 hover:bg-white/5'
                         : 'opacity-65 hover:opacity-100 hover:bg-white/5'
                     }`}
                     style={{
                       backgroundColor: isActive ? theme.colors.bgHover : 'transparent',
-                      color: isActive ? theme.colors.accent : theme.colors.text,
+                      color: isActive ? theme.colors.accent : tab.isOff ? theme.colors.textMuted : theme.colors.text,
                       boxShadow: isActive ? `inset 0 0 0 1px ${theme.colors.accent}30` : 'none',
                     }}
                   >
@@ -729,8 +789,8 @@ return {
                       <span
                         className="text-[9px] font-mono px-1.5 py-0.5 rounded-full"
                         style={{
-                          backgroundColor: isActive ? `${theme.colors.accent}20` : 'rgba(255,255,255,0.06)',
-                          color: isActive ? theme.colors.accent : theme.colors.textMuted,
+                          backgroundColor: isActive ? `${theme.colors.accent}20` : tab.isOff ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)',
+                          color: isActive ? theme.colors.accent : tab.isOff ? '#fca5a5' : theme.colors.textMuted,
                         }}
                       >
                         {tab.badge}
@@ -798,42 +858,87 @@ return {
           <div className="flex-1 overflow-y-auto p-7 space-y-6 text-xs">
             {/* TAB 1: CURSOR */}
             {activeTab === 'cursor' && (
-              <LiveCursorTestArena
-                theme={theme}
-                cursorShape={cursorShape}
-                onSelectCursorShape={onSelectCursorShape}
-                cursorColor={cursorColor}
-                onChangeCursorColor={onChangeCursorColor}
-                cursorAnimationLength={cursorAnimationLength}
-                onChangeAnimationLength={onChangeAnimationLength}
-                cursorTrailSize={cursorTrailSize}
-                onChangeTrailSize={onChangeTrailSize}
-                vfxMode={vfxMode}
-                onChangeVfxMode={onChangeVfxMode}
-                blinkMode={blinkMode}
-                onChangeBlinkMode={onChangeBlinkMode}
-                breatheCycle={breatheCycle}
-                onChangeBreatheCycle={onChangeBreatheCycle}
-                speedMode={speedMode}
-                onChangeSpeedMode={onChangeSpeedMode}
-                physicsMode={physicsMode}
-                onChangePhysicsMode={onChangePhysicsMode}
-                luminescence={luminescence}
-                onChangeLuminescence={onChangeLuminescence}
-                inlineSkew={inlineSkew}
-                onChangeInlineSkew={onChangeInlineSkew}
-                streamPreset={streamPreset}
-                onChangeStreamPreset={onChangeStreamPreset}
-                streamHeadColor={streamHeadColor}
-                onChangeStreamHeadColor={onChangeStreamHeadColor}
-                streamTailColor={streamTailColor}
-                onChangeStreamTailColor={onChangeStreamTailColor}
-              />
+              <div className="space-y-5">
+                {!isLiveCursorEnabled && (
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                      <div>
+                        <span className="font-semibold text-xs">「灵感光标」插件当前处于禁用状态</span>
+                        <p className="text-[10px] opacity-80 mt-0.5">平滑光标动力学跟随、拖尾与呼吸动效暂未在编辑器中生效。</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        pluginManager.enablePlugin('plugin-live-cursor');
+                        setPluginsVersion((v) => v + 1);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
+                    >
+                      一键启用插件
+                    </button>
+                  </div>
+                )}
+                <div className={!isLiveCursorEnabled ? 'opacity-40 pointer-events-none' : ''}>
+                  <LiveCursorTestArena
+                    theme={theme}
+                    cursorShape={cursorShape}
+                    onSelectCursorShape={onSelectCursorShape}
+                    cursorColor={cursorColor}
+                    onChangeCursorColor={onChangeCursorColor}
+                    cursorAnimationLength={cursorAnimationLength}
+                    onChangeAnimationLength={onChangeAnimationLength}
+                    cursorTrailSize={cursorTrailSize}
+                    onChangeTrailSize={onChangeTrailSize}
+                    vfxMode={vfxMode}
+                    onChangeVfxMode={onChangeVfxMode}
+                    blinkMode={blinkMode}
+                    onChangeBlinkMode={onChangeBlinkMode}
+                    breatheCycle={breatheCycle}
+                    onChangeBreatheCycle={onChangeBreatheCycle}
+                    speedMode={speedMode}
+                    onChangeSpeedMode={onChangeSpeedMode}
+                    physicsMode={physicsMode}
+                    onChangePhysicsMode={onChangePhysicsMode}
+                    luminescence={luminescence}
+                    onChangeLuminescence={onChangeLuminescence}
+                    inlineSkew={inlineSkew}
+                    onChangeInlineSkew={onChangeInlineSkew}
+                    streamPreset={streamPreset}
+                    onChangeStreamPreset={onChangeStreamPreset}
+                    streamHeadColor={streamHeadColor}
+                    onChangeStreamHeadColor={onChangeStreamHeadColor}
+                    streamTailColor={streamTailColor}
+                    onChangeStreamTailColor={onChangeStreamTailColor}
+                  />
+                </div>
+              </div>
             )}
 
             {/* TAB 2: BACKGROUND */}
             {activeTab === 'background' && (
               <div className="space-y-6">
+                {!isBackgroundEnabled && (
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                      <div>
+                        <span className="font-semibold text-xs">「背景与氛围」插件当前处于禁用状态</span>
+                        <p className="text-[10px] opacity-80 mt-0.5">自定义背景图片、高斯模糊与暗化遮罩暂未在编辑器中生效。</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        pluginManager.enablePlugin('plugin-background-atmosphere');
+                        setPluginsVersion((v) => v + 1);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
+                    >
+                      一键启用插件
+                    </button>
+                  </div>
+                )}
+                <div className={!isBackgroundEnabled ? 'opacity-40 pointer-events-none space-y-6' : 'space-y-6'}>
                 {/* 🌟 1. 自定义壁纸工坊 (Custom Wallpaper Studio) */}
                 <div
                   className="rounded-3xl border p-5 space-y-4 transition-all"
@@ -1072,12 +1177,35 @@ return {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             )}
 
             {/* TAB 3: TYPOGRAPHY */}
             {activeTab === 'typography' && (
               <div className="space-y-6">
+                {!isChineseTypographyEnabled && (
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                      <div>
+                        <span className="font-semibold text-xs">「中文排版」插件当前处于禁用状态</span>
+                        <p className="text-[10px] opacity-80 mt-0.5">段首全角缩进、GB/T 15834 标点避头尾与挤压规则暂未在手稿中生效。</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        pluginManager.enablePlugin('plugin-chinese-typography');
+                        setPluginsVersion((v) => v + 1);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
+                    >
+                      一键启用插件
+                    </button>
+                  </div>
+                )}
+
+                <div className={!isChineseTypographyEnabled ? 'opacity-40 pointer-events-none space-y-6' : 'space-y-6'}>
                 <div>
                   <label className="font-semibold text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
                     字体设置
@@ -1138,7 +1266,7 @@ return {
                   </div>
                 )}
 
-                {/* 🌟 1. 中文首行缩进深度定制 */}
+                {/* 🌟 1. 中文首行缩进定制 */}
                 <div
                   className="space-y-4 rounded-2xl border p-5"
                   style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
@@ -1147,13 +1275,13 @@ return {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          中文首行物理真实空格缩进
+                          中文段首全角空格缩进
                         </span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">
-                          真实字符落盘
+                          标准全角字符
                         </span>
                       </div>
-                      <p className="text-[10px] opacity-50 mt-0.5">回车敲击自动写入真实全角空格（<code>　　</code>），复制/导出 TXT 永久自带标准两字缩进</p>
+                      <p className="text-[10px] opacity-50 mt-0.5">换行自动在段首插入两个全角空格（<code>　　</code>），复制或导出 TXT 时保留标准排版</p>
                     </div>
                     <button
                       onClick={onToggleIndent}
@@ -1170,16 +1298,16 @@ return {
 
                   {indentEnabled && (
                     <div className="space-y-3 pt-1 animate-in fade-in duration-150">
-                      {/* 一键规范化物理空格按钮 */}
+                      {/* 一键规范化段首空格按钮 */}
                       <div
                         className="flex items-center justify-between p-3 rounded-xl border transition-all"
                         style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
                       >
                         <div>
                           <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
-                            一键规范化本章段落物理缩进
+                            一键规范本章段首缩进
                           </span>
-                          <p className="text-[9.5px] opacity-40">自动为所有正文段落补齐真实 <code>　　</code> 全角空格，标题与分割线保持顶格</p>
+                          <p className="text-[9.5px] opacity-40">为正文段落统一补齐段首两个全角空格，标题与分割线自动保持顶格</p>
                         </div>
                         <button
                           onClick={handleCleanChapterPhysicalIndent}
@@ -1190,17 +1318,17 @@ return {
                         </button>
                       </div>
 
-                      {/* Smart Exemption Hint Matrix */}
+                      {/* 排版特性说明 */}
                       <div className="rounded-xl border border-white/5 p-3 bg-white/2 space-y-1.5 text-[10.5px]">
                         <div className="flex items-center gap-1.5 font-medium text-cyan-400">
                           <Check className="h-3 w-3 shrink-0" />
-                          <span>智能排版与物理空格保证</span>
+                          <span>排版特性说明</span>
                         </div>
                         <ul className="space-y-1 text-neutral-400 pl-4 list-disc text-[10px] leading-relaxed">
-                          <li><strong>真实物理落盘</strong>：每个自然段落物理包含 2 个标准全角空格（<code>\u3000\u3000</code>），复制到起点/晋江/Word/TXT 100% 保留缩进</li>
-                          <li><strong>回车丝滑连击</strong>：换行直接对齐第三字符，空行再次按回车自动清空空格</li>
-                          <li><strong>退格一键清除</strong>：在段首按 <code>Backspace</code> 一次性删除双全角空格</li>
-                          <li><strong>标题智能规避</strong>：章回标题（<code># 第一章</code>）、诗词引文（<code>&gt; </code>）与分割线（<code>---</code>）顶格靠左，绝不误加空格</li>
+                          <li><strong>标准全角空格</strong>：段首插入 2 个中文全角空格（<code>\u3000\u3000</code>），兼容各大阅读平台与导出排版</li>
+                          <li><strong>智能换行</strong>：回车换行时自动对齐正文，空行再次按回车会自动清空多余空格</li>
+                          <li><strong>整块删除</strong>：在段首按 <code>Backspace</code> 可一次性删除双空格</li>
+                          <li><strong>特殊行避让</strong>：标题（<code># 第一章</code>）、引用（<code>&gt; </code>）与分割线（<code>---</code>）自动顶格，不添加空格</li>
                         </ul>
                       </div>
                     </div>
@@ -1430,7 +1558,31 @@ return {
                     </div>
                   </div>
                 </div>
+                </div>
 
+                {/* 🌟 沉浸写作套件 (Immersion Suite) */}
+                {!isImmersionEnabled && (
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
+                      <div>
+                        <span className="font-semibold text-xs">「沉浸写作」插件当前处于禁用状态</span>
+                        <p className="text-[10px] opacity-80 mt-0.5">段落专注聚光灯、打字机视线高度与台词对话微光暂未在手稿中生效。</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        pluginManager.enablePlugin('plugin-immersion');
+                        setPluginsVersion((v) => v + 1);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
+                    >
+                      一键启用插件
+                    </button>
+                  </div>
+                )}
+
+                <div className={!isImmersionEnabled ? 'opacity-40 pointer-events-none space-y-6' : 'space-y-6'}>
                 {/* 🌟 顶栏打字沉浸联动设置 (Titlebar Auto-Hide Immersion) */}
                 <div
                   className="space-y-3 rounded-2xl border p-4.5 transition-all"
@@ -1626,7 +1778,7 @@ return {
                           段落与单句专注聚光灯
                         </span>
                         <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 opacity-60">
-                          Alt+F
+                          {keymapRegistry.getFormattedKey('focus:toggle', 'Alt+F')}
                         </span>
                       </div>
                       <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
@@ -1655,7 +1807,9 @@ return {
                           <label className="font-medium text-[11px] opacity-80" style={{ color: theme.colors.text }}>
                             聚光范围模式
                           </label>
-                          <span className="text-[9.5px] font-mono opacity-40">Alt+Shift+F 快速切换</span>
+                          <span className="text-[9.5px] font-mono opacity-40">
+                            {keymapRegistry.getFormattedKey('focus:toggle-scope', 'Alt+Shift+F')} 快速切换
+                          </span>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2.5">
@@ -1924,7 +2078,7 @@ return {
                         style={{ color: theme.colors.text }}
                       >
                         <Search className="h-3 w-3" />
-                        <span>查找 (Ctrl+F)</span>
+                        <span>查找 ({keymapRegistry.getFormattedKey('search:toggle-hud', 'Ctrl+F')})</span>
                       </button>
 
                       <button
@@ -1937,7 +2091,7 @@ return {
                         className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all font-semibold cursor-pointer"
                       >
                         <Replace className="h-3 w-3" />
-                        <span>批量替换 (Ctrl+H)</span>
+                        <span>批量替换 ({keymapRegistry.getFormattedKey('search:replace-hud', 'Ctrl+H')})</span>
                       </button>
                     </div>
                   </div>
@@ -1947,47 +2101,57 @@ return {
                       <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
                         中文小说快捷键速查与键位绑定
                       </span>
-                      <span className="text-[9.5px] opacity-40 font-mono">全局原生拦截 · 0 毫秒响应</span>
+                      <button
+                        onClick={() => setActiveTab('keymap')}
+                        className="text-[10px] text-cyan-400/80 hover:text-cyan-300 font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>管理所有快捷键</span>
+                        <ChevronRight className="h-2.5 w-2.5" />
+                      </button>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
                       {[
-                        { name: '查找文本', key: 'Ctrl + F', desc: '顶部极简悬浮搜索 HUD' },
-                        { name: '查找与替换', key: 'Ctrl + H', desc: '全篇/单处批量替换改名' },
-                        { name: '整段/整行上移', key: 'Alt + ↑', desc: '无损调换段落与对白先后顺序' },
-                        { name: '整段/整行下移', key: 'Alt + ↓', desc: '无损下移当前段落' },
-                        { name: '在下方新建自然段', key: 'Ctrl + Enter', desc: '光标无需移动至句末' },
-                        { name: '删除当前整段', key: 'Ctrl + Shift + K', desc: '一键删废话自动吸合' },
-                        { name: '多光标选词同步改', key: 'Ctrl + D', desc: '连续按选中下一个同名词' },
-                        { name: '一键中文排版清洗', key: 'Ctrl + Shift + L', desc: '去首行死空格/折叠空行/修标点' },
-                        { name: '设为章回标题', key: 'Ctrl + 1', desc: '行首添加/切换 # 一级标题' },
-                        { name: '设为分卷小节', key: 'Ctrl + 2', desc: '行首添加/切换 ## 二级标题' },
-                        { name: '清除标题恢复正文', key: 'Ctrl + 0', desc: '清除行首 # 恢复普通段落' },
-                      ].map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-2 rounded-xl border border-white/5 bg-black/20"
-                        >
-                          <div>
-                            <span className="font-medium" style={{ color: theme.colors.text }}>
-                              {item.name}
-                            </span>
-                            <p className="text-[9px] opacity-40">{item.desc}</p>
-                          </div>
-                          <kbd
-                            className="px-2 py-0.5 rounded-lg text-[10px] font-mono border font-semibold shadow-xs"
-                            style={{
-                              backgroundColor: theme.colors.bgSecondary,
-                              borderColor: `${theme.colors.accent}40`,
-                              color: theme.colors.accent || '#38bdf8',
-                            }}
+                        { id: 'search:toggle-hud', name: '查找文本', desc: '顶部极简悬浮搜索 HUD', defaultFallback: 'Ctrl + F' },
+                        { id: 'search:replace-hud', name: '查找与替换', desc: '全篇/单处批量替换改名', defaultFallback: 'Ctrl + H' },
+                        { id: 'editor:move-line-up', name: '整段/整行上移', desc: '无损调换段落与对白先后顺序', defaultFallback: 'Alt + ↑' },
+                        { id: 'editor:move-line-down', name: '整段/整行下移', desc: '无损下移当前段落', defaultFallback: 'Alt + ↓' },
+                        { id: 'editor:insert-paragraph-below', name: '在下方新建自然段', desc: '光标无需移动至句末', defaultFallback: 'Ctrl + Enter' },
+                        { id: 'editor:delete-line', name: '删除当前整段', desc: '一键删废话自动吸合', defaultFallback: 'Ctrl + Shift + K' },
+                        { id: 'editor:select-next-occurrence', name: '多光标选词同步改', desc: '连续按选中下一个同名词', defaultFallback: 'Ctrl + D' },
+                        { id: 'literary:format-chinese', name: '一键中文排版清洗', desc: '去首行死空格/折叠空行/修标点', defaultFallback: 'Ctrl + Shift + L' },
+                        { id: 'editor:toggle-h1', name: '设为章回标题', desc: '行首添加/切换 # 一级标题', defaultFallback: 'Ctrl + 1' },
+                        { id: 'editor:toggle-h2', name: '设为分卷小节', desc: '行首添加/切换 ## 二级标题', defaultFallback: 'Ctrl + 2' },
+                        { id: 'editor:toggle-h0', name: '清除标题恢复正文', desc: '清除行首 # 恢复普通段落', defaultFallback: 'Ctrl + 0' },
+                      ].map((item, idx) => {
+                        const currentKey = keymapRegistry.getFormattedKey(item.id, item.defaultFallback);
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between p-2 rounded-xl border border-white/5 bg-black/20"
                           >
-                            {item.key}
-                          </kbd>
-                        </div>
-                      ))}
+                            <div>
+                              <span className="font-medium" style={{ color: theme.colors.text }}>
+                                {item.name}
+                              </span>
+                              <p className="text-[9px] opacity-40">{item.desc}</p>
+                            </div>
+                            <kbd
+                              className="px-2 py-0.5 rounded-lg text-[10px] font-mono border font-semibold shadow-xs"
+                              style={{
+                                backgroundColor: theme.colors.bgSecondary,
+                                borderColor: `${theme.colors.accent}40`,
+                                color: theme.colors.accent || '#38bdf8',
+                              }}
+                            >
+                              {currentKey}
+                            </kbd>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
+                </div>
                 </div>
               </div>
             )}
@@ -2207,8 +2371,8 @@ return {
                         const matchName = p.metadata.name.toLowerCase().includes(q);
                         const matchDesc = p.metadata.description.toLowerCase().includes(q);
                         const matchAuthor = (p.metadata.author || '').toLowerCase().includes(q);
-                        const matchShortcuts = info?.shortcuts.some((s) => s.toLowerCase().includes(q)) ?? false;
-                        return matchName || matchDesc || matchAuthor || matchShortcuts;
+                        const matchCat = (info?.category || '').toLowerCase().includes(q);
+                        return matchName || matchDesc || matchAuthor || matchCat;
                       })
                       .map((p) => {
                         const isEnabled = pluginManager.isPluginEnabled(p.metadata.id);
@@ -2295,30 +2459,17 @@ return {
                               </div>
                             </div>
 
-                            {/* Footer with shortcut and jump */}
-                            {info && (info.shortcuts.length > 0 || info.targetTab) && (
-                              <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10.5px]">
-                                <div className="flex items-center gap-1.5">
-                                  {info.shortcuts.map((s, idx) => (
-                                    <kbd
-                                      key={idx}
-                                      className="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-black/40 border border-white/10 text-neutral-300"
-                                    >
-                                      {s}
-                                    </kbd>
-                                  ))}
-                                </div>
-
-                                {info.targetTab && (
-                                  <button
-                                    onClick={() => setActiveTab(info.targetTab!)}
-                                    className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity ml-auto text-[11px]"
-                                    style={{ color: theme.colors.accent }}
-                                  >
-                                    <span>前往详细配置</span>
-                                    <ChevronRight className="h-3 w-3" />
-                                  </button>
-                                )}
+                            {/* Footer with clean jump link */}
+                            {info?.targetTab && (
+                              <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-end text-[10.5px]">
+                                <button
+                                  onClick={() => setActiveTab(info.targetTab!)}
+                                  className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity ml-auto text-[11px] cursor-pointer"
+                                  style={{ color: theme.colors.accent }}
+                                >
+                                  <span>前往详细配置</span>
+                                  <ChevronRight className="h-3 w-3" />
+                                </button>
                               </div>
                             )}
                           </div>
@@ -2417,12 +2568,254 @@ return {
 
                           <button
                             onClick={() => handleUninstallCustomPlugin(c.id)}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-mono text-rose-400 border border-rose-500/20 hover:bg-rose-500/10 transition-all shrink-0"
+                            className="px-2.5 py-1 rounded-lg text-[11px] font-mono text-rose-400 border border-rose-500/20 hover:bg-rose-500/10 transition-all shrink-0 cursor-pointer"
                           >
                             卸载
                           </button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 🌟 TAB 6: 快捷键管理 (Keymap Hub) */}
+            {activeTab === 'keymap' && (
+              <div className="space-y-4">
+                {/* HUD Banner */}
+                <div
+                  className="flex items-center justify-between p-4 rounded-2xl border bg-black/20"
+                  style={{ borderColor: `${theme.colors.border}60` }}
+                >
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Keyboard className="h-4 w-4 text-cyan-400" />
+                      <h4 className="text-xs font-semibold" style={{ color: theme.colors.text }}>
+                        全景交互式快捷键速查 HUD
+                      </h4>
+                    </div>
+                    <p className="text-[11px] opacity-55" style={{ color: theme.colors.textMuted }}>
+                      支持随时在写作或分屏时按下 <kbd className="font-mono font-bold text-cyan-300">{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd>（或 <kbd className="font-mono font-bold text-cyan-300">F1</kbd>）呼出全屏悬浮面板
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        keymapRegistry.resetAll();
+                        eventBus.emit('show-toast', { message: '所有快捷键已恢复默认设置', type: 'success' });
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs opacity-60 hover:opacity-100 hover:bg-white/5 border border-white/10 transition-all cursor-pointer text-neutral-400 hover:text-neutral-200"
+                      title="重置所有按键为出厂默认"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      <span>恢复所有默认</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        eventBus.emit('keymap:open-cheatsheet');
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all shadow-xs cursor-pointer shrink-0"
+                    >
+                      <Keyboard className="h-3.5 w-3.5" />
+                      <span>唤起悬浮面板 ({keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl+/')})</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search & Category Tabs */}
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 opacity-40" />
+                    <input
+                      type="text"
+                      value={keymapSearch}
+                      onChange={(e) => setKeymapSearch(e.target.value)}
+                      placeholder="搜索快捷键动作、按键名称或描述..."
+                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-xs outline-none focus:border-cyan-400 transition-colors shadow-inner"
+                      style={{
+                        backgroundColor: theme.colors.bg,
+                        borderColor: theme.colors.border,
+                        color: theme.colors.text,
+                      }}
+                    />
+                    {keymapSearch && (
+                      <button
+                        onClick={() => setKeymapSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full opacity-40 hover:opacity-100 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Category Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                    {[
+                      { id: 'all', label: '全部快捷键', icon: Sparkles },
+                      { id: 'editing', label: '文本与行操作', icon: FileText },
+                      { id: 'navigation', label: '光标疾速巡航', icon: Compass },
+                      { id: 'search', label: '查找与导航', icon: Search },
+                      { id: 'split_view', label: '分屏与对照', icon: Columns },
+                      { id: 'literary', label: '文学与排版', icon: BookOpen },
+                      { id: 'system', label: '视口与心流', icon: SlidersHorizontal },
+                    ].map((cat) => {
+                      const Icon = cat.icon;
+                      const isCur = keymapCategory === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setKeymapCategory(cat.id as any)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                            isCur
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold shadow-xs'
+                              : 'bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10 hover:text-neutral-200'
+                          }`}
+                        >
+                          <Icon className="h-3 w-3 opacity-70" />
+                          <span>{cat.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Keybindings Grid */}
+                <div className="space-y-2">
+                  {filteredKeymapItems.length === 0 ? (
+                    <div className="text-center py-12 opacity-40 text-xs font-mono">
+                      未找到与 "{keymapSearch}" 匹配的快捷键
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {filteredKeymapItems.map((item) => {
+                        const isRecording = recordingKeymapId === item.id;
+                        const isCustom = item.currentKey !== item.defaultKey;
+                        const displayKey = keymapRegistry.formatDisplayKey(
+                          isRecording && recordedKeymapStr ? recordedKeymapStr : item.currentKey
+                        );
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`group p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
+                              isRecording
+                                ? 'ring-2 ring-cyan-400/80 bg-cyan-950/40 border-cyan-500/60 shadow-lg'
+                                : 'bg-black/20 hover:bg-white/[0.04]'
+                            }`}
+                            style={{ borderColor: isRecording ? undefined : `${theme.colors.border}40` }}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 space-y-0.5">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-xs truncate" style={{ color: theme.colors.text }}>
+                                    {item.title}
+                                  </span>
+                                  {isCustom && (
+                                    <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                      已自定义
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] opacity-55 line-clamp-1" style={{ color: theme.colors.textMuted }}>
+                                  {item.description}
+                                </p>
+                              </div>
+
+                              {/* Key Badge or Recording Input */}
+                              <div className="shrink-0 flex items-center gap-1.5">
+                                {isRecording ? (
+                                  <div className="flex items-center gap-1">
+                                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-cyan-500/25 border border-cyan-400 font-mono text-[11px] text-cyan-200 animate-pulse shadow-sm">
+                                      {displayKey.mods.map((m, idx) => (
+                                        <kbd key={idx} className="font-semibold">
+                                          {m}
+                                        </kbd>
+                                      ))}
+                                      {displayKey.mods.length > 0 && <span className="opacity-40">+</span>}
+                                      <kbd className="font-bold">{displayKey.key || '请按下新按键...'}</kbd>
+                                    </div>
+                                    <button
+                                      onClick={() => handleSaveKeymapRecording(item.id)}
+                                      disabled={!recordedKeymapStr}
+                                      className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-30 cursor-pointer"
+                                      title="保存"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setRecordingKeymapId(null);
+                                        setRecordedKeymapStr('');
+                                        setConflictKeymapItem(null);
+                                      }}
+                                      className="p-1.5 rounded-lg bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10 cursor-pointer"
+                                      title="取消"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    {item.run && (
+                                      <button
+                                        onClick={() => {
+                                          item.run?.();
+                                          eventBus.emit('show-toast', { message: `已执行「${item.title}」`, type: 'info' });
+                                        }}
+                                        className="p-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-300 text-neutral-400 border border-white/5 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                                        title="立即运行此动作"
+                                      >
+                                        <Play className="h-2.5 w-2.5 fill-current" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setRecordingKeymapId(item.id);
+                                        setRecordedKeymapStr('');
+                                        setConflictKeymapItem(null);
+                                      }}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/40 border border-white/10 font-mono text-[11px] hover:border-cyan-400/50 hover:bg-white/5 transition-all cursor-pointer group/btn"
+                                      title="点击录制新按键"
+                                    >
+                                      {displayKey.mods.map((m, idx) => (
+                                        <kbd key={idx} className="opacity-70 font-semibold text-neutral-300">
+                                          {m}
+                                        </kbd>
+                                      ))}
+                                      {displayKey.mods.length > 0 && <span className="opacity-30">+</span>}
+                                      <kbd className="font-bold text-cyan-300">{displayKey.key}</kbd>
+                                      <Edit2 className="h-2.5 w-2.5 ml-1 opacity-0 group-hover/btn:opacity-60 text-cyan-300 transition-opacity" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Conflict Warning or Reset if custom */}
+                            {isRecording && conflictKeymapItem && (
+                              <div className="flex items-center gap-1.5 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-[10.5px]">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                <span>按键与「{conflictKeymapItem.title}」冲突，保存将覆盖原绑定</span>
+                              </div>
+                            )}
+
+                            {!isRecording && isCustom && (
+                              <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-white/5">
+                                <span className="opacity-40 font-mono">出厂默认：{item.defaultKey}</span>
+                                <button
+                                  onClick={() => handleResetSingleKeymap(item.id)}
+                                  className="flex items-center gap-1 text-cyan-400/75 hover:text-cyan-300 transition-colors cursor-pointer"
+                                >
+                                  <RotateCcw className="h-2.5 w-2.5" />
+                                  <span>恢复默认</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

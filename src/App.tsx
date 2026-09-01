@@ -9,26 +9,21 @@ import { SettingsDrawer } from './components/settings/SettingsDrawer';
 import type { CropParams } from './components/settings/ImageCropModal';
 import { pluginManager } from './core/plugins/PluginManager';
 import { dynamicPluginLoader } from './core/plugins/DynamicPluginLoader';
-import { commandRegistry } from './core/plugins/CommandRegistry';
 import { eventBus } from './core/events/EventBus';
-import { projectStore } from './core/storage/ProjectStore';
+import { projectStore, countWordsFast } from './core/storage/ProjectStore';
 import type { BackgroundEffect } from './components/editor/EditorBackground';
+import { Command, Settings } from 'lucide-react';
 
-// Import Core & Literary Plugins
-import { NovelTreePlugin } from './plugins/novel-tree';
+// Import Consolidated Core Plugins (Grounded & High Cohesion)
+import { ChineseTypographyPlugin } from './plugins/chinese-typography';
+import { ImmersionPlugin } from './plugins/immersion';
+import { NovelFilesPlugin } from './plugins/novel-files';
 import { BackgroundAtmospherePlugin } from './plugins/background-atmosphere';
 import { LiveCursorPlugin } from './plugins/live-cursor';
-import { TypewriterPlugin } from './plugins/typewriter';
-import { ChineseTypographyPlugin } from './plugins/chinese-typography';
-import { FocusModePlugin } from './plugins/focus-mode';
-import { DialogueHighlighterPlugin } from './plugins/dialogue-highlighter';
-import { ScratchpadPlugin } from './plugins/scratchpad';
-import { WordCounterPlugin } from './plugins/word-counter';
-import { QuickExporterPlugin } from './plugins/quick-exporter';
-import { EditorToolkitPlugin } from './plugins/editor-toolkit';
 import { SplitViewPlugin } from './plugins/split-view';
-import { SplitViewPane } from './plugins/split-view/SplitViewPane';
-import { SampleUserPlugin } from './plugins/custom-template/sampleUserPlugin';
+import { KeymapPlugin } from './plugins/keymap';
+import { KeymapCheatsheetModal } from './plugins/keymap/KeymapCheatsheetModal';
+import { useGlobalKeymap } from './core/keymap/useGlobalKeymap';
 
 export const App: React.FC = () => {
   const [themeId, setThemeId] = useState<string>(() => {
@@ -178,7 +173,9 @@ export const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
     return localStorage.getItem('novelite_sidebar_open') !== 'false';
   });
-  const [isSplitViewOpen, setIsSplitViewOpen] = useState<boolean>(false);
+  const [isSplitViewOpen, setIsSplitViewOpen] = useState<boolean>(() => {
+    return localStorage.getItem('novelite_split_open') === 'true';
+  });
   const [splitDirection, setSplitDirection] = useState<'vertical' | 'horizontal'>(() => {
     return (localStorage.getItem('novelite_split_direction') as any) || 'vertical';
   });
@@ -231,34 +228,67 @@ export const App: React.FC = () => {
     window.addEventListener('pointerup', onPointerUp);
   };
 
+  const [secondaryChapterId, setSecondaryChapterId] = useState<string | null>(() => {
+    const stored = localStorage.getItem('novelite_split_secondary_chapter');
+    if (stored) return stored;
+    const project = projectStore.getProject();
+    const active = projectStore.getActiveChapter();
+    if (project && active) {
+      const allChaps: { id: string }[] = [];
+      project.volumes.forEach((v) => allChaps.push(...v.chapters));
+      const idx = allChaps.findIndex((c) => c.id === active.id);
+      if (idx > 0) return allChaps[idx - 1].id;
+      if (idx === 0 && allChaps.length > 1) return allChaps[1].id;
+    }
+    return active?.id || null;
+  });
+
+  const handleSwapPanes = () => {
+    const primaryChap = projectStore.getActiveChapter();
+    const secId = secondaryChapterId;
+    if (!primaryChap || !secId || primaryChap.id === secId) return;
+
+    const oldPrimaryId = primaryChap.id;
+    const oldSecId = secId;
+
+    setSecondaryChapterId(oldPrimaryId);
+    localStorage.setItem('novelite_split_secondary_chapter', oldPrimaryId);
+    projectStore.setActiveChapter(oldSecId);
+    eventBus.emit('show-toast', { message: '左右/上下分屏章节已对调', type: 'info' });
+  };
+
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
+  const [isCheatsheetOpen, setIsCheatsheetOpen] = useState<boolean>(false);
+  const [isTyping, setIsTyping] = useState<boolean>(false);
+
+  // 🌟 Global Unified Keymap Capture Engine
+  useGlobalKeymap();
+
+  const [hudStats, setHudStats] = useState<{ title: string; wordCount: number; isSaving: boolean }>(() => {
+    const chap = projectStore.getActiveChapter();
+    return {
+      title: chap?.title || '未命名章节',
+      wordCount: chap ? countWordsFast(chap.content) : 0,
+      isSaving: false,
+    };
+  });
 
   const [toast, setToast] = useState<{ message: string; type?: string } | null>(null);
   const toastTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
-    pluginManager.registerPlugin(NovelTreePlugin);
+    pluginManager.registerPlugin(ChineseTypographyPlugin);
+    pluginManager.registerPlugin(ImmersionPlugin);
+    pluginManager.registerPlugin(NovelFilesPlugin);
     pluginManager.registerPlugin(BackgroundAtmospherePlugin);
     pluginManager.registerPlugin(LiveCursorPlugin);
-    pluginManager.registerPlugin(TypewriterPlugin);
-    pluginManager.registerPlugin(ChineseTypographyPlugin);
-    pluginManager.registerPlugin(FocusModePlugin);
-    pluginManager.registerPlugin(DialogueHighlighterPlugin);
-    pluginManager.registerPlugin(ScratchpadPlugin);
-    pluginManager.registerPlugin(WordCounterPlugin);
-    pluginManager.registerPlugin(QuickExporterPlugin);
-    pluginManager.registerPlugin(EditorToolkitPlugin);
     pluginManager.registerPlugin(SplitViewPlugin);
-    pluginManager.registerPlugin(SampleUserPlugin);
+    pluginManager.registerPlugin(KeymapPlugin);
 
     // Initialize previously installed community and custom JS plugins
     dynamicPluginLoader.init();
-
-    if (typewriterEnabled) {
-      pluginManager.enablePlugin('plugin-typewriter');
-    }
   }, []);
 
   // Update cursor settings into plugin manager
@@ -280,7 +310,7 @@ export const App: React.FC = () => {
     ctx.setSetting('streamTailColor', streamTailColor);
   }, [cursorShape, cursorColor, cursorAnimationLength, cursorTrailSize, vfxMode, blinkMode, breatheCycle, speedMode, physicsMode, luminescence, inlineSkew, streamPreset, streamHeadColor, streamTailColor, theme]);
 
-  // Update typography & page margin settings into plugin manager
+  // Update typography settings into plugin manager
   useEffect(() => {
     const ctx = pluginManager.createPluginContext('plugin-chinese-typography');
     ctx.setSetting('fontPreset', fontPreset);
@@ -314,10 +344,10 @@ export const App: React.FC = () => {
 
   // Update typewriter settings into plugin manager
   useEffect(() => {
-    const ctx = pluginManager.createPluginContext('plugin-typewriter');
-    ctx.setSetting('enabled', typewriterEnabled);
-    ctx.setSetting('anchorRatio', typewriterRatio);
-    ctx.setSetting('speedMode', typewriterSpeed);
+    const ctx = pluginManager.createPluginContext('plugin-immersion');
+    ctx.setSetting('typewriterEnabled', typewriterEnabled);
+    ctx.setSetting('typewriterAnchorRatio', typewriterRatio);
+    ctx.setSetting('typewriterSpeedMode', typewriterSpeed);
   }, [typewriterEnabled, typewriterRatio, typewriterSpeed]);
 
   useEffect(() => {
@@ -371,8 +401,39 @@ export const App: React.FC = () => {
       }
     });
 
-    const unsubSplitView = eventBus.on('split-view:toggle', () => {
-      setIsSplitViewOpen((prev) => !prev);
+    const unsubTyping = eventBus.on('typing-state-changed', (typing: boolean) => {
+      setIsTyping(Boolean(typing));
+      if (typing) {
+        setHudStats((prev) => ({ ...prev, isSaving: true }));
+      } else {
+        const chap = projectStore.getActiveChapter();
+        setHudStats({
+          title: chap?.title || '未命名章节',
+          wordCount: chap ? countWordsFast(chap.content) : 0,
+          isSaving: false,
+        });
+      }
+    });
+
+    const unsubChapSelect = eventBus.on('chapter-selected', (chap: any) => {
+      if (chap) {
+        setHudStats({
+          title: chap.title || '未命名章节',
+          wordCount: countWordsFast(chap.content || ''),
+          isSaving: false,
+        });
+      }
+    });
+
+    const unsubChapContent = eventBus.on('chapter-content-updated', ({ chapterId, content }: any) => {
+      const active = projectStore.getActiveChapter();
+      if (active && active.id === chapterId) {
+        setHudStats({
+          title: active.title || '未命名章节',
+          wordCount: countWordsFast(content || ''),
+          isSaving: false,
+        });
+      }
     });
 
     return () => {
@@ -382,82 +443,58 @@ export const App: React.FC = () => {
       unsubPhysics();
       unsubTypo();
       unsubTypewriter();
-      unsubSplitView();
+      unsubTyping();
+      unsubChapSelect();
+      unsubChapContent();
     };
   }, []);
 
   useEffect(() => {
-    const matchesShortcut = (e: KeyboardEvent, shortcut: string): boolean => {
-      const parts = shortcut.split('+').map((s) => s.trim().toLowerCase());
-      const needsCtrl = parts.includes('ctrl') || parts.includes('control') || parts.includes('cmd');
-      const needsAlt = parts.includes('alt') || parts.includes('opt');
-      const needsShift = parts.includes('shift');
+    const unsubToggleSplit = eventBus.on('split-view:toggle', () => {
+      setIsSplitViewOpen((prev) => {
+        const next = !prev;
+        localStorage.setItem('novelite_split_open', String(next));
+        eventBus.emit('show-toast', {
+          message: next ? '已开启对照分屏 (Alt+S)' : '已关闭对照分屏',
+          type: 'info',
+        });
+        return next;
+      });
+    });
 
-      const hasCtrl = e.ctrlKey || e.metaKey;
-      const hasAlt = e.altKey;
-      const hasShift = e.shiftKey;
+    const unsubSwap = eventBus.on('split-view:swap', handleSwapPanes);
 
-      if (needsCtrl !== hasCtrl) return false;
-      if (needsAlt !== hasAlt) return false;
-      if (needsShift !== hasShift) return false;
+    const unsubCheatsheet = eventBus.on('keymap:open-cheatsheet', () => {
+      setIsCheatsheetOpen(true);
+    });
 
-      const keyPart = parts.find(
-        (p) => !['ctrl', 'control', 'cmd', 'alt', 'opt', 'shift'].includes(p)
-      );
-      if (!keyPart) return false;
+    const unsubCmdPalette = eventBus.on('command-palette:toggle', () => {
+      setIsCommandPaletteOpen((prev) => !prev);
+    });
 
-      const actualKey = e.key.toLowerCase();
-      if (actualKey === keyPart) return true;
-      if (keyPart === '=' && (e.key === '=' || e.key === '+')) return true;
-      if (keyPart === '-' && (e.key === '-' || e.key === '_')) return true;
+    const unsubZen = eventBus.on('zen-mode:toggle', () => {
+      setIsZenMode((prev) => !prev);
+    });
 
-      return false;
+    const unsubSettings = eventBus.on('settings:open', () => {
+      setIsSettingsOpen(true);
+    });
+
+    const unsubCloseAll = eventBus.on('modal:close-all', () => {
+      setIsCheatsheetOpen(false);
+      setIsCommandPaletteOpen(false);
+      setIsSettingsOpen(false);
+    });
+
+    return () => {
+      unsubToggleSplit();
+      unsubSwap();
+      unsubCheatsheet();
+      unsubCmdPalette();
+      unsubZen();
+      unsubSettings();
+      unsubCloseAll();
     };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 1. Core Built-in Shortcuts
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'k' || e.key === 'P' || e.key === 'K')) {
-        e.preventDefault();
-        setIsCommandPaletteOpen((prev) => !prev);
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
-        e.preventDefault();
-        setIsSidebarOpen((prev) => !prev);
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === ',') {
-        e.preventDefault();
-        setIsSettingsOpen((prev) => !prev);
-        return;
-      }
-      if (e.key === 'F11' || (e.altKey && (e.key === 'z' || e.key === 'Z'))) {
-        e.preventDefault();
-        setIsZenMode((prev) => !prev);
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
-        e.preventDefault();
-        projectStore.save();
-        eventBus.emit('show-toast', { message: '章节已保存', type: 'success' });
-        return;
-      }
-
-      // 2. Dispatch registered plugin commands with matching shortcut
-      const commands = commandRegistry.getAll();
-      for (const cmd of commands) {
-        if (cmd.shortcut && matchesShortcut(e, cmd.shortcut)) {
-          e.preventDefault();
-          const targetId = cmd.pluginId || cmd.id;
-          const ctx = pluginManager.getPluginContext(targetId) || pluginManager.createPluginContext(targetId);
-          cmd.run(ctx);
-          return;
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleSelectTheme = (id: string) => {
@@ -709,21 +746,25 @@ export const App: React.FC = () => {
       {!isZenMode && (
         <TopSeamlessTitlebar
           theme={theme}
+          isSplitViewOpen={isSplitViewOpen}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         />
       )}
 
-      {/* Main Area / Split Layout Host */}
+      {/* Main Area / Symmetrical Split Layout Host */}
       <div
         ref={splitContainerRef}
         className={`relative flex flex-1 overflow-hidden ${
           isSplitViewOpen && splitDirection === 'horizontal' ? 'flex-col' : 'flex-row'
         } ${isDraggingSplitter ? (splitDirection === 'vertical' ? 'select-none cursor-col-resize' : 'select-none cursor-row-resize') : ''}`}
       >
-        {/* Main Editor Canvas (Dynamic Size & Full Literary Canvas) */}
+
+        {/* Primary Editor Pane (Left / Top) */}
         <main
-          className="relative flex flex-col overflow-hidden transition-[width,height] duration-75 ease-out"
+          className={`relative flex flex-col overflow-hidden ${
+            isDraggingSplitter ? 'transition-none' : 'transition-[width,height] duration-75 ease-out'
+          } z-10 ${isSplitViewOpen ? 'pt-10' : ''}`}
           style={{
             width: isSplitViewOpen && splitDirection === 'vertical' ? `${(1 - splitRatio) * 100}%` : '100%',
             height: isSplitViewOpen && splitDirection === 'horizontal' ? `${(1 - splitRatio) * 100}%` : '100%',
@@ -732,6 +773,8 @@ export const App: React.FC = () => {
           }}
         >
           <NovelEditor
+            paneId="primary"
+            showPaneHeader={isSplitViewOpen}
             theme={theme}
             cursorShape={cursorShape}
             cursorColor={cursorColor}
@@ -753,15 +796,6 @@ export const App: React.FC = () => {
             lineHeight={lineHeight}
             contentMaxWidth={contentMaxWidth}
             spotlightMode={spotlightMode}
-            zeroChrome={zeroChrome}
-            onOpenSettings={() => setIsSettingsOpen(true)}
-            onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-            onToggleSidebar={() => {
-              const next = !isSidebarOpen;
-              setIsSidebarOpen(next);
-              localStorage.setItem('novelite_sidebar_open', String(next));
-            }}
-            isSidebarOpen={isSidebarOpen}
           />
         </main>
 
@@ -785,32 +819,125 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Split View Secondary Pane (Right/Bottom Pane) */}
+        {/* Secondary Symmetrical Editor Pane (Right / Bottom) */}
         {isSplitViewOpen && (
-          <div
+          <section
             style={{
               width: splitDirection === 'vertical' ? `${splitRatio * 100}%` : '100%',
               height: splitDirection === 'horizontal' ? `${splitRatio * 100}%` : '100%',
               minWidth: splitDirection === 'vertical' ? '280px' : undefined,
               minHeight: splitDirection === 'horizontal' ? '200px' : undefined,
             }}
-            className="flex flex-col relative overflow-hidden"
+            className={`relative flex flex-col overflow-hidden ${
+              isDraggingSplitter ? 'transition-none' : 'transition-[width,height] duration-75 ease-out'
+            } z-10 ${splitDirection === 'vertical' ? 'pt-10' : ''}`}
           >
-            <SplitViewPane
-              isOpen={isSplitViewOpen}
-              onClose={() => setIsSplitViewOpen(false)}
+            <NovelEditor
+              paneId="secondary"
+              boundChapterId={secondaryChapterId || undefined}
+              onSelectChapter={(id) => {
+                setSecondaryChapterId(id);
+                localStorage.setItem('novelite_split_secondary_chapter', id);
+              }}
+              showPaneHeader={true}
+              onClosePane={() => setIsSplitViewOpen(false)}
+              onSwapPanes={handleSwapPanes}
+              onToggleSplitDirection={handleToggleSplitDirection}
+              splitDirection={splitDirection}
               theme={theme}
-              direction={splitDirection}
-              onToggleDirection={handleToggleSplitDirection}
-              splitRatio={splitRatio}
-              onChangeSplitRatio={handleSplitRatioChange}
+              cursorShape={cursorShape}
+              cursorColor={cursorColor}
+              cursorSpeed="snappy"
+              cursorAnimationLength={cursorAnimationLength}
+              cursorTrailSize={cursorTrailSize}
+              vfxMode={vfxMode}
+              blinkMode={blinkMode}
+              breatheCycle={breatheCycle}
+              speedMode={speedMode}
+              backgroundEffect={backgroundEffect}
+              backgroundIntensity={backgroundIntensity}
+              customImage={customImage}
+              customImageBlur={customImageBlur}
+              customImageDim={customImageDim}
               fontPreset={fontPreset}
+              customFontName={customFontName}
               fontSize={fontSize}
               lineHeight={lineHeight}
+              contentMaxWidth={contentMaxWidth}
+              spotlightMode={spotlightMode}
             />
-          </div>
+          </section>
         )}
       </div>
+
+      {/* 🌟 Universal SOTA Dynamic Island Floating Micro-HUD (Single & Split View Compatible) */}
+      {!isZenMode && zeroChrome && (
+        <div
+          className={`fixed bottom-6 right-8 z-40 flex items-center gap-3 px-4 py-2 rounded-full border shadow-2xl backdrop-blur-2xl select-none text-[11.5px] font-mono transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-[0_12px_32px_rgba(0,0,0,0.45)] ${
+            isTyping ? 'opacity-0 translate-y-3 pointer-events-none' : 'opacity-100 translate-y-0 pointer-events-auto'
+          }`}
+          style={{
+            backgroundColor: `${theme.colors.bgSecondary}cc`,
+            borderColor: `${theme.colors.border}90`,
+            boxShadow: `0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px ${theme.colors.accent}20`,
+            color: theme.colors.textMuted,
+          }}
+        >
+          {/* Status Orb with pulse ring */}
+          <div className="relative flex items-center justify-center">
+            <span
+              title={hudStats.isSaving ? '正在保存...' : '本地实时保存状态'}
+              className={`h-2 w-2 rounded-full shrink-0 ${
+                hudStats.isSaving
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+              }`}
+            />
+          </div>
+
+          {/* Word Count */}
+          <div className="flex items-center gap-1 font-semibold tracking-tight" style={{ color: theme.colors.text }}>
+            <span>{hudStats.wordCount.toLocaleString()} 字</span>
+          </div>
+
+          <span className="opacity-25 select-none">|</span>
+
+          {/* Reading Time */}
+          <span className="opacity-60 text-[10.5px]">
+            约 {Math.max(1, Math.ceil(hudStats.wordCount / 350))} 分钟
+          </span>
+
+          <span className="opacity-25 select-none">|</span>
+
+          {/* Active Chapter Title */}
+          <span
+            className="opacity-85 max-w-[140px] truncate text-[11px] font-medium"
+            title={hudStats.title}
+            style={{ color: theme.colors.text }}
+          >
+            {hudStats.title}
+          </span>
+
+          {/* Micro Action Dock (Clean 2-button: Command Palette & Settings) */}
+          <div className="flex items-center gap-1 pl-1.5 border-l border-white/10 ml-0.5">
+            <button
+              onClick={() => setIsCommandPaletteOpen(true)}
+              title="命令面板 (Ctrl+P / ⌘K)"
+              className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-60 hover:opacity-100 cursor-pointer"
+            >
+              <Command className="h-3.5 w-3.5" />
+            </button>
+
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              title="偏好设置 (Ctrl+, / ⌘,)"
+              className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-60 hover:opacity-100 cursor-pointer"
+            >
+              <Settings className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Bar (Only visible when zeroChrome is turned off) */}
       {!isZenMode && !zeroChrome && (
@@ -917,6 +1044,13 @@ export const App: React.FC = () => {
         onChangeTypewriterRatio={handleChangeTypewriterRatio}
         typewriterSpeed={typewriterSpeed}
         onChangeTypewriterSpeed={handleChangeTypewriterSpeed}
+      />
+
+      {/* ⌨️ Hotkeys Cheatsheet & Keymap Manager Modal */}
+      <KeymapCheatsheetModal
+        isOpen={isCheatsheetOpen}
+        onClose={() => setIsCheatsheetOpen(false)}
+        theme={theme}
       />
 
       {/* Toast Notification */}

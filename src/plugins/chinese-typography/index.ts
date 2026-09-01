@@ -4,9 +4,9 @@ import { createTypographyExtension } from './typographyExtension';
 export const ChineseTypographyPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-chinese-typography',
-    name: '中文文学排版与字体系统',
+    name: '中文排版',
     version: '2.2.0',
-    description: '提供标准的中文小说 2 字符 CSS 缩进渲染、GB/T 15834 标点避头尾、标点半角挤压与出版级版心。',
+    description: '提供中文段首全角缩进、GB/T 15834 标点避头尾与标点半角挤压。',
     author: 'hirovel',
     icon: 'Type',
     defaultEnabled: true,

@@ -13,10 +13,10 @@ export interface LiveCursorConfig {
   themeColor: string;
   animationLength: number;
   trailSize: number;
-  vfxMode: 'pure' | 'embers' | 'ripples' | 'feather';
+  vfxMode: 'pure' | 'particles' | 'glow' | 'embers' | 'ripples' | 'feather';
   blinkMode: 'smooth' | 'solid' | 'blink';
   breatheCycle: number;
-  speedMode: 'gentle' | 'balanced' | 'snappy';
+  speedMode: 'gentle' | 'balanced' | 'snappy' | 'instant';
   physicsMode?: 'fluid' | 'ribbon' | 'quantum';
   luminescence?: boolean;
   inlineSkew?: boolean;
@@ -121,6 +121,45 @@ const LOWER_HULL: Point2D[] = [];
 const UPPER_HULL: Point2D[] = [];
 const RESULT_HULL: Point2D[] = [];
 
+
+/**
+ * Fast RGB color parser with zero allocations.
+ */
+function parseHexOrRgb(color: string): [number, number, number] {
+  if (color.startsWith('rgba') || color.startsWith('rgb')) {
+    const m = color.match(/\d+/g);
+    if (m && m.length >= 3) {
+      return [parseInt(m[0], 10), parseInt(m[1], 10), parseInt(m[2], 10)];
+    }
+  }
+  let hex = color.replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map((x) => x + x).join('');
+  const r = parseInt(hex.slice(0, 2), 16) || 167;
+  const g = parseInt(hex.slice(2, 4), 16) || 139;
+  const b = parseInt(hex.slice(4, 6), 16) || 250;
+  return [r, g, b];
+}
+
+/**
+ * Smoothly interpolates two colors with alpha channel.
+ */
+function lerpRgbColor(c1: string, c2: string, t: number, alpha: number): string {
+  const [r1, g1, b1] = parseHexOrRgb(c1);
+  const [r2, g2, b2] = parseHexOrRgb(c2);
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+}
+
+/**
+ * Fast color to RGBA string helper with zero heap churn.
+ */
+function colorWithAlpha(hexOrRgb: string, alpha: number): string {
+  const [r, g, b] = parseHexOrRgb(hexOrRgb);
+  return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+}
+
 /**
  * Computes 2D convex hull of points using the Monotone Chain algorithm.
  * 100% Zero-allocation across all frame loops.
@@ -205,16 +244,21 @@ export class LiveCursorEngine {
   private typingAura: number = 0;
 
   private isInitialized: boolean = false;
-  private isFocused: boolean = true;
+  private isFocused: boolean = false;
   private lastActivityTime: number = performance.now();
   private lastJumpDist: number = 0;
-  private renderedAlpha: number = 1.0;
+  private renderedAlpha: number = 0.0;
 
   private embers: EmberParticle[] = [];
   private ripples: WaterRipple[] = [];
 
   public setFocused(focused: boolean): void {
     this.isFocused = focused;
+    if (!focused) {
+      this.embers = [];
+      this.ripples = [];
+      this.typingAura = 0;
+    }
     this.lastActivityTime = performance.now();
   }
 
@@ -398,27 +442,27 @@ export class LiveCursorEngine {
       this.typingAura = Math.max(0, this.typingAura - clampedDt * 1.6);
     }
 
-    // Leader step
-    let omega0 = 54.0 * timeScale * speedMultiplier;
-    let zeta0 = 0.98;
+    // Leader step (Silky fluid travel with smooth critical damping)
+    let omega0 = 52.0 * timeScale * speedMultiplier;
+    let zeta0 = 1.0;
     if (this.lastJumpDist <= 32) {
-      omega0 = 60.0 * timeScale * speedMultiplier;
+      omega0 = 56.0 * timeScale * speedMultiplier;
       zeta0 = 1.0;
     }
 
     this.spineNodes[0].x.step(clampedDt, omega0, zeta0);
     this.spineNodes[0].y.step(clampedDt, omega0, zeta0);
-    this.spineNodes[0].w.step(clampedDt, omega0, 0.98);
-    this.spineNodes[0].h.step(clampedDt, omega0, 0.98);
+    this.spineNodes[0].w.step(clampedDt, omega0, 1.0);
+    this.spineNodes[0].h.step(clampedDt, omega0, 1.0);
 
-    // Spine Cascade
+    // Spine Cascade (Silky progressive lag without oscillation)
     const omegas = [
       omega0,
-      (40.0 - trailFactor * 3.0) * timeScale * speedMultiplier,
-      (30.0 - trailFactor * 5.0) * timeScale * speedMultiplier,
-      (22.0 - trailFactor * 6.0) * timeScale * speedMultiplier,
+      (38.0 - trailFactor * 3.0) * timeScale * speedMultiplier,
+      (28.0 - trailFactor * 4.0) * timeScale * speedMultiplier,
+      (20.0 - trailFactor * 5.0) * timeScale * speedMultiplier,
     ];
-    const zetas = [zeta0, 0.94, 0.90, 0.86];
+    const zetas = [zeta0, 1.0, 1.0, 1.0];
 
     for (let i = 1; i < 4; i++) {
       const parent = this.spineNodes[i - 1];
@@ -429,37 +473,38 @@ export class LiveCursorEngine {
       current.h.target = parent.h.val;
       current.x.step(clampedDt, omegas[i], zetas[i]);
       current.y.step(clampedDt, omegas[i], zetas[i]);
-      current.w.step(clampedDt, omegas[i], 0.94);
-      current.h.step(clampedDt, omegas[i], 0.94);
+      current.w.step(clampedDt, omegas[i], 1.0);
+      current.h.step(clampedDt, omegas[i], 1.0);
     }
 
-    // 2-Body Step for Fluid / Quantum (always synchronized)
-    let omegaLead = 52.0 * timeScale * speedMultiplier;
-    let omegaTrail = (26.0 - trailFactor * 6.0) * timeScale * speedMultiplier;
-    let zetaLead = 0.98;
-    let zetaTrail = 0.90;
+    // 2-Body Step for Fluid / Quantum:
+    // Retains luxurious, elastic, visible trailing stretch while ensuring 100% monotonic asymptotic settling
+    let omegaLead = 50.0 * timeScale * speedMultiplier;
+    let omegaTrail = (25.0 - trailFactor * 4.0) * timeScale * speedMultiplier;
+    let zetaLead = 1.0;
+    let zetaTrail = 1.0;
 
     if (mode === 'quantum') {
-      omegaLead = 64.0 * timeScale * speedMultiplier;
+      omegaLead = 66.0 * timeScale * speedMultiplier;
       omegaTrail = 50.0 * timeScale * speedMultiplier;
       zetaLead = 1.0;
-      zetaTrail = 0.98;
+      zetaTrail = 1.0;
     } else if (this.lastJumpDist <= 32) {
-      omegaLead = 58.0 * timeScale * speedMultiplier;
-      omegaTrail = 38.0 * timeScale * speedMultiplier;
+      omegaLead = 54.0 * timeScale * speedMultiplier;
+      omegaTrail = (28.0 - trailFactor * 3.0) * timeScale * speedMultiplier;
       zetaLead = 1.0;
-      zetaTrail = 0.95;
+      zetaTrail = 1.0;
     }
 
     this.leadX.step(clampedDt, omegaLead, zetaLead);
     this.leadY.step(clampedDt, omegaLead, zetaLead);
-    this.leadW.step(clampedDt, omegaLead, 0.98);
-    this.leadH.step(clampedDt, omegaLead, 0.98);
+    this.leadW.step(clampedDt, omegaLead, 1.0);
+    this.leadH.step(clampedDt, omegaLead, 1.0);
 
     this.trailX.step(clampedDt, omegaTrail, zetaTrail);
     this.trailY.step(clampedDt, omegaTrail, zetaTrail);
-    this.trailW.step(clampedDt, omegaTrail, 0.94);
-    this.trailH.step(clampedDt, omegaTrail, 0.94);
+    this.trailW.step(clampedDt, omegaTrail, 1.0);
+    this.trailH.step(clampedDt, omegaTrail, 1.0);
 
     // Update Embers
     for (let i = this.embers.length - 1; i >= 0; i--) {
@@ -520,30 +565,13 @@ export class LiveCursorEngine {
     const hasParticles = this.embers.length > 0 || this.ripples.length > 0;
     const hasAura = this.typingAura > 0.01;
     const shouldBlink = this.isFocused && config.enabled && config.blinkMode !== 'solid';
+    const isFading = !this.isFocused && this.renderedAlpha > 0.01;
 
-    return isMoving || hasParticles || hasAura || shouldBlink;
+    return isMoving || hasParticles || hasAura || shouldBlink || isFading;
   }
 
   public draw(ctx: CanvasRenderingContext2D, config: LiveCursorConfig): void {
     const mode = config.physicsMode || 'fluid';
-    let isMoving = false;
-
-    if (mode === 'ribbon') {
-      for (let i = 0; i < 4; i++) {
-        const n = this.spineNodes[i];
-        if (Math.abs(n.x.target - n.x.val) > 0.15 || Math.abs(n.y.target - n.y.val) > 0.15) {
-          isMoving = true;
-          break;
-        }
-      }
-    } else {
-      isMoving =
-        Math.abs(this.targetX - this.leadX.val) > 0.15 ||
-        Math.abs(this.targetY - this.leadY.val) > 0.15 ||
-        Math.abs(this.targetX - this.trailX.val) > 0.15 ||
-        Math.abs(this.targetY - this.trailY.val) > 0.15;
-    }
-
     const resolvedThemeColor = config.themeColor || '#a78bfa';
 
     if (this.ripples.length > 0 && config.vfxMode === 'ripples') {
@@ -572,11 +600,17 @@ export class LiveCursorEngine {
     }
 
     const isBlock = config.shape === 'block';
-    const baseAlpha = isBlock ? 0.48 : (config.shape === 'underline' ? 0.90 : 1.0);
+    const flightDist = Math.hypot(this.leadX.val - this.trailX.val, this.leadY.val - this.trailY.val);
+    const motionT = Math.min(1.0, flightDist / 20.0);
+
+    // Dynamic Alpha Boost: In motion, block boosts to 0.76 for energetic clarity; at rest relaxes to 0.52 for text legibility
+    const baseAlpha = isBlock
+      ? (0.52 + 0.24 * motionT)
+      : (config.shape === 'underline' ? 0.90 : 1.0);
 
     let targetIdleAlpha = 1.0;
     if (!this.isFocused) {
-      targetIdleAlpha = 0.45;
+      targetIdleAlpha = 0.0;
     } else {
       const elapsed = (performance.now() - this.lastActivityTime) / 1000;
       
@@ -590,13 +624,18 @@ export class LiveCursorEngine {
         }
       } else if (config.blinkMode === 'smooth') {
         const cycle = Math.max(0.6, config.breatheCycle || 1.2);
-        // Pure gentle breathing pulse (0.76 -> 1.0), zero sudden dimming
-        const phase = (elapsed / cycle) * Math.PI * 2;
-        const sineFactor = 0.5 + 0.5 * Math.cos(phase);
-        if (isBlock) {
-          targetIdleAlpha = 0.86 + 0.14 * sineFactor;
+        const idleGrace = 0.35; // 350ms quiet grace period before breathing begins
+        if (elapsed < idleGrace) {
+          targetIdleAlpha = 1.0;
         } else {
-          targetIdleAlpha = 0.76 + 0.24 * sineFactor;
+          const breathElapsed = elapsed - idleGrace;
+          const phase = (breathElapsed / cycle) * Math.PI * 2;
+          const sineFactor = 0.5 + 0.5 * Math.cos(phase);
+          if (isBlock) {
+            targetIdleAlpha = 0.86 + 0.14 * sineFactor;
+          } else {
+            targetIdleAlpha = 0.76 + 0.24 * sineFactor;
+          }
         }
       } else {
         targetIdleAlpha = 1.0;
@@ -608,10 +647,40 @@ export class LiveCursorEngine {
 
     if (this.renderedAlpha <= 0.01) return;
 
-    const cursorColorHex =
+    // 1. Resolve active base color (single source of truth for cursor identity)
+    const baseColor =
       config.color === 'auto' || !config.color
         ? resolvedThemeColor
         : config.color;
+
+    // 2. Resolve stream preset palette
+    const preset = config.streamPreset || 'theme';
+    let headColor = baseColor;
+    let midColor = baseColor;
+    let tailColor = baseColor;
+
+    if (preset === 'cyan-violet') {
+      headColor = '#38bdf8'; midColor = '#c084fc'; tailColor = '#a78bfa';
+    } else if (preset === 'ice-blue') {
+      headColor = '#67e8f9'; midColor = '#38bdf8'; tailColor = '#3b82f6';
+    } else if (preset === 'emerald') {
+      headColor = '#6ee7b7'; midColor = '#10b981'; tailColor = '#059669';
+    } else if (preset === 'amber-rose') {
+      headColor = '#fde047'; midColor = '#fb923c'; tailColor = '#f43f5e';
+    } else if (preset === 'sakura') {
+      headColor = '#fbcfe8'; midColor = '#f472b6'; tailColor = '#db2777';
+    } else if (preset === 'custom') {
+      headColor = config.streamHeadColor || '#38bdf8';
+      tailColor = config.streamTailColor || '#a78bfa';
+      midColor = headColor;
+    } else if (preset === 'theme' || preset === 'mono') {
+      headColor = baseColor;
+      midColor = baseColor;
+      tailColor = baseColor;
+    }
+
+    // 3. The true resting & moving head color is ALWAYS headColor (Zero popping)
+    const activeCursorColor = headColor;
 
     ctx.save();
     ctx.globalAlpha = this.renderedAlpha;
@@ -647,25 +716,42 @@ export class LiveCursorEngine {
       }
       hull = computeConvexHullZeroAlloc(STATIC_POINTS, 16);
     } else {
+      const isUnderline = config.shape === 'underline';
+
       const lx1 = this.leadX.val;
       const ly1 = this.leadY.val;
       const lx2 = lx1 + this.leadW.val;
       const ly2 = ly1 + this.leadH.val;
 
-      const tx1 = this.trailX.val;
-      const ty1 = this.trailY.val;
-      const tx2 = tx1 + this.trailW.val;
-      const ty2 = ty1 + this.trailH.val;
+      // 🌟 Neovide-inspired Poisson Stream Tapering:
+      // High-speed flight dynamically narrows the trailing edge to form a sleek aerodynamic teardrop/capsule!
+      const maxTaperW = isBlock ? 0.46 : (isUnderline ? 0.38 : 0.18);
+      const maxTaperH = isUnderline ? 0.0 : (isBlock ? 0.22 : 0.12);
+      const taperProgress = Math.min(1.0, flightDist / 44.0);
+
+      const effTailW = Math.max(isBlock ? 4.5 : (isUnderline ? 4.0 : 2.2), this.trailW.val * (1.0 - maxTaperW * taperProgress));
+      const effTailH = isUnderline ? this.trailH.val : Math.max(6.0, this.trailH.val * (1.0 - maxTaperH * taperProgress));
+
+      const tailOffsetW = (this.trailW.val - effTailW) * 0.5;
+      const tailOffsetH = isUnderline ? 0 : (this.trailH.val - effTailH) * 0.5;
+
+      const tx1 = this.trailX.val + tailOffsetW;
+      const ty1 = this.trailY.val + tailOffsetH;
+      const tx2 = tx1 + effTailW;
+      const ty2 = ty1 + effTailH;
 
       const vx = this.leadX.vel;
       const vy = this.leadY.vel;
 
-      // 🌟 2D Aerodynamic Skew:
-      // Vertical leap induces horizontal trail skew
-      const skewXFromY = Math.max(-10, Math.min(10, vy * 0.010));
-      // Horizontal typing induces forward italic aerodynamic parallelogram skew
+      // 🌟 2D Aerodynamic Dynamic Skew
+      const vDist = Math.abs(headY - tailY);
+      const hDist = Math.abs(headX - tailX);
+      const skewScaleY = 0.4 + 0.6 * Math.min(1.0, vDist / 16.0);
+      const skewScaleX = 0.4 + 0.6 * Math.min(1.0, hDist / 16.0);
+
+      const skewXFromY = Math.max(-10, Math.min(10, vy * 0.010)) * skewScaleY;
       const enableInlineSkew = config.inlineSkew !== false && config.shape !== 'underline';
-      const skewXFromX = enableInlineSkew ? Math.max(-7, Math.min(7, vx * 0.010)) : 0;
+      const skewXFromX = enableInlineSkew ? Math.max(-6, Math.min(6, vx * 0.010)) * skewScaleX : 0;
 
       STATIC_POINTS[0].x = lx1 + skewXFromX; STATIC_POINTS[0].y = ly1;
       STATIC_POINTS[1].x = lx2 + skewXFromX; STATIC_POINTS[1].y = ly1;
@@ -681,47 +767,31 @@ export class LiveCursorEngine {
     }
 
     if (config.glow) {
-      ctx.shadowColor = cursorColorHex;
+      ctx.shadowColor = activeCursorColor;
       ctx.shadowBlur = isBlock ? 3 : 6;
     }
 
-    // 🌟 可配置流光色彩渐变 (Configurable Stream Gradient)
-    let fillStyle: string | CanvasGradient = cursorColorHex;
-    const flightDist = Math.hypot(headX - tailX, headY - tailY);
-    if (isMoving && flightDist > 14 && config.luminescence !== false) {
+    // 🌟 平衡通透的流线光学渐变（连续渐进收敛，杜绝到位颜色突变）
+    const rawT = Math.min(1.0, Math.max(0.0, (flightDist - 2.0) / 26.0));
+    const blendT = rawT * rawT * (3 - 2 * rawT);
+
+    let fillStyle: string | CanvasGradient;
+
+    if (blendT > 0.001 && flightDist > 0.5 && config.luminescence !== false) {
       const grad = ctx.createLinearGradient(headX, headY, tailX, tailY);
-      
-      const preset = config.streamPreset || 'theme';
-      let hColor = resolvedThemeColor;
-      let mColor = resolvedThemeColor;
-      let tColor = `${resolvedThemeColor}44`;
+      const tailAlpha = 1.0 - 0.30 * blendT;
+      const midAlpha = 1.0 - 0.08 * blendT;
 
-      if (preset === 'theme') {
-        hColor = resolvedThemeColor;
-        mColor = `${resolvedThemeColor}cc`;
-        tColor = `${resolvedThemeColor}33`;
-      } else if (preset === 'cyan-violet') {
-        hColor = '#38bdf8'; mColor = '#c084fc'; tColor = '#a78bfa';
-      } else if (preset === 'ice-blue') {
-        hColor = '#67e8f9'; mColor = '#38bdf8'; tColor = '#3b82f6';
-      } else if (preset === 'emerald') {
-        hColor = '#6ee7b7'; mColor = '#10b981'; tColor = '#059669';
-      } else if (preset === 'amber-rose') {
-        hColor = '#fde047'; mColor = '#fb923c'; tColor = '#f43f5e';
-      } else if (preset === 'sakura') {
-        hColor = '#fbcfe8'; mColor = '#f472b6'; tColor = '#db2777';
-      } else if (preset === 'mono') {
-        hColor = cursorColorHex; mColor = `${cursorColorHex}dd`; tColor = `${cursorColorHex}44`;
-      } else if (preset === 'custom') {
-        hColor = config.streamHeadColor || '#38bdf8';
-        tColor = config.streamTailColor || '#a78bfa';
-        mColor = `${hColor}cc`;
-      }
+      const currHead = colorWithAlpha(activeCursorColor, 1.0);
+      const currMid = lerpRgbColor(activeCursorColor, midColor, blendT, midAlpha);
+      const currTail = lerpRgbColor(activeCursorColor, tailColor, blendT, tailAlpha);
 
-      grad.addColorStop(0, hColor);
-      grad.addColorStop(0.55, mColor);
-      grad.addColorStop(1, tColor);
+      grad.addColorStop(0, currHead);
+      grad.addColorStop(0.5, currMid);
+      grad.addColorStop(1, currTail);
       fillStyle = grad;
+    } else {
+      fillStyle = activeCursorColor;
     }
 
     ctx.fillStyle = fillStyle;
@@ -730,7 +800,16 @@ export class LiveCursorEngine {
 
     const cornerRadius = Math.min(2.5, headW * 0.5, headH * 0.5);
 
-    if (hull.length >= 3) {
+    // 🌟 几何退化保护：质点汇合时直接渲染单体圆角矩形，彻底杜绝 8 点重叠时的凸包拓扑抖动
+    if (flightDist < 0.6 && Math.abs(headW - (mode === 'ribbon' ? this.spineNodes[3].w.val : this.trailW.val)) < 0.4) {
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(headX, headY, headW, headH, cornerRadius);
+      } else {
+        ctx.fillRect(headX, headY, headW, headH);
+      }
+      ctx.fill();
+    } else if (hull.length >= 3) {
       ctx.beginPath();
       const hLen = hull.length;
       for (let i = 0; i < hLen; i++) {

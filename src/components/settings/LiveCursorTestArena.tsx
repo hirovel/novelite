@@ -169,7 +169,8 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   }, [cursorShape, text]);
 
   useEffect(() => {
-    updateCaret(false);
+    engineRef.current.setFocused(true);
+    updateCaret(true);
   }, [updateCaret, text, cursorShape]);
 
   // Single mount animation loop
@@ -179,18 +180,30 @@ export const LiveCursorTestArena: React.FC<Props> = ({
     const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
 
+    engineRef.current.setFocused(true);
+
     const handleResize = () => {
       if (!containerRef.current || !canvas) return;
       const dpr = window.devicePixelRatio || 1;
       const rect = containerRef.current.getBoundingClientRect();
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
+      if (rect.width > 0 && rect.height > 0) {
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+      }
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
+
+    const ro = new ResizeObserver(() => {
+      handleResize();
+      updateCaret(true);
+    });
+    if (containerRef.current) {
+      ro.observe(containerRef.current);
+    }
 
     lastTimeRef.current = performance.now();
 
@@ -199,7 +212,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
       const dt = Math.min((now - last) / 1000, 0.05);
       lastTimeRef.current = now;
 
-      if (containerRef.current) {
+      if (containerRef.current && canvas.width > 0 && canvas.height > 0) {
         const dpr = window.devicePixelRatio || 1;
         const rect = containerRef.current.getBoundingClientRect();
 
@@ -223,14 +236,16 @@ export const LiveCursorTestArena: React.FC<Props> = ({
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       window.removeEventListener('resize', handleResize);
+      ro.disconnect();
     };
-  }, []);
+  }, [updateCaret]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
   };
 
   const handleSelectOrKey = () => {
+    engineRef.current.setFocused(true);
     updateCaret(false);
   };
 
@@ -246,7 +261,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         className="absolute -top-9999px -left-9999px invisible whitespace-pre font-mono text-sm pointer-events-none"
       />
 
-      {/* 🌟 1. 光标手感测试 */}
+      {/* 🌟 1. 光标测试 */}
       <div
         className="space-y-3 rounded-2xl border p-4.5 shadow-sm"
         style={{
@@ -257,7 +272,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
             <Sliders className="h-3.5 w-3.5 opacity-70" />
-            <span>光标手感测试</span>
+            <span>光标测试</span>
           </div>
           <span
             className="font-mono text-[10.5px] px-2 py-0.5 rounded-full border border-white/10"
@@ -281,7 +296,11 @@ export const LiveCursorTestArena: React.FC<Props> = ({
             onClick={handleSelectOrKey}
             onKeyUp={handleSelectOrKey}
             onKeyDown={handleSelectOrKey}
-            placeholder="输入文字或按方向键测试手感..."
+            onFocus={() => {
+              engineRef.current.setFocused(true);
+              updateCaret(false);
+            }}
+            placeholder="输入文字或按方向键测试光标..."
             className="w-full resize-none rounded-xl py-3 px-3.5 text-sm leading-[22px] min-h-[68px] outline-none font-mono transition-colors block"
             style={{
               backgroundColor: theme.colors.bg,

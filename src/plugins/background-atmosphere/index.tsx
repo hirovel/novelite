@@ -4,9 +4,9 @@ import type { Theme } from '../../core/themes/types';
 export const BackgroundAtmospherePlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-background-atmosphere',
-    name: '艺术空间与背景氛围工坊',
+    name: '背景与氛围',
     version: '1.0.0',
-    description: '提供极光流云、暗房胶片颗粒、素描点阵、原稿横线等写作空间氛围渲染。',
+    description: '提供自定义背景壁纸、高斯模糊、暗化遮罩与氛围渲染。',
     author: 'hirovel',
     icon: 'Sparkles',
     defaultEnabled: true,

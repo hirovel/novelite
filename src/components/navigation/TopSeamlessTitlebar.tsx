@@ -21,6 +21,7 @@ import { BreadcrumbMicroDropdown } from './BreadcrumbMicroDropdown';
 
 interface Props {
   theme: Theme;
+  isSplitViewOpen?: boolean;
   onOpenSettings: () => void;
   onOpenCommandPalette: () => void;
 }
@@ -37,6 +38,9 @@ const THEME_PRESETS = [
 
 export const TopSeamlessTitlebar: React.FC<Props> = ({
   theme,
+  isSplitViewOpen = false,
+  onOpenSettings: _onOpenSettings,
+  onOpenCommandPalette: _onOpenCommandPalette,
 }) => {
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [activeChapterId, setActiveChapterId] = useState<string | null>(() => projectStore.getActiveChapter()?.id || null);
@@ -195,58 +199,60 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Center: Ethereal Pure Typography Breadcrumb (Zero clumsy gray boxes!) */}
-        <div className="flex items-center justify-center shrink-0 pointer-events-auto group/stepper">
-          {/* Previous Chapter Micro-Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              projectStore.navigateToPrevChapter();
-            }}
-            className="p-1 rounded-md opacity-0 group-hover/stepper:opacity-40 hover:!opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer mr-1 text-xs"
-            title="上一章 (Ctrl+[)"
-            style={{ color: theme.colors.text }}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
+        {/* Center: Ethereal Pure Typography Breadcrumb (Hidden during split view to prevent header collision) */}
+        {!isSplitViewOpen && (
+          <div className="flex items-center justify-center shrink-0 pointer-events-auto group/stepper">
+            {/* Previous Chapter Micro-Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                projectStore.navigateToPrevChapter();
+              }}
+              className="p-1 rounded-md opacity-0 group-hover/stepper:opacity-40 hover:!opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer mr-1 text-xs"
+              title="上一章 (Ctrl+[)"
+              style={{ color: theme.colors.text }}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
 
-          {/* Breadcrumb Text Trigger */}
-          <button
-            onClick={() => setIsMicroDropdownOpen(!isMicroDropdownOpen)}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setIsFlightDeckOpen(true);
-            }}
-            className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-white/[0.06] text-xs cursor-pointer transition-colors text-center"
-            style={{ color: theme.colors.text }}
-            title="点击切换章节，右键或按 Ctrl+J 打开全景大纲台"
-          >
-            <span className="opacity-50 group-hover:opacity-80 font-normal tracking-wide">
-              {activeVol?.title || '第一卷'}
-            </span>
-            <span className="opacity-20 font-mono text-[10px] mx-0.5">/</span>
-            <span className="opacity-80 group-hover:opacity-100 font-medium tracking-wide">
-              {activeChap?.title || '第一章'}
-            </span>
-            <span className="text-[10px] font-mono opacity-35 ml-1">
-              ({activeChap?.wordCount || 0}字)
-            </span>
-            <ChevronDown className={`h-3 w-3 opacity-25 group-hover:opacity-70 transition-transform ml-0.5 ${isMicroDropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
+            {/* Breadcrumb Text Trigger */}
+            <button
+              onClick={() => setIsMicroDropdownOpen(!isMicroDropdownOpen)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setIsFlightDeckOpen(true);
+              }}
+              className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-white/[0.06] text-xs cursor-pointer transition-colors text-center"
+              style={{ color: theme.colors.text }}
+              title="点击切换章节，右键或按 Ctrl+J 打开全景大纲台"
+            >
+              <span className="opacity-50 group-hover:opacity-80 font-normal tracking-wide">
+                {activeVol?.title || '第一卷'}
+              </span>
+              <span className="opacity-20 font-mono text-[10px] mx-0.5">/</span>
+              <span className="opacity-80 group-hover:opacity-100 font-medium tracking-wide">
+                {activeChap?.title || '第一章'}
+              </span>
+              <span className="text-[10px] font-mono opacity-35 ml-1">
+                ({activeChap?.wordCount || 0}字)
+              </span>
+              <ChevronDown className={`h-3 w-3 opacity-25 group-hover:opacity-70 transition-transform ml-0.5 ${isMicroDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Next Chapter Micro-Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              projectStore.navigateToNextChapter();
-            }}
-            className="p-1 rounded-md opacity-0 group-hover/stepper:opacity-40 hover:!opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer ml-1 text-xs"
-            title="下一章 (Ctrl+])"
-            style={{ color: theme.colors.text }}
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
+            {/* Next Chapter Micro-Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                projectStore.navigateToNextChapter();
+              }}
+              className="p-1 rounded-md opacity-0 group-hover/stepper:opacity-40 hover:!opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer ml-1 text-xs"
+              title="下一章 (Ctrl+])"
+              style={{ color: theme.colors.text }}
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Right: Palette Switcher, Split View & Windows 3 Controls */}
         <div className="flex items-center justify-end gap-1 flex-1 min-w-[140px] pointer-events-auto">
@@ -254,7 +260,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
           <button
             onClick={() => eventBus.emit('split-view:toggle')}
             className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer"
-            title="切换对照分屏 (Split View)"
+            title="切换对照分屏 (Alt+S)"
             style={{ color: theme.colors.text }}
           >
             <Columns className="h-3.5 w-3.5" />

@@ -11,12 +11,14 @@ import type {
   BackgroundRendererContribution,
 } from './types';
 import { commandRegistry } from './CommandRegistry';
+import { keymapRegistry } from '../keymap/KeymapRegistry';
 import { eventBus } from '../events/EventBus';
 
 export class PluginManager {
   private static instance: PluginManager;
   private plugins: Map<string, NovelitePlugin> = new Map();
   private enabledPluginIds: Set<string> = new Set();
+  private explicitStates: Map<string, boolean> = new Map();
   
   private sidebarTabs: Map<string, SidebarTabContribution> = new Map();
   private rightPanels: Map<string, RightPanelContribution> = new Map();
@@ -41,16 +43,43 @@ export class PluginManager {
   private listeners: Set<() => void> = new Set();
 
   private constructor() {
-    const saved = localStorage.getItem('novelite_enabled_plugins');
-    if (saved) {
-      try {
-        const ids = JSON.parse(saved);
-        if (Array.isArray(ids)) {
-          this.enabledPluginIds = new Set(ids);
+    this.loadPluginStates();
+  }
+
+  private loadPluginStates(): void {
+    try {
+      const savedStates = localStorage.getItem('novelite_plugin_states');
+      if (savedStates) {
+        const parsed = JSON.parse(savedStates);
+        if (typeof parsed === 'object' && parsed !== null) {
+          Object.entries(parsed).forEach(([id, enabled]) => {
+            this.explicitStates.set(id, Boolean(enabled));
+          });
         }
-      } catch (e) {
-        console.error('Failed to parse enabled plugins:', e);
+      } else {
+        const oldSaved = localStorage.getItem('novelite_enabled_plugins');
+        if (oldSaved) {
+          const ids = JSON.parse(oldSaved);
+          if (Array.isArray(ids)) {
+            ids.forEach((id) => this.explicitStates.set(id, true));
+          }
+        }
       }
+    } catch (e) {
+      console.error('Failed to load plugin states:', e);
+    }
+  }
+
+  private savePluginStates(): void {
+    try {
+      const obj: Record<string, boolean> = {};
+      this.explicitStates.forEach((val, key) => {
+        obj[key] = val;
+      });
+      localStorage.setItem('novelite_plugin_states', JSON.stringify(obj));
+      localStorage.setItem('novelite_enabled_plugins', JSON.stringify(Array.from(this.enabledPluginIds)));
+    } catch (e) {
+      console.error('Failed to save plugin states:', e);
     }
   }
 
@@ -112,10 +141,29 @@ export class PluginManager {
   public createPluginContext(pluginId: string): PluginContext {
     return {
       registerCommand: (command) => {
-        const unbind = commandRegistry.register({
+        const unbindCmd = commandRegistry.register({
           ...command,
           pluginId,
         });
+        let unbindKeymap: (() => void) | null = null;
+        if (command.shortcut) {
+          unbindKeymap = keymapRegistry.register({
+            id: command.id,
+            title: command.title,
+            description: command.description || `${command.title} (${pluginId})`,
+            category: 'system',
+            scope: 'global',
+            defaultKey: command.shortcut,
+            run: () => {
+              const ctx = this.createPluginContext(pluginId);
+              command.run(ctx);
+            },
+          });
+        }
+        const unbind = () => {
+          unbindCmd();
+          if (unbindKeymap) unbindKeymap();
+        };
         return this.addDisposable(pluginId, unbind);
       },
       registerSidebarTab: (tab) => {
@@ -178,6 +226,7 @@ export class PluginManager {
       registerFormatter: (formatter) => {
         this.formatters.set(formatter.id, formatter);
         let unregCmd: (() => void) | null = null;
+        let unbindKeymap: (() => void) | null = null;
         if (formatter.shortcut) {
           unregCmd = commandRegistry.register({
             id: `formatter.${formatter.id}`,
@@ -193,10 +242,27 @@ export class PluginManager {
               }
             },
           });
+          unbindKeymap = keymapRegistry.register({
+            id: `formatter.${formatter.id}`,
+            title: `排版: ${formatter.title}`,
+            description: `智能排版格式化 (${formatter.title})`,
+            category: 'literary',
+            scope: 'global',
+            defaultKey: formatter.shortcut,
+            run: () => {
+              const current = this.editorContentGetter ? this.editorContentGetter() : '';
+              const formatted = formatter.format(current);
+              if (formatted !== current && this.editorContentSetter) {
+                this.editorContentSetter(formatted);
+                this.toastHandler?.(`已执行「${formatter.title}」`, 'success');
+              }
+            },
+          });
         }
         this.notify();
         const unbind = () => {
           if (unregCmd) unregCmd();
+          if (unbindKeymap) unbindKeymap();
           this.formatters.delete(formatter.id);
           this.notify();
         };
@@ -259,13 +325,16 @@ export class PluginManager {
   public registerPlugin(plugin: NovelitePlugin): void {
     this.plugins.set(plugin.metadata.id, plugin);
     
-    if (!localStorage.getItem('novelite_enabled_plugins')) {
-      if (plugin.metadata.defaultEnabled !== false) {
-        this.enabledPluginIds.add(plugin.metadata.id);
-      }
+    // Determine enablement: explicit state first, fallback to defaultEnabled
+    let isEnabled: boolean;
+    if (this.explicitStates.has(plugin.metadata.id)) {
+      isEnabled = this.explicitStates.get(plugin.metadata.id)!;
+    } else {
+      isEnabled = plugin.metadata.defaultEnabled !== false;
     }
 
-    if (this.isPluginEnabled(plugin.metadata.id)) {
+    if (isEnabled) {
+      this.enabledPluginIds.add(plugin.metadata.id);
       const ctx = this.createPluginContext(plugin.metadata.id);
       plugin.init?.(ctx);
       plugin.mount?.(ctx);
@@ -287,15 +356,19 @@ export class PluginManager {
     }
 
     eventBus.emit('plugins-changed');
+    eventBus.emit('editor-extensions-changed');
     this.notify();
   }
 
   public enablePlugin(id: string): void {
     const plugin = this.plugins.get(id);
-    if (!plugin || this.enabledPluginIds.has(id)) return;
+    if (!plugin) return;
+
+    this.explicitStates.set(id, true);
+    if (this.enabledPluginIds.has(id)) return;
 
     this.enabledPluginIds.add(id);
-    this.saveEnabledPlugins();
+    this.savePluginStates();
     
     const ctx = this.createPluginContext(id);
     plugin.init?.(ctx);
@@ -317,15 +390,22 @@ export class PluginManager {
     }
 
     eventBus.emit('plugins-changed');
+    eventBus.emit('editor-extensions-changed');
     this.notify();
   }
 
   public disablePlugin(id: string): void {
     const plugin = this.plugins.get(id);
-    if (!plugin || !this.enabledPluginIds.has(id)) return;
+    if (!plugin) return;
+
+    this.explicitStates.set(id, false);
+    if (!this.enabledPluginIds.has(id)) {
+      this.savePluginStates();
+      return;
+    }
 
     this.enabledPluginIds.delete(id);
-    this.saveEnabledPlugins();
+    this.savePluginStates();
 
     const ctx = this.createPluginContext(id);
     plugin.unmount?.(ctx);
@@ -334,6 +414,7 @@ export class PluginManager {
     this.disposePluginResources(id);
 
     eventBus.emit('plugins-changed');
+    eventBus.emit('editor-extensions-changed');
     this.notify();
   }
 
@@ -423,10 +504,6 @@ export class PluginManager {
     return () => {
       this.listeners.delete(listener);
     };
-  }
-
-  private saveEnabledPlugins(): void {
-    localStorage.setItem('novelite_enabled_plugins', JSON.stringify(Array.from(this.enabledPluginIds)));
   }
 
   private notify(): void {

@@ -43,15 +43,20 @@ export function createLiveCursorPluginExtension(
       if (!ctx) return;
       dpr = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
 
-      viewportW = view.scrollDOM.clientWidth || 1000;
-      viewportH = view.scrollDOM.clientHeight || 800;
+      const w = view.scrollDOM.clientWidth || 1000;
+      const h = view.scrollDOM.clientHeight || 800;
+      const targetW = Math.floor(w * dpr);
+      const targetH = Math.floor(h * dpr);
 
-      canvas.width = Math.floor(viewportW * dpr);
-      canvas.height = Math.floor(viewportH * dpr);
-      canvas.style.width = `${viewportW}px`;
-      canvas.style.height = `${viewportH}px`;
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (canvas.width !== targetW || canvas.height !== targetH) {
+        viewportW = w;
+        viewportH = h;
+        canvas.width = targetW;
+        canvas.height = targetH;
+        canvas.style.width = `${viewportW}px`;
+        canvas.style.height = `${viewportH}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
     };
 
     const applyCoords = (coords: { left: number; top: number; right: number; bottom: number }, head: number, immediate: boolean) => {

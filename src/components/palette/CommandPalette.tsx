@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, FileText, Terminal } from 'lucide-react';
 import { commandRegistry } from '../../core/plugins/CommandRegistry';
+import { keymapRegistry } from '../../core/keymap/KeymapRegistry';
 import { projectStore } from '../../core/storage/ProjectStore';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
@@ -63,11 +64,22 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
   // 0. Primary Navigation & Bookshelf Commands
   items.push(
     {
+      id: 'cmd_cheatsheet',
+      type: 'command',
+      title: '快捷键全景速查与按键管理 (Hotkeys Cheatsheet)',
+      subtitle: '系统与心流',
+      shortcut: keymapRegistry.get('keymap:open-cheatsheet')?.currentKey || 'Ctrl+/',
+      action: () => {
+        eventBus.emit('keymap:open-cheatsheet');
+        onClose();
+      },
+    },
+    {
       id: 'cmd_open_outline',
       type: 'command',
       title: '大纲速览：打开全景大纲手稿台 (Ulysses Flight Deck)',
       subtitle: '大纲与章节速览',
-      shortcut: 'Ctrl+J',
+      shortcut: keymapRegistry.get('nav:flight-deck')?.currentKey || 'Ctrl+J',
       action: () => {
         eventBus.emit('quick-search:open');
         onClose();
@@ -78,7 +90,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
       type: 'command',
       title: '作品书架：管理与切换小说作品',
       subtitle: '小说创作库',
-      shortcut: 'Ctrl+Shift+B',
+      shortcut: keymapRegistry.get('nav:bookshelf')?.currentKey || 'Ctrl+Shift+B',
       action: () => {
         eventBus.emit('bookshelf:open');
         onClose();
@@ -89,7 +101,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
       type: 'command',
       title: '章节导航：快速瞬移至下一章',
       subtitle: '章节穿梭',
-      shortcut: 'Ctrl+]',
+      shortcut: keymapRegistry.get('nav:next-chapter')?.currentKey || 'Ctrl+]',
       action: () => {
         projectStore.navigateToNextChapter();
         onClose();
@@ -100,7 +112,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
       type: 'command',
       title: '章节导航：快速瞬移至上一章',
       subtitle: '章节穿梭',
-      shortcut: 'Ctrl+[',
+      shortcut: keymapRegistry.get('nav:prev-chapter')?.currentKey || 'Ctrl+[',
       action: () => {
         projectStore.navigateToPrevChapter();
         onClose();
@@ -138,12 +150,13 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
   // 2. Registered Commands
   const commands = commandRegistry.getAll();
   commands.forEach((cmd) => {
+    const dynamicKey = keymapRegistry.get(cmd.id)?.currentKey || cmd.shortcut;
     items.push({
       id: `cmd_${cmd.id}`,
       type: 'command',
       title: cmd.title,
       subtitle: cmd.category || '快捷命令',
-      shortcut: cmd.shortcut,
+      shortcut: dynamicKey,
       action: () => {
         const targetId = cmd.pluginId || cmd.id;
         const ctx = pluginManager.getPluginContext(targetId) || pluginManager.createPluginContext(targetId);

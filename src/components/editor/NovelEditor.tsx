@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -12,19 +12,35 @@ import { createLiveCursorPluginExtension } from '../../plugins/live-cursor/liveC
 import { FloatingSearchHUD } from '../../plugins/editor-toolkit/FloatingSearchHUD';
 import { EditorBackground } from './EditorBackground';
 import type { BackgroundEffect } from './EditorBackground';
-import { Hash, Pencil, Settings, Sidebar as SidebarIcon, Command } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Rows3,
+  Columns,
+  X,
+  ChevronDown,
+  Search,
+  Check,
+} from 'lucide-react';
 
 interface Props {
+  paneId?: 'primary' | 'secondary';
+  boundChapterId?: string;
+  onSelectChapter?: (chapterId: string) => void;
+  showPaneHeader?: boolean;
+  onClosePane?: () => void;
+  onSwapPanes?: () => void;
+  onToggleSplitDirection?: () => void;
+  splitDirection?: 'horizontal' | 'vertical';
   theme: Theme;
   cursorShape: 'beam' | 'block' | 'underline';
   cursorColor: string;
   cursorSpeed: 'snappy' | 'smooth' | 'instant';
   cursorAnimationLength: number;
   cursorTrailSize: number;
-  vfxMode: 'pure' | 'embers' | 'ripples' | 'feather';
-  blinkMode: 'smooth' | 'solid' | 'blink';
+  vfxMode: 'pure' | 'particles' | 'glow' | 'embers' | 'ripples' | 'feather';
+  blinkMode: 'smooth' | 'blink' | 'solid';
   breatheCycle: number;
-  speedMode: 'gentle' | 'balanced' | 'snappy';
+  speedMode: 'gentle' | 'balanced' | 'snappy' | 'instant';
   backgroundEffect: BackgroundEffect;
   backgroundIntensity: number;
   customImage?: string | null;
@@ -36,11 +52,6 @@ interface Props {
   lineHeight: number;
   contentMaxWidth?: number;
   spotlightMode?: 'none' | 'paragraph';
-  zeroChrome?: boolean;
-  onOpenSettings?: () => void;
-  onOpenCommandPalette?: () => void;
-  onToggleSidebar?: () => void;
-  isSidebarOpen?: boolean;
 }
 
 function createEditorTheme(
@@ -53,7 +64,9 @@ function createEditorTheme(
   const ruledAlpha = Math.max(0.15, Math.min(0.65, (backgroundIntensity || 0.65) * 0.45));
   const ruledColor = theme.colors.accent
     ? `${theme.colors.accent}${Math.round(ruledAlpha * 255).toString(16).padStart(2, '0')}`
-    : (theme.isDark ? `rgba(255, 255, 255, ${ruledAlpha})` : `rgba(0, 0, 0, ${ruledAlpha * 0.8})`);
+    : theme.isDark
+    ? `rgba(255, 255, 255, ${ruledAlpha})`
+    : `rgba(0, 0, 0, ${ruledAlpha * 0.8})`;
 
   return EditorView.theme({
     '&': {
@@ -72,8 +85,10 @@ function createEditorTheme(
       width: '100%',
       scrollbarWidth: 'thin',
       scrollbarColor: `${theme.colors.border}80 transparent`,
-      maskImage: 'linear-gradient(to bottom, transparent 0px, black 36px, black calc(100% - 36px), transparent 100%)',
-      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0px, black 36px, black calc(100% - 36px), transparent 100%)',
+      maskImage:
+        'linear-gradient(to bottom, transparent 0px, black 36px, black calc(100% - 36px), transparent 100%)',
+      WebkitMaskImage:
+        'linear-gradient(to bottom, transparent 0px, black 36px, black calc(100% - 36px), transparent 100%)',
       '&::-webkit-scrollbar': {
         width: '3px',
       },
@@ -139,14 +154,8 @@ function createEditorTheme(
     '.cm-line.cm-line-h3, .cm-line.cm-line-h4, .cm-line.cm-line-hr, .cm-line.cm-line-code': {
       backgroundImage: 'none !important',
     },
-    // 🌟 现代微光流体选区
-    '.cm-selectionLayer': {
-      pointerEvents: 'none !important',
-      zIndex: '0 !important',
-    },
     '.cm-selectionBackground': {
-      pointerEvents: 'none !important',
-      backgroundColor: `${theme.colors.selection || 'rgba(167, 139, 250, 0.28)'} !important`,
+      backgroundColor: 'rgba(167, 139, 250, 0.18) !important',
       borderRadius: '4px',
     },
     '&.cm-focused .cm-selectionBackground': {
@@ -162,6 +171,14 @@ function createEditorTheme(
 }
 
 export const NovelEditor: React.FC<Props> = ({
+  paneId = 'primary',
+  boundChapterId,
+  onSelectChapter,
+  showPaneHeader = false,
+  onClosePane,
+  onSwapPanes,
+  onToggleSplitDirection,
+  splitDirection = 'vertical',
   theme,
   cursorShape,
   cursorColor,
@@ -179,22 +196,13 @@ export const NovelEditor: React.FC<Props> = ({
   customImageDim,
   fontPreset: _fontPreset,
   customFontName: _customFontName,
-  fontSize: _fontSize,
   lineHeight = 1.95,
   contentMaxWidth: _contentMaxWidth,
   spotlightMode: _spotlightMode = 'paragraph',
-  zeroChrome = true,
-  onOpenSettings,
-  onOpenCommandPalette,
-  onToggleSidebar,
-  isSidebarOpen = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorWrapperRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
-  const hudWordCountRef = useRef<HTMLSpanElement | null>(null);
-  const topWordCountRef = useRef<HTMLSpanElement | null>(null);
-  const hudSaveDotRef = useRef<HTMLSpanElement | null>(null);
 
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const isUpdatingRef = useRef<boolean>(false);
@@ -203,19 +211,44 @@ export const NovelEditor: React.FC<Props> = ({
   const typingTimerRef = useRef<any>(null);
   const saveDebounceTimerRef = useRef<any>(null);
 
-  // 🌟 章节标题原位内联修改状态
-  const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
-  const [titleInput, setTitleInput] = useState<string>('');
-  const titleInputRef = useRef<HTMLInputElement | null>(null);
+  // 🌟 Secondary Pane Autonomous Chapter ID
+  const [secondaryChapterId, setSecondaryChapterId] = useState<string | null>(() => {
+    if (boundChapterId) return boundChapterId;
+    const stored = localStorage.getItem('novelite_split_secondary_chapter');
+    if (stored) return stored;
+    const project = projectStore.getProject();
+    const active = projectStore.getActiveChapter();
+    if (project && active) {
+      const allChaps: { id: string }[] = [];
+      project.volumes.forEach((v) => allChaps.push(...v.chapters));
+      const idx = allChaps.findIndex((c) => c.id === active.id);
+      if (idx > 0) return allChaps[idx - 1].id;
+      if (idx === 0 && allChaps.length > 1) return allChaps[1].id;
+    }
+    return active?.id || null;
+  });
+
+  const effectiveChapterId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+
+  // 🌟 章节快速切换 Popover
+  const [isChapterDropdownOpen, setIsChapterDropdownOpen] = useState<boolean>(false);
+  const [chapterSearchQuery, setChapterSearchQuery] = useState<string>('');
+  const chapterDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const initialThemeRef = useRef<Theme>(theme);
-
   const themeCompartmentRef = useRef<Compartment>(new Compartment());
   const pluginsCompartmentRef = useRef<Compartment>(new Compartment());
   const cursorCompartmentRef = useRef<Compartment>(new Compartment());
 
   const [activeChapterTitle, setActiveChapterTitle] = useState<string>('');
   const [charCount, setCharCount] = useState<number>(0);
+
+  // Sync external boundChapterId into secondaryChapterId
+  useEffect(() => {
+    if (paneId === 'secondary' && boundChapterId && boundChapterId !== secondaryChapterId) {
+      setSecondaryChapterId(boundChapterId);
+    }
+  }, [paneId, boundChapterId]);
 
   const handleUserActivity = useCallback(() => {
     if (containerRef.current?.classList.contains('is-typing')) {
@@ -224,46 +257,40 @@ export const NovelEditor: React.FC<Props> = ({
     }
   }, []);
 
-  const startEditTitle = () => {
-    setTitleInput(activeChapterTitle);
-    setIsEditingTitle(true);
-    setTimeout(() => {
-      titleInputRef.current?.focus();
-      titleInputRef.current?.select();
-    }, 20);
-  };
-
-  const finishEditTitle = () => {
-    if (!isEditingTitle) return;
-    setIsEditingTitle(false);
-    const trimmed = titleInput.trim();
-    if (trimmed && trimmed !== activeChapterTitle) {
-      const curChap = projectStore.getActiveChapter();
-      if (curChap) {
-        projectStore.renameChapter(curChap.id, trimmed);
-        setActiveChapterTitle(trimmed);
-      }
-    }
-  };
-
   // 🌟 1. 初始化 CodeMirror 实例 (只执行一次，终生不销毁重建)
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const activeChap = projectStore.getActiveChapter();
-    const initialContent = activeChap?.content || '';
-    setActiveChapterTitle(activeChap?.title || '未命名章节');
+    let initialContent = '';
+    let initialTitle = '未命名章节';
+
+    if (paneId === 'secondary') {
+      const project = projectStore.getProject();
+      if (project && effectiveChapterId) {
+        for (const vol of project.volumes) {
+          const found = vol.chapters.find((c) => c.id === effectiveChapterId);
+          if (found) {
+            initialContent = found.content || '';
+            initialTitle = found.title || '未命名章节';
+            break;
+          }
+        }
+      }
+    } else {
+      const activeChap = projectStore.getActiveChapter();
+      initialContent = activeChap?.content || '';
+      initialTitle = activeChap?.title || '未命名章节';
+    }
+
+    setActiveChapterTitle(initialTitle);
     const initialWords = countWordsFast(initialContent);
     setCharCount(initialWords);
 
     const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        // 🌟 1. 纯 DOM 驱动心流隐退，零 React 重绘开销！
+      if (update.docChanged && !isUpdatingRef.current) {
+        // 🌟 1. 纯 DOM 驱动心流隐退 (仅在真实打字时触发)
         if (containerRef.current) {
           containerRef.current.classList.add('is-typing');
-        }
-        if (hudSaveDotRef.current) {
-          hudSaveDotRef.current.className = 'h-1.5 w-1.5 rounded-full shrink-0 bg-amber-400 animate-pulse';
         }
         eventBus.emit('typing-state-changed', true);
 
@@ -275,41 +302,32 @@ export const NovelEditor: React.FC<Props> = ({
           eventBus.emit('typing-state-changed', false);
         }, 1200);
 
-        // 🌟 2. 毫秒级字数即时反馈 (Direct DOM update without React Re-renders)
-        const docLen = update.state.doc.length;
-        if (hudWordCountRef.current || topWordCountRef.current) {
-          const quickWords = Math.round(docLen * 0.95);
-          if (hudWordCountRef.current) hudWordCountRef.current.textContent = `${quickWords.toLocaleString()} 字`;
-          if (topWordCountRef.current) topWordCountRef.current.textContent = `${quickWords.toLocaleString()} 字`;
-        }
-
-        // 🌟 3. 防抖序列化保存 (Debounced ProjectStore update)
-        if (!isUpdatingRef.current) {
-          if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
-          saveDebounceTimerRef.current = setTimeout(() => {
-            const newContent = update.state.doc.toString();
-            const curChap = projectStore.getActiveChapter();
-            if (curChap) {
-              projectStore.updateChapterContent(curChap.id, newContent);
-              fileSystemStore.writeChapterDirectToDisk(curChap.id, newContent);
-            }
-            const exactCount = countWordsFast(newContent);
-            setCharCount(exactCount);
-            if (hudWordCountRef.current) hudWordCountRef.current.textContent = `${exactCount.toLocaleString()} 字`;
-            if (topWordCountRef.current) topWordCountRef.current.textContent = `${exactCount.toLocaleString()} 字`;
-          }, 250);
-        }
+        // 🌟 2. 防抖序列化保存
+        if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+        saveDebounceTimerRef.current = setTimeout(() => {
+          const newContent = update.state.doc.toString();
+          const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+          if (curTargetId) {
+            projectStore.updateChapterContent(curTargetId, newContent);
+            fileSystemStore.writeChapterDirectToDisk(curTargetId, newContent);
+            eventBus.emit('chapter-content-updated', { chapterId: curTargetId, content: newContent });
+          }
+          const exactCount = countWordsFast(newContent);
+          setCharCount(exactCount);
+        }, 250);
       }
 
       if (update.docChanged || update.selectionSet) {
-        const head = update.state.selection.main.head;
-        const line = update.state.doc.lineAt(head);
-        eventBus.emit('cursor-moved', {
-          line: line.number,
-          col: head - line.from + 1,
-          from: update.state.selection.main.from,
-          to: update.state.selection.main.to,
-        });
+        if (update.view.hasFocus) {
+          const head = update.state.selection.main.head;
+          const line = update.state.doc.lineAt(head);
+          eventBus.emit('cursor-moved', {
+            line: line.number,
+            col: head - line.from + 1,
+            from: update.state.selection.main.from,
+            to: update.state.selection.main.to,
+          });
+        }
       }
     });
 
@@ -338,10 +356,10 @@ export const NovelEditor: React.FC<Props> = ({
             themeColor: initialThemeRef.current.colors.cursor || initialThemeRef.current.colors.accent || '#a78bfa',
             animationLength: cursorAnimationLength || 0.08,
             trailSize: cursorTrailSize || 0.75,
-            vfxMode: vfxMode || 'pure',
+            vfxMode: (vfxMode as any) || 'pure',
             blinkMode: blinkMode || 'smooth',
             breatheCycle: breatheCycle || 1.2,
-            speedMode: speedMode || 'gentle',
+            speedMode: (speedMode as any) || 'gentle',
             glow: true,
           }))
         ),
@@ -358,86 +376,126 @@ export const NovelEditor: React.FC<Props> = ({
 
     setEditorView(view);
 
-    // 🌟 中文输入法 (IME) 组合态生命周期精准监听
+    // IME Composition listeners
     const handleCompStart = () => {
       isComposingRef.current = true;
     };
     const handleCompEnd = () => {
       isComposingRef.current = false;
-      setTimeout(() => {
-        view.requestMeasure();
-      }, 10);
     };
-
     view.contentDOM.addEventListener('compositionstart', handleCompStart);
     view.contentDOM.addEventListener('compositionend', handleCompEnd);
 
-    const unsubSave = eventBus.on('project-saved', () => {
-      if (hudSaveDotRef.current) {
-        hudSaveDotRef.current.className = 'h-1.5 w-1.5 rounded-full shrink-0 bg-emerald-400 shadow-[0_0_6px_#34d399]';
+    // External chapter change listener for primary pane
+    const unsubSelect = eventBus.on('chapter-selected', (chapter: any) => {
+      if (paneId !== 'primary') return;
+      if (!chapter) return;
+
+      isUpdatingRef.current = true;
+      setActiveChapterTitle(chapter.title || '未命名章节');
+      const text = chapter.content || '';
+      const wCount = countWordsFast(text);
+      setCharCount(wCount);
+
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: text },
+        selection: { anchor: 0 },
+        scrollIntoView: true,
+      });
+
+      isUpdatingRef.current = false;
+    });
+
+    // Cross-pane focus listener
+    const unsubFocus = eventBus.on('split-view:focus-pane', (target: string) => {
+      if (target === 'toggle') {
+        if (!view.hasFocus) {
+          view.focus();
+        }
+      } else if (target === paneId) {
+        view.focus();
       }
     });
 
-    if (document.fonts) {
-      document.fonts.ready.then(() => {
-        view.requestMeasure();
-      });
-    }
-
-    const timer = setTimeout(() => {
-      view.requestMeasure();
-      view.focus();
-    }, 40);
-
-    pluginManager.setEditorBridges({
-      getContent: () => view.state.doc.toString(),
-      setContent: (content: string) => {
-        isUpdatingRef.current = true;
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: content },
-        });
-        isUpdatingRef.current = false;
-        const words = countWordsFast(content);
-        setCharCount(words);
-        if (hudWordCountRef.current) hudWordCountRef.current.textContent = `${words.toLocaleString()} 字`;
-        if (topWordCountRef.current) topWordCountRef.current.textContent = `${words.toLocaleString()} 字`;
-      },
-      getCursor: () => {
-        const head = view.state.selection.main.head;
-        const line = view.state.doc.lineAt(head);
-        return {
-          line: line.number,
-          col: head - line.from + 1,
-          from: view.state.selection.main.from,
-          to: view.state.selection.main.to,
-        };
-      },
-      insertText: (text: string) => {
-        const head = view.state.selection.main.head;
-        view.dispatch({
-          changes: { from: head, to: head, insert: text },
-          selection: { anchor: head + text.length },
-        });
-        view.focus();
-      },
-      getActiveChapterId: () => projectStore.getActiveChapter()?.id || null,
-      getProjectData: () => projectStore.getProject(),
-      saveChapter: () => projectStore.save(),
-      showToast: (msg, type) => eventBus.emit('show-toast', { message: msg, type }),
+    const unsubSave = eventBus.on('save-current-chapter', () => {
+      const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+      if (curTargetId) {
+        const text = view.state.doc.toString();
+        projectStore.updateChapterContent(curTargetId, text);
+        fileSystemStore.writeChapterDirectToDisk(curTargetId, text);
+      }
     });
+
+    const unsubTyping = eventBus.on('typing-state-changed', (typing: boolean) => {
+      if (containerRef.current) {
+        if (typing) {
+          containerRef.current.classList.add('is-typing');
+        } else {
+          containerRef.current.classList.remove('is-typing');
+        }
+      }
+    });
+
+    // Auto-focus primary editor on first launch
+    const timer = setTimeout(() => {
+      if (paneId === 'primary' && !document.activeElement?.closest('.cm-editor')) {
+        view.focus();
+      }
+    }, 100);
 
     return () => {
       view.contentDOM.removeEventListener('compositionstart', handleCompStart);
       view.contentDOM.removeEventListener('compositionend', handleCompEnd);
+      unsubSelect();
+      unsubFocus();
       unsubSave();
+      unsubTyping();
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
       clearTimeout(timer);
       view.destroy();
     };
-  }, []);
+  }, [paneId]);
 
-  // 🌟 2. 主题与背景横线动态无缝热重载 (Zero-Flicker Hot-Reload via Compartment)
+  // Load secondary chapter when secondaryChapterId changes
+  useEffect(() => {
+    if (paneId !== 'secondary' || !editorView || !secondaryChapterId) return;
+    const project = projectStore.getProject();
+    if (!project) return;
+    for (const vol of project.volumes) {
+      const found = vol.chapters.find((c) => c.id === secondaryChapterId);
+      if (found) {
+        isUpdatingRef.current = true;
+        setActiveChapterTitle(found.title || '未命名章节');
+        const text = found.content || '';
+        const wCount = countWordsFast(text);
+        setCharCount(wCount);
+        editorView.dispatch({
+          changes: { from: 0, to: editorView.state.doc.length, insert: text },
+          selection: { anchor: 0 },
+          scrollIntoView: true,
+        });
+        isUpdatingRef.current = false;
+        localStorage.setItem('novelite_split_secondary_chapter', secondaryChapterId);
+        break;
+      }
+    }
+  }, [paneId, secondaryChapterId, editorView]);
+
+  // Close chapter dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (chapterDropdownRef.current && !chapterDropdownRef.current.contains(e.target as Node)) {
+        setIsChapterDropdownOpen(false);
+      }
+    };
+    if (isChapterDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isChapterDropdownOpen]);
+
+  // 🌟 2. 主题与背景横线动态无缝热重载
   useEffect(() => {
     if (!editorView) return;
     editorView.dispatch({
@@ -447,7 +505,7 @@ export const NovelEditor: React.FC<Props> = ({
     });
   }, [theme, backgroundEffect, backgroundIntensity, lineHeight, editorView]);
 
-  // 🌟 3. Live 灵感光标动态热重载 (Zero-Flicker Hot-Reload via Cursor Compartment)
+  // 🌟 3. Live 灵感光标动态热重载 (0-Flicker via Compartment)
   useEffect(() => {
     if (!editorView) return;
     editorView.dispatch({
@@ -459,10 +517,10 @@ export const NovelEditor: React.FC<Props> = ({
           themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
           animationLength: cursorAnimationLength || 0.08,
           trailSize: cursorTrailSize || 0.75,
-          vfxMode: vfxMode || 'pure',
+          vfxMode: (vfxMode as any) || 'pure',
           blinkMode: blinkMode || 'smooth',
           breatheCycle: breatheCycle || 1.2,
-          speedMode: speedMode || 'gentle',
+          speedMode: (speedMode as any) || 'gentle',
           glow: true,
         }))
       ),
@@ -480,64 +538,65 @@ export const NovelEditor: React.FC<Props> = ({
     theme,
   ]);
 
-  // 🌟 4. 插件编辑器扩展热重载 (Plugin Extensions Hot-Reload)
+  // 🌟 4. 插件编辑器扩展热重载
   useEffect(() => {
     const handleExtChange = () => {
       if (!editorView) return;
-      const exts = pluginManager.getEditorExtensions();
+      const extensions = pluginManager.getEditorExtensions();
       editorView.dispatch({
-        effects: pluginsCompartmentRef.current.reconfigure(exts),
+        effects: pluginsCompartmentRef.current.reconfigure(extensions),
       });
       setTimeout(() => {
         editorView.requestMeasure();
       }, 20);
     };
-
-    const unsub = eventBus.on('editor-extensions-changed', handleExtChange);
+    const unsub = pluginManager.subscribe(handleExtChange);
+    const unsubExt = eventBus.on('editor-extensions-changed', handleExtChange);
     const unsubPlugins = eventBus.on('plugins-changed', handleExtChange);
     return () => {
       unsub();
+      unsubExt();
       unsubPlugins();
     };
   }, [editorView]);
 
-  // 🌟 5. 章节切换快速平滑载入
-  useEffect(() => {
-    const handleChapterChange = () => {
-      if (!editorView) return;
-      const curChap = projectStore.getActiveChapter();
-      if (!curChap) return;
+  // Chapter List for Quick Dropdown Selector
+  const allChapters = useMemo(() => {
+    const project = projectStore.getProject();
+    if (!project) return [];
+    const list: { volTitle: string; chapter: { id: string; title: string; wordCount?: number } }[] = [];
+    project.volumes.forEach((v) => {
+      v.chapters.forEach((c) => {
+        list.push({ volTitle: v.title, chapter: c });
+      });
+    });
+    return list;
+  }, [isChapterDropdownOpen]);
 
-      setActiveChapterTitle(curChap.title);
-      const currentDoc = editorView.state.doc.toString();
-      if (currentDoc !== curChap.content) {
-        isUpdatingRef.current = true;
-        editorView.dispatch({
-          changes: { from: 0, to: editorView.state.doc.length, insert: curChap.content },
-          selection: { anchor: 0 },
-        });
-        isUpdatingRef.current = false;
-        const words = countWordsFast(curChap.content);
-        setCharCount(words);
-        if (hudWordCountRef.current) hudWordCountRef.current.textContent = `${words.toLocaleString()} 字`;
-        if (topWordCountRef.current) topWordCountRef.current.textContent = `${words.toLocaleString()} 字`;
-        editorView.focus();
+  const filteredChapters = useMemo(() => {
+    if (!chapterSearchQuery.trim()) return allChapters;
+    const q = chapterSearchQuery.toLowerCase();
+    return allChapters.filter(
+      (item) => item.chapter.title.toLowerCase().includes(q) || item.volTitle.toLowerCase().includes(q)
+    );
+  }, [allChapters, chapterSearchQuery]);
 
-        setTimeout(() => {
-          editorView.requestMeasure();
-        }, 20);
-      }
-    };
-
-    const unsubChap = eventBus.on('active-chapter-changed', handleChapterChange);
-    return () => unsubChap();
-  }, [editorView]);
+  const handleSelectChapter = (chapId: string) => {
+    setIsChapterDropdownOpen(false);
+    setChapterSearchQuery('');
+    if (paneId === 'secondary') {
+      setSecondaryChapterId(chapId);
+      if (onSelectChapter) onSelectChapter(chapId);
+    } else {
+      projectStore.setActiveChapter(chapId);
+    }
+  };
 
   return (
     <div
       ref={containerRef}
       onMouseMove={handleUserActivity}
-      className="relative flex-1 h-full w-full overflow-hidden select-text flex flex-col group/editor"
+      className="relative flex flex-col flex-1 h-full w-full overflow-hidden select-text group/editor"
       style={{ backgroundColor: theme.colors.editorBg }}
     >
       {/* 🌟 Background Effect Suite */}
@@ -550,133 +609,125 @@ export const NovelEditor: React.FC<Props> = ({
         customImageDim={customImageDim}
       />
 
-      {/* 🌟 经典模式下的顶部栏 (仅在 zeroChrome 为 false 时显示) */}
-      {!zeroChrome && (
+      {/* 🌟 Symmetrical Top Pane Header (Pure Typography, 0 Clutter) */}
+      {showPaneHeader && (
         <div
-          onMouseEnter={handleUserActivity}
-          className="relative z-20 w-full border-b backdrop-blur-xs select-none shrink-0 flex items-center justify-between px-6 py-2 transition-all duration-400 ease-out group-[.is-typing]/editor:opacity-15 group-[.is-typing]/editor:pointer-events-none"
+          className="h-9 px-4 flex items-center justify-between border-b shrink-0 select-none z-20 backdrop-blur-md"
           style={{
+            backgroundColor: `${theme.colors.bgSecondary}40`,
             borderColor: `${theme.colors.border}40`,
-            backgroundColor: `${theme.colors.bgSecondary}30`,
           }}
         >
-          <div className="flex items-center gap-2 max-w-[65%] group">
-            {isEditingTitle ? (
-              <input
-                type="text"
-                value={titleInput}
-                onChange={(e) => setTitleInput(e.target.value)}
-                onBlur={finishEditTitle}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') finishEditTitle();
-                  if (e.key === 'Escape') setIsEditingTitle(false);
-                }}
-                className="text-xs font-semibold bg-transparent border-b border-purple-400 outline-none px-0.5 py-0 text-inherit w-full max-w-[260px]"
-                style={{ color: theme.colors.text }}
-              />
-            ) : (
+          {/* Chapter Selector with Dropdown Popover */}
+          <div className="relative flex items-center gap-1.5 flex-1 min-w-0" ref={chapterDropdownRef}>
+            <button
+              onClick={() => setIsChapterDropdownOpen((prev) => !prev)}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-white/10 text-left max-w-[240px] truncate group cursor-pointer"
+              style={{ color: theme.colors.text }}
+              title="点击切换章节"
+            >
+              <span className="truncate font-serif text-[11.5px]">{activeChapterTitle}</span>
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-40 group-hover:opacity-80 ml-0.5" />
+            </button>
+
+            {/* Word Count */}
+            <span className="opacity-40 text-[10.5px] font-mono shrink-0 ml-1">
+              {charCount} 字
+            </span>
+
+            {/* Chapter Selection Popover */}
+            {isChapterDropdownOpen && (
               <div
-                onDoubleClick={startEditTitle}
-                title="双击快速重命名章节"
-                className="flex items-center gap-1.5 cursor-pointer rounded px-1 -mx-1 hover:bg-white/5 transition-colors truncate"
+                className="absolute top-9 left-0 w-72 max-h-80 rounded-2xl border shadow-2xl p-2 z-50 flex flex-col gap-1.5 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-3xl"
+                style={{
+                  backgroundColor: `${theme.colors.bgSecondary}FE`,
+                  borderColor: `${theme.colors.border}90`,
+                }}
               >
-                <span className="text-xs font-semibold truncate" style={{ color: theme.colors.text }}>
-                  {activeChapterTitle}
-                </span>
-                <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-40 hover:!opacity-90 transition-opacity shrink-0" />
+                {/* Search Filter */}
+                <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-black/30 border border-white/5 shrink-0">
+                  <Search className="h-3 w-3 opacity-40" />
+                  <input
+                    type="text"
+                    placeholder="搜索章节..."
+                    value={chapterSearchQuery}
+                    onChange={(e) => setChapterSearchQuery(e.target.value)}
+                    className="bg-transparent text-xs outline-none w-full text-neutral-200 placeholder:opacity-30"
+                    autoFocus
+                  />
+                </div>
+
+                {/* Chapters List */}
+                <div className="flex-1 overflow-y-auto space-y-0.5 max-h-60 pr-0.5">
+                  {filteredChapters.map(({ volTitle, chapter }) => {
+                    const isSelected = chapter.id === effectiveChapterId;
+                    return (
+                      <button
+                        key={chapter.id}
+                        onClick={() => handleSelectChapter(chapter.id)}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                          isSelected ? 'bg-cyan-500/20 text-cyan-300 font-medium' : 'hover:bg-white/5 text-neutral-300'
+                        }`}
+                      >
+                        <div className="flex flex-col min-w-0 pr-2">
+                          <span className="truncate">{chapter.title}</span>
+                          <span className="text-[10px] opacity-40 truncate">{volTitle}</span>
+                        </div>
+                        {isSelected && <Check className="h-3 w-3 text-cyan-400 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs font-mono opacity-65" style={{ color: theme.colors.textMuted }}>
-            <Hash className="h-3 w-3" />
-            <span ref={topWordCountRef}>{charCount.toLocaleString()} 字</span>
-          </div>
+          {/* Right Action Icons for Secondary Pane */}
+          {paneId === 'secondary' && (
+            <div className="flex items-center gap-1 shrink-0">
+              {onSwapPanes && (
+                <button
+                  onClick={onSwapPanes}
+                  title="左右/上下对调窗格章节 (Alt+X)"
+                  className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-50 hover:opacity-100 cursor-pointer"
+                >
+                  <ArrowLeftRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {onToggleSplitDirection && (
+                <button
+                  onClick={onToggleSplitDirection}
+                  title={`切换为${splitDirection === 'vertical' ? '水平上下' : '垂直左右'}分屏`}
+                  className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-50 hover:opacity-100 cursor-pointer"
+                >
+                  {splitDirection === 'vertical' ? (
+                    <Rows3 className="h-3.5 w-3.5" />
+                  ) : (
+                    <Columns className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+              {onClosePane && (
+                <button
+                  onClick={onClosePane}
+                  title="关闭对照分屏 (Alt+S)"
+                  className="p-1 hover:text-red-400 rounded-md hover:bg-red-500/10 transition-all opacity-50 hover:opacity-100 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* 🌟 100% 全宽标准编辑器工作区 (内联原生 Document-Space 物理光标层) */}
-      <div ref={editorWrapperRef} className="relative flex-1 w-full h-full overflow-hidden">
+      {/* 🌟 100% 全宽标准编辑器工作区 */}
+      <div
+        ref={editorWrapperRef}
+        className="relative flex-1 w-full h-full overflow-hidden"
+      >
         <div ref={editorRef} className="h-full w-full overflow-hidden" />
       </div>
-
-      {/* 🌟 先锋美学：Dynamic Island 悬浮微型动态岛 (SOTA Dynamic Island Micro-HUD) */}
-      {zeroChrome && (
-        <div
-          className="fixed bottom-6 right-8 z-40 flex items-center gap-3 px-4 py-2 rounded-full border shadow-2xl backdrop-blur-2xl select-none text-[11.5px] font-mono pointer-events-auto transition-all duration-300 ease-out hover:scale-[1.02] hover:shadow-[0_12px_32px_rgba(0,0,0,0.45)] group-[.is-typing]/editor:opacity-0 group-[.is-typing]/editor:translate-y-3 group-[.is-typing]/editor:pointer-events-none"
-          style={{
-            backgroundColor: `${theme.colors.bgSecondary}cc`,
-            borderColor: `${theme.colors.border}90`,
-            boxShadow: `0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px ${theme.colors.accent}20`,
-            color: theme.colors.textMuted,
-          }}
-        >
-          {/* Status Orb with pulse ring */}
-          <div className="relative flex items-center justify-center">
-            <span
-              ref={hudSaveDotRef}
-              title="本地实时保存状态"
-              className="h-2 w-2 rounded-full shrink-0 bg-emerald-400 shadow-[0_0_8px_#34d399]"
-            />
-          </div>
-
-          {/* Word Count */}
-          <div className="flex items-center gap-1 font-semibold tracking-tight" style={{ color: theme.colors.text }}>
-            <span ref={hudWordCountRef}>{charCount.toLocaleString()} 字</span>
-          </div>
-
-          <span className="opacity-25 select-none">|</span>
-
-          {/* Reading Time */}
-          <span className="opacity-60 text-[10.5px]">
-            约 {Math.max(1, Math.ceil(charCount / 350))} 分钟
-          </span>
-
-          <span className="opacity-25 select-none">|</span>
-
-          {/* Active Chapter Title */}
-          <span
-            className="opacity-85 max-w-[130px] truncate text-[11px] font-medium"
-            title={activeChapterTitle}
-            style={{ color: theme.colors.text }}
-          >
-            {activeChapterTitle}
-          </span>
-
-          {/* Micro Action Dock */}
-          <div className="flex items-center gap-1 pl-1.5 border-l border-white/10 ml-0.5">
-            {onOpenCommandPalette && (
-              <button
-                onClick={onOpenCommandPalette}
-                title="命令面板 (Ctrl+P / ⌘K)"
-                className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-60 hover:opacity-100"
-              >
-                <Command className="h-3.5 w-3.5" />
-              </button>
-            )}
-
-            {onToggleSidebar && (
-              <button
-                onClick={onToggleSidebar}
-                title="分卷目录 (Ctrl+B / ⌘B)"
-                className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-60 hover:opacity-100"
-              >
-                <SidebarIcon className={`h-3.5 w-3.5 ${isSidebarOpen ? 'text-cyan-400 opacity-100' : ''}`} />
-              </button>
-            )}
-
-            {onOpenSettings && (
-              <button
-                onClick={onOpenSettings}
-                title="偏好设置 (Ctrl+, / ⌘,)"
-                className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-60 hover:opacity-100"
-              >
-                <Settings className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* 🔍 Floating Search & Replace HUD */}
       <FloatingSearchHUD view={editorView} theme={theme} />

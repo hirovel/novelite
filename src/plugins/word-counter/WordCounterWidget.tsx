@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import type { PluginContext } from '../../core/plugins/types';
 import { projectStore } from '../../core/storage/ProjectStore';
-import { Zap } from 'lucide-react';
 
 export const WordCounterWidget: React.FC<{ ctx: PluginContext }> = ({ ctx }) => {
   const [chapWords, setChapWords] = useState<number>(0);
   const [totalWords, setTotalWords] = useState<number>(0);
   const [targetWords, setTargetWords] = useState<number>(200000);
-  const [speedWPM, setSpeedWPM] = useState<number>(0);
 
   useEffect(() => {
     const updateStats = () => {
@@ -24,25 +22,10 @@ export const WordCounterWidget: React.FC<{ ctx: PluginContext }> = ({ ctx }) => 
     const unsub2 = ctx.on('active-chapter-changed', () => updateStats());
     const unsub3 = ctx.on('project-tree-changed', () => updateStats());
 
-    let lastWordCount = projectStore.getActiveChapter()?.wordCount || 0;
-    const charDiffs: number[] = [];
-
-    const speedInterval = setInterval(() => {
-      const current = projectStore.getActiveChapter()?.wordCount || 0;
-      const diff = Math.max(0, current - lastWordCount);
-      lastWordCount = current;
-      charDiffs.push(diff);
-      if (charDiffs.length > 6) charDiffs.shift();
-      const sum = charDiffs.reduce((a, b) => a + b, 0);
-      const wpm = sum * 2;
-      setSpeedWPM(wpm);
-    }, 5000);
-
     return () => {
       unsub1();
       unsub2();
       unsub3();
-      clearInterval(speedInterval);
     };
   }, [ctx]);
 
@@ -60,13 +43,7 @@ export const WordCounterWidget: React.FC<{ ctx: PluginContext }> = ({ ctx }) => 
         <span>{(totalWords / 10000).toFixed(2)}万</span>
         <span className="opacity-40">/ {(targetWords / 10000).toFixed(0)}万 ({progressPercent}%)</span>
       </div>
-
-      {speedWPM > 0 && (
-        <div className="hidden md:flex items-center gap-1 text-amber-400 animate-pulse" title="当前码字速率">
-          <Zap className="h-3 w-3" />
-          <span>{speedWPM} 字/分</span>
-        </div>
-      )}
     </div>
   );
 };
+

@@ -16,6 +16,7 @@ export interface Command {
   id: string;
   pluginId?: string;
   title: string;
+  description?: string;
   category?: string;
   shortcut?: string;
   icon?: React.ReactNode;

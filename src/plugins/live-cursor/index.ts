@@ -7,7 +7,7 @@ export const LiveCursorPlugin: NovelitePlugin = {
     id: 'plugin-live-cursor',
     name: '灵感光标',
     version: '2.0.0',
-    description: '随屏幕刷新率垂直同步的原生 GPU 物理流体光标与视觉动效引擎',
+    description: '提供平滑物理光标动力学跟随、拖尾与呼吸动效。',
     author: 'hirovel',
     defaultEnabled: true,
   },
@@ -69,7 +69,7 @@ export const LiveCursorPlugin: NovelitePlugin = {
         c.setSetting('blinkMode', 'smooth');
         c.setSetting('physicsMode', 'fluid');
         c.setSetting('luminescence', true);
-        c.setSetting('streamPreset', 'cyan-violet');
+        c.setSetting('streamPreset', 'theme');
         c.emit('live-cursor:vfx-changed', 'pure');
         c.showToast('已重置光标设置');
       },

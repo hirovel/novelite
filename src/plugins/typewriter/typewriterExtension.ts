@@ -156,7 +156,7 @@ export function createTypewriterExtension(getConfig: () => TypewriterConfig): Ex
       }
 
       private scheduleCentering(config: TypewriterConfig) {
-        if (this.isUserManualScrolling) return;
+        if (!this.view.hasFocus || this.isUserManualScrolling) return;
 
         this.view.requestMeasure({
           read: (v) => {
