@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { LiveCursorEngine, type StreamPresetId } from '../../plugins/live-cursor/LiveCursorEngine';
 import type { Theme } from '../../core/themes/types';
-import { Sliders, Sparkles, Pipette, Zap, Layers, Activity } from 'lucide-react';
+import { Sliders, Sparkles, Pipette, Layers, Activity, Palette, Sparkle } from 'lucide-react';
 
 interface Props {
   theme: Theme;
@@ -81,12 +81,22 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   const isAutoColor = !cursorColor || cursorColor === 'auto';
   const effectiveColor = isAutoColor ? (theme.colors.cursor || theme.colors.accent || '#a78bfa') : cursorColor;
 
+  // 🌟 Unified Color Mode Calculation: 'theme' | 'solid' | 'stream'
+  const isThemeMode = isAutoColor && (streamPreset === 'theme' || !streamPreset);
+  const isSolidMode = !luminescence || streamPreset === 'mono';
+  const activeColorMode: 'theme' | 'solid' | 'stream' = isThemeMode
+    ? 'theme'
+    : isSolidMode
+    ? 'solid'
+    : 'stream';
+
   useEffect(() => {
     configRef.current = {
       enabled: true,
       shape: cursorShape,
       color: cursorColor,
       themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
+      themeStreamColors: theme.cursorStream || [theme.colors.cursor || theme.colors.accent || '#a78bfa', `${theme.colors.cursor || theme.colors.accent || '#a78bfa'}44`],
       animationLength: cursorAnimationLength,
       trailSize: cursorTrailSize,
       vfxMode,
@@ -113,13 +123,12 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   ];
 
   const streamPresets: Array<{ id: StreamPresetId; name: string; colors: [string, string] }> = [
-    { id: 'theme', name: '跟随主题', colors: [theme.colors.accent || '#a78bfa', `${theme.colors.accent || '#a78bfa'}44`] },
+    { id: 'theme', name: '跟随主题', colors: theme.cursorStream || [theme.colors.accent || '#a78bfa', `${theme.colors.accent || '#a78bfa'}44`] },
     { id: 'cyan-violet', name: '青紫双色', colors: ['#38bdf8', '#a78bfa'] },
     { id: 'ice-blue', name: '冰蓝微光', colors: ['#67e8f9', '#3b82f6'] },
     { id: 'emerald', name: '翡翠流荧', colors: ['#6ee7b7', '#059669'] },
     { id: 'amber-rose', name: '赤金幻彩', colors: ['#fde047', '#f43f5e'] },
     { id: 'sakura', name: '落樱星辉', colors: ['#fbcfe8', '#db2777'] },
-    { id: 'mono', name: '单色渐变', colors: [effectiveColor, `${effectiveColor}33`] },
     { id: 'custom', name: '自定义', colors: [streamHeadColor, streamTailColor] },
   ];
 
@@ -249,21 +258,64 @@ export const LiveCursorTestArena: React.FC<Props> = ({
     updateCaret(false);
   };
 
+  // Color Mode Handlers
+  const handleSelectThemeMode = () => {
+    onChangeCursorColor('auto');
+    onChangeLuminescence?.(true);
+    onChangeStreamPreset?.('theme');
+  };
+
+  const handleSelectSolidMode = () => {
+    onChangeLuminescence?.(false);
+    onChangeStreamPreset?.('mono');
+    if (cursorColor === 'auto' || !cursorColor) {
+      onChangeCursorColor(theme.colors.cursor || theme.colors.accent || '#38bdf8');
+    }
+  };
+
+  const handleSelectStreamMode = () => {
+    onChangeLuminescence?.(true);
+    onChangeCursorColor('auto');
+    if (streamPreset === 'theme' || streamPreset === 'mono' || !streamPreset) {
+      onChangeStreamPreset?.('cyan-violet');
+    }
+  };
+
   return (
     <div className="space-y-6 text-xs">
       {/* Hidden DOM measurement mirrors */}
       <span
         ref={mirrorRef}
-        className="absolute -top-9999px -left-9999px invisible whitespace-pre font-mono text-sm pointer-events-none"
+        style={{
+          position: 'fixed',
+          top: -9999,
+          left: -9999,
+          visibility: 'hidden',
+          whiteSpace: 'pre',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          fontSize: '14px',
+          lineHeight: '22px',
+          pointerEvents: 'none',
+        }}
       />
       <span
         ref={charMirrorRef}
-        className="absolute -top-9999px -left-9999px invisible whitespace-pre font-mono text-sm pointer-events-none"
+        style={{
+          position: 'fixed',
+          top: -9999,
+          left: -9999,
+          visibility: 'hidden',
+          whiteSpace: 'pre',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          fontSize: '14px',
+          lineHeight: '22px',
+          pointerEvents: 'none',
+        }}
       />
 
-      {/* 🌟 1. 光标测试 */}
+      {/* 🌟 1. 光标实时测试演练场 (Live Interactive Arena) */}
       <div
-        className="space-y-3 rounded-2xl border p-4.5 shadow-sm"
+        className="space-y-3 rounded-2xl border p-4.5 shadow-sm transition-colors"
         style={{
           backgroundColor: `${theme.colors.bgHover}25`,
           borderColor: `${theme.colors.border}70`,
@@ -272,17 +324,40 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
             <Sliders className="h-3.5 w-3.5 opacity-70" />
-            <span>光标测试</span>
+            <span>光标测试演练场</span>
           </div>
-          <span
-            className="font-mono text-[10.5px] px-2 py-0.5 rounded-full border border-white/10"
-            style={{ color: effectiveColor }}
-          >
-            {cursorShape === 'block' ? '极简色块' : cursorShape === 'underline' ? '水平基准线' : '平滑光柱'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className="font-mono text-[10.5px] px-2.5 py-0.5 rounded-full border transition-all"
+              style={{
+                color: effectiveColor,
+                borderColor: `${effectiveColor}40`,
+                backgroundColor: `${effectiveColor}12`,
+              }}
+            >
+              {activeColorMode === 'theme'
+                ? `跟随主题 · ${theme.nameZh}`
+                : activeColorMode === 'solid'
+                ? '经典单色'
+                : '双色流光'}
+            </span>
+            <span
+              className="font-mono text-[10.5px] px-2.5 py-0.5 rounded-full border border-white/10 opacity-75"
+              style={{ color: theme.colors.text }}
+            >
+              {cursorShape === 'block' ? '极简色块' : cursorShape === 'underline' ? '水平基准线' : '平滑光柱'}
+            </span>
+          </div>
         </div>
 
-        <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl border border-white/10">
+        <div
+          ref={containerRef}
+          className="relative w-full overflow-hidden rounded-xl border shadow-inner transition-colors"
+          style={{
+            backgroundColor: theme.colors.editorBg || theme.colors.bg,
+            borderColor: theme.colors.border,
+          }}
+        >
           <canvas
             ref={canvasRef}
             className="pointer-events-none absolute inset-0 z-10 h-full w-full"
@@ -300,119 +375,317 @@ export const LiveCursorTestArena: React.FC<Props> = ({
               engineRef.current.setFocused(true);
               updateCaret(false);
             }}
-            placeholder="输入文字或按方向键测试光标..."
+            placeholder="输入文字或按方向键测试光标跟随手感..."
             className="w-full resize-none rounded-xl py-3 px-3.5 text-sm leading-[22px] min-h-[68px] outline-none font-mono transition-colors block"
             style={{
-              backgroundColor: theme.colors.bg,
-              color: theme.colors.text,
+              backgroundColor: 'transparent',
+              color: theme.colors.editorText || theme.colors.text,
               caretColor: 'transparent',
             }}
           />
         </div>
       </div>
 
-      {/* 🌟 2. 卡片一：形态与基准色彩 (Morphology & Color) */}
-      <div className="space-y-4 p-4 rounded-2xl border border-white/10 bg-white/[0.02]">
+      {/* 🌟 2. 卡片一：光标形态 (Morphology) */}
+      <div
+        className="space-y-4 p-4 rounded-2xl border transition-colors"
+        style={{
+          backgroundColor: `${theme.colors.bgSecondary}50`,
+          borderColor: `${theme.colors.border}60`,
+        }}
+      >
         <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
-          <Layers className="h-3.5 w-3.5 opacity-75 text-cyan-400" />
-          <span>形态与色彩</span>
+          <Layers className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
+          <span>光标形态</span>
         </div>
 
-        {/* 光标形态 */}
-        <div className="space-y-2">
-          <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-            光标形态
-          </label>
-          <div className="grid grid-cols-3 gap-2.5">
-            {[
-              { id: 'beam', name: '平滑光柱', desc: '2.6px 细垂直光柱，清晰专注' },
-              { id: 'block', name: '极简色块', desc: '半透明字符方块，沉浸专注' },
-              { id: 'underline', name: '水平基准线', desc: '底部水平基准线' },
-            ].map((s) => {
-              const isCur = cursorShape === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => onSelectCursorShape?.(s.id as any)}
-                  className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
-                    isCur ? 'ring-1.5 ring-cyan-400/80 font-medium bg-white/[0.08]' : 'border-white/10 hover:border-white/20 opacity-75'
-                  }`}
-                  style={{
-                    backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                    borderColor: isCur ? effectiveColor : theme.colors.border,
-                  }}
-                >
-                  <span className="text-xs font-semibold" style={{ color: theme.colors.text }}>
-                    {s.name}
-                  </span>
-                  <span className="text-[9.5px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                    {s.desc}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 基准色彩 */}
-        <div className="space-y-2 pt-2 border-t border-white/5">
-          <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-            光标基准颜色
-          </label>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => onChangeCursorColor('auto')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all ${
-                isAutoColor ? 'ring-1.5 ring-cyan-400 font-medium bg-white/[0.08]' : 'border-white/10 hover:border-white/30 opacity-75'
-              }`}
-            >
-              <span
-                className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-xs"
-                style={{ backgroundColor: theme.colors.cursor || theme.colors.accent }}
-              />
-              <span className="text-[11px]" style={{ color: theme.colors.text }}>
-                跟随主题 ({theme.name})
-              </span>
-            </button>
-
-            {colorPresets.map((c) => {
-              const isCur = !isAutoColor && cursorColor.toLowerCase() === c.value.toLowerCase();
-              return (
-                <button
-                  key={c.value}
-                  onClick={() => onChangeCursorColor(c.value)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border transition-all ${
-                    isCur ? 'ring-1.5 ring-cyan-400 font-medium bg-white/[0.08]' : 'border-white/10 hover:border-white/30 opacity-75'
-                  }`}
-                >
-                  <span className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: c.value }} />
-                  <span className="text-[11px]" style={{ color: theme.colors.text }}>{c.name}</span>
-                </button>
-              );
-            })}
-
-            <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
-              <Pipette className="h-3 w-3 opacity-60" />
-              <div className="relative flex items-center gap-1">
-                <span className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: effectiveColor }} />
-                <input
-                  type="color"
-                  value={effectiveColor}
-                  onChange={(e) => onChangeCursorColor(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                />
-                <span className="font-mono text-[10.5px] opacity-70">{effectiveColor}</span>
-              </div>
-            </label>
-          </div>
+        <div className="grid grid-cols-3 gap-2.5">
+          {[
+            { id: 'beam', name: '平滑光柱', desc: '细垂直光柱' },
+            { id: 'block', name: '极简色块', desc: '字符方块' },
+            { id: 'underline', name: '水平基准线', desc: '底部横线' },
+          ].map((s) => {
+            const isCur = cursorShape === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => onSelectCursorShape?.(s.id as any)}
+                className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  isCur ? 'font-medium shadow-xs' : 'opacity-75 hover:opacity-100'
+                }`}
+                style={{
+                  backgroundColor: isCur ? `${theme.colors.accent}15` : theme.colors.bg,
+                  borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                }}
+              >
+                <span className="text-xs font-semibold" style={{ color: theme.colors.text }}>
+                  {s.name}
+                </span>
+                <span className="text-[9.5px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
+                  {s.desc}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* 🌟 3. 卡片二：动力学与切变手感 (Dynamics & Motion) */}
-      <div className="space-y-4 p-4 rounded-2xl border border-white/10 bg-white/[0.02]">
+      {/* 🌟 3. 卡片二：光标色彩工坊 (Unified Cursor Color Studio) */}
+      <div
+        className="space-y-4 p-4 rounded-2xl border transition-colors"
+        style={{
+          backgroundColor: `${theme.colors.bgSecondary}50`,
+          borderColor: `${theme.colors.border}60`,
+        }}
+      >
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
+            <Palette className="h-3.5 w-3.5" style={{ color: theme.colors.accent }} />
+            <span>光标色彩工坊</span>
+          </div>
+
+          {/* 3-Mode Segmented Control */}
+          <div className="flex items-center p-0.5 rounded-xl border" style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}>
+            <button
+              onClick={handleSelectThemeMode}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeColorMode === 'theme' ? 'font-semibold shadow-xs' : 'opacity-65 hover:opacity-100'
+              }`}
+              style={{
+                backgroundColor: activeColorMode === 'theme' ? `${theme.colors.accent}20` : 'transparent',
+                color: activeColorMode === 'theme' ? theme.colors.accent : theme.colors.textMuted,
+                border: activeColorMode === 'theme' ? `1px solid ${theme.colors.accent}40` : '1px solid transparent',
+              }}
+            >
+              跟随主题
+            </button>
+            <button
+              onClick={handleSelectSolidMode}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeColorMode === 'solid' ? 'font-semibold shadow-xs' : 'opacity-65 hover:opacity-100'
+              }`}
+              style={{
+                backgroundColor: activeColorMode === 'solid' ? `${theme.colors.accent}20` : 'transparent',
+                color: activeColorMode === 'solid' ? theme.colors.accent : theme.colors.textMuted,
+                border: activeColorMode === 'solid' ? `1px solid ${theme.colors.accent}40` : '1px solid transparent',
+              }}
+            >
+              经典单色
+            </button>
+            <button
+              onClick={handleSelectStreamMode}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeColorMode === 'stream' ? 'font-semibold shadow-xs' : 'opacity-65 hover:opacity-100'
+              }`}
+              style={{
+                backgroundColor: activeColorMode === 'stream' ? `${theme.colors.accent}20` : 'transparent',
+                color: activeColorMode === 'stream' ? theme.colors.accent : theme.colors.textMuted,
+                border: activeColorMode === 'stream' ? `1px solid ${theme.colors.accent}40` : '1px solid transparent',
+              }}
+            >
+              幻彩流光
+            </button>
+          </div>
+        </div>
+
+        {/* 3.1 MODE: 跟随主题 (Follow Theme with Preconfigured Stream) */}
+        {activeColorMode === 'theme' && (
+          <div
+            className="p-4 rounded-xl border flex items-center justify-between gap-4 transition-all"
+            style={{
+              borderColor: `${theme.colors.accent}40`,
+              backgroundColor: `${theme.colors.accent}08`,
+            }}
+          >
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                  {theme.nameZh}
+                </span>
+                <span className="text-[10px] font-mono opacity-50">({theme.name})</span>
+                <span
+                  className="text-[9.5px] px-2 py-0.2 rounded-full font-mono font-medium"
+                  style={{
+                    backgroundColor: `${theme.colors.accent}18`,
+                    color: theme.colors.accent,
+                    border: `1px solid ${theme.colors.accent}40`,
+                  }}
+                >
+                  主题预设
+                </span>
+              </div>
+              <p className="text-[11px] opacity-65 leading-relaxed" style={{ color: theme.colors.textMuted }}>
+                光标颜色跟随当前主题，换肤时自动同步。
+              </p>
+            </div>
+
+            {/* Theme Stream Preview */}
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 p-1 rounded-lg bg-black/20 border border-white/10 shadow-xs">
+                <span
+                  className="h-3.5 w-6 rounded-md shadow-xs"
+                  style={{ backgroundColor: (theme.cursorStream || [theme.colors.accent, ''])[0] }}
+                />
+                <span className="text-[9.5px] font-mono opacity-40">→</span>
+                <span
+                  className="h-3.5 w-6 rounded-md shadow-xs"
+                  style={{ backgroundColor: (theme.cursorStream || ['', theme.colors.accent])[1] }}
+                />
+              </div>
+              <span className="text-[9.5px] font-mono opacity-50">主题流光</span>
+            </div>
+          </div>
+        )}
+
+        {/* 3.2 MODE: 经典纯色 (Solid Pure Color) */}
+        {activeColorMode === 'solid' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] opacity-75" style={{ color: theme.colors.text }}>
+                选择单色：
+              </span>
+              <span className="text-[10px] font-mono opacity-50">纯色模式</span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {colorPresets.map((c) => {
+                const isCur = cursorColor.toLowerCase() === c.value.toLowerCase();
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => {
+                      onChangeCursorColor(c.value);
+                      onChangeLuminescence?.(false);
+                      onChangeStreamPreset?.('mono');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+                      isCur ? 'font-medium shadow-xs bg-white/[0.08]' : 'hover:border-white/30 opacity-75'
+                    }`}
+                    style={{
+                      borderColor: isCur ? c.value : theme.colors.border,
+                      boxShadow: isCur ? `0 0 0 1.5px ${c.value}` : undefined,
+                    }}
+                  >
+                    <span className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-xs shrink-0" style={{ backgroundColor: c.value }} />
+                    <span className="text-[11px]" style={{ color: theme.colors.text }}>{c.name}</span>
+                  </button>
+                );
+              })}
+
+              {/* Custom Pipette Color */}
+              <label
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border cursor-pointer hover:border-white/25 transition-all"
+                style={{
+                  borderColor: theme.colors.border,
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                }}
+              >
+                <Pipette className="h-3 w-3 opacity-60" style={{ color: theme.colors.text }} />
+                <div className="relative flex items-center gap-1">
+                  <span className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-xs shrink-0" style={{ backgroundColor: effectiveColor }} />
+                  <input
+                    type="color"
+                    value={effectiveColor}
+                    onChange={(e) => {
+                      onChangeCursorColor(e.target.value);
+                      onChangeLuminescence?.(false);
+                      onChangeStreamPreset?.('mono');
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <span className="font-mono text-[10.5px] opacity-70" style={{ color: theme.colors.text }}>{effectiveColor}</span>
+                </div>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {/* 3.3 MODE: 幻彩流光 (Dual-Color Chroma Stream) */}
+        {activeColorMode === 'stream' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] opacity-75" style={{ color: theme.colors.text }}>
+                选择流光配色：
+              </span>
+              <span className="text-[10px] font-mono opacity-50">双色渐变</span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {streamPresets
+                .filter((sp) => sp.id !== 'theme')
+                .map((sp) => {
+                  const isCur = streamPreset === sp.id;
+                  return (
+                    <button
+                      key={sp.id}
+                      onClick={() => {
+                        onChangeStreamPreset?.(sp.id);
+                        onChangeLuminescence?.(true);
+                      }}
+                      className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer ${
+                        isCur ? 'font-medium shadow-xs bg-white/[0.08]' : 'hover:border-white/20 opacity-75 hover:opacity-100'
+                      }`}
+                      style={{
+                        borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                        boxShadow: isCur ? `0 0 0 1.5px ${theme.colors.accent}` : undefined,
+                      }}
+                    >
+                      <div className="flex h-3.5 w-6 rounded-full overflow-hidden shrink-0 border border-white/20 shadow-xs">
+                        <span className="w-1/2 h-full" style={{ backgroundColor: sp.colors[0] }} />
+                        <span className="w-1/2 h-full" style={{ backgroundColor: sp.colors[1] }} />
+                      </div>
+                      <span className="text-[11px] truncate" style={{ color: theme.colors.text }}>{sp.name}</span>
+                    </button>
+                  );
+                })}
+            </div>
+
+            {streamPreset === 'custom' && (
+              <div className="flex items-center gap-3 pt-2 px-1">
+                <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
+                  <span className="text-[10.5px] opacity-75">起始色</span>
+                  <div className="relative flex items-center gap-1.5">
+                    <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamHeadColor }} />
+                    <input
+                      type="color"
+                      value={streamHeadColor}
+                      onChange={(e) => onChangeStreamHeadColor?.(e.target.value)}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    <span className="font-mono text-[10px] font-medium" style={{ color: theme.colors.accent }}>{streamHeadColor}</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
+                  <span className="text-[10.5px] opacity-75">结束色</span>
+                  <div className="relative flex items-center gap-1.5">
+                    <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamTailColor }} />
+                    <input
+                      type="color"
+                      value={streamTailColor}
+                      onChange={(e) => onChangeStreamTailColor?.(e.target.value)}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    <span className="font-mono text-[10px] font-medium" style={{ color: theme.colors.accent }}>{streamTailColor}</span>
+                  </div>
+                </label>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 🌟 4. 卡片三：动力学与手感 (Dynamics & Motion) */}
+      <div
+        className="space-y-4 p-4 rounded-2xl border transition-colors"
+        style={{
+          backgroundColor: `${theme.colors.bgSecondary}50`,
+          borderColor: `${theme.colors.border}60`,
+        }}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
-            <Activity className="h-3.5 w-3.5 opacity-75 text-cyan-400" />
+            <Activity className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
             <span>动力学与手感</span>
           </div>
           <span className="text-[10px] font-mono opacity-40">快捷键 Alt+P</span>
@@ -434,12 +707,12 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 <button
                   key={pm.id}
                   onClick={() => onChangePhysicsMode?.(pm.id as any)}
-                  className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
-                    isCur ? 'ring-1.5 ring-cyan-400/80 font-medium shadow-sm' : 'border-white/10 hover:border-white/20 opacity-70'
+                  className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    isCur ? 'font-medium shadow-xs' : 'border-white/10 hover:border-white/20 opacity-70'
                   }`}
                   style={{
-                    backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                    borderColor: isCur ? effectiveColor : theme.colors.border,
+                    backgroundColor: isCur ? `${theme.colors.accent}15` : theme.colors.bg,
+                    borderColor: isCur ? theme.colors.accent : theme.colors.border,
                   }}
                 >
                   <span className="text-xs font-medium" style={{ color: isCur ? theme.colors.text : theme.colors.textMuted }}>
@@ -452,15 +725,51 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* 移动手感调校 */}
+        <div className="space-y-2 pt-2 border-t border-white/5">
+          <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
+            移动手感调校
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { id: 'gentle', name: '优雅连贯', desc: '柔和流线跟随' },
+              { id: 'balanced', name: '平衡敏捷', desc: '迅捷贴合手感' },
+              { id: 'snappy', name: '极速干脆', desc: '零拖沓利落' },
+            ].map((sm) => {
+              const isCur = speedMode === sm.id;
+              return (
+                <button
+                  key={sm.id}
+                  onClick={() => onChangeSpeedMode(sm.id as any)}
+                  className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                    isCur ? 'font-medium shadow-xs' : 'border-white/10 hover:border-white/20 opacity-70'
+                  }`}
+                  style={{
+                    backgroundColor: isCur ? `${theme.colors.accent}15` : theme.colors.bg,
+                    borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                  }}
+                >
+                  <span className="text-[11.5px] font-medium" style={{ color: isCur ? theme.colors.text : theme.colors.textMuted }}>
+                    {sm.name}
+                  </span>
+                  <span className="text-[9.5px] opacity-50 mt-0.5">{sm.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* 行内倾角切变开关 */}
-        <div className="flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/[0.02]">
-          <div className="flex items-center gap-2">
-            <Zap className="h-3.5 w-3.5 text-cyan-400 opacity-80" />
+        <div className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1 rounded-lg" style={{ backgroundColor: `${theme.colors.accent}15`, color: theme.colors.accent }}>
+              <Sparkle className="h-3.5 w-3.5" />
+            </div>
             <div>
-              <div className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
+              <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
                 行内倾角切变
               </div>
-              <div className="text-[9.5px] opacity-50">单行打字时自动前倾平行四边形切变，静止平滑回正</div>
+              <div className="text-[10px] opacity-50">打字时前倾，静止时回正</div>
             </div>
           </div>
           <button
@@ -475,134 +784,25 @@ export const LiveCursorTestArena: React.FC<Props> = ({
             />
           </button>
         </div>
-
-        {/* 移动节奏 */}
-        <div className="space-y-2 pt-2 border-t border-white/5">
-          <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-            移动节奏
-          </label>
-          <div className="grid grid-cols-3 gap-2.5">
-            {[
-              { id: 'gentle', name: '舒缓', desc: '平稳缓和' },
-              { id: 'balanced', name: '自然', desc: '灵敏适中' },
-              { id: 'snappy', name: '极速', desc: '紧跟按键' },
-            ].map((sm) => {
-              const isCur = speedMode === sm.id;
-              return (
-                <button
-                  key={sm.id}
-                  onClick={() => onChangeSpeedMode(sm.id as any)}
-                  className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all ${
-                    isCur ? 'ring-1.5 ring-cyan-400/80 font-medium shadow-sm' : 'border-white/10 hover:border-white/20 opacity-70'
-                  }`}
-                  style={{
-                    backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                    borderColor: isCur ? effectiveColor : theme.colors.border,
-                  }}
-                >
-                  <span className="text-[11.5px] font-medium" style={{ color: isCur ? theme.colors.text : theme.colors.textMuted }}>
-                    {sm.name}
-                  </span>
-                  <span className="text-[9.5px] opacity-50 mt-0.5">{sm.desc}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
-      {/* 🌟 4. 卡片三：流光与粒子效果 */}
-      <div className="space-y-4 p-4 rounded-2xl border border-white/10 bg-white/[0.02]">
+      {/* 🌟 5. 卡片四：按键微光与静态呼吸 (VFX & Breathing) */}
+      <div
+        className="space-y-4 p-4 rounded-2xl border transition-colors"
+        style={{
+          backgroundColor: `${theme.colors.bgSecondary}50`,
+          borderColor: `${theme.colors.border}60`,
+        }}
+      >
         <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
-          <Sparkles className="h-3.5 w-3.5 opacity-75 text-cyan-400" />
-          <span>流光与粒子效果</span>
+          <Sparkles className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
+          <span>按键微光与静态呼吸</span>
         </div>
 
-        {/* 流光渐变开关 */}
-        <div className="space-y-3 p-3 rounded-xl border border-white/10 bg-white/[0.02]">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-xs" style={{ color: theme.colors.text }}>
-                流光色彩渐变
-              </div>
-              <div className="text-[10px] opacity-50">位移与输入时光标显示渐变色彩</div>
-            </div>
-            <button
-              onClick={() => onChangeLuminescence?.(!luminescence)}
-              className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out"
-              style={{ backgroundColor: luminescence ? theme.colors.accent : 'rgba(255,255,255,0.2)' }}
-            >
-              <span
-                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  luminescence ? 'translate-x-4' : 'translate-x-0'
-                }`}
-              />
-            </button>
-          </div>
-
-          {luminescence && (
-            <div className="pt-2 border-t border-white/5 space-y-2.5">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {streamPresets.map((sp) => {
-                  const isCur = streamPreset === sp.id;
-                  return (
-                    <button
-                      key={sp.id}
-                      onClick={() => onChangeStreamPreset?.(sp.id)}
-                      className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
-                        isCur ? 'ring-1.5 ring-cyan-400 font-medium bg-white/[0.08]' : 'border-white/10 hover:border-white/20 opacity-75 hover:opacity-100'
-                      }`}
-                    >
-                      <div className="flex h-3.5 w-6 rounded-full overflow-hidden shrink-0 border border-white/20 shadow-xs">
-                        <span className="w-1/2 h-full" style={{ backgroundColor: sp.colors[0] }} />
-                        <span className="w-1/2 h-full" style={{ backgroundColor: sp.colors[1] }} />
-                      </div>
-                      <span className="text-[11px] truncate" style={{ color: theme.colors.text }}>{sp.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {streamPreset === 'custom' && (
-                <div className="flex items-center gap-3 pt-1 px-1">
-                  <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
-                    <span className="text-[10.5px] opacity-75">起始色</span>
-                    <div className="relative flex items-center gap-1.5">
-                      <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamHeadColor }} />
-                      <input
-                        type="color"
-                        value={streamHeadColor}
-                        onChange={(e) => onChangeStreamHeadColor?.(e.target.value)}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      />
-                      <span className="font-mono text-[10px] text-cyan-300 font-medium">{streamHeadColor}</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
-                    <span className="text-[10.5px] opacity-75">结束色</span>
-                    <div className="relative flex items-center gap-1.5">
-                      <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamTailColor }} />
-                      <input
-                        type="color"
-                        value={streamTailColor}
-                        onChange={(e) => onChangeStreamTailColor?.(e.target.value)}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      />
-                      <span className="font-mono text-[10px] text-purple-300 font-medium">{streamTailColor}</span>
-                    </div>
-                  </label>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 微粒子与静态呼吸 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2 border-t border-white/5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div className="space-y-2">
             <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-              按键粒子效果
+              按键微粒子效果
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
@@ -616,12 +816,12 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                   <button
                     key={vfx.id}
                     onClick={() => onChangeVfxMode(vfx.id as any)}
-                    className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all ${
-                      isCur ? 'ring-1.5 ring-cyan-400 font-medium shadow-xs' : 'border-white/10 hover:border-white/20 opacity-70'
+                    className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                      isCur ? 'font-medium shadow-xs' : 'border-white/10 hover:border-white/20 opacity-70'
                     }`}
                     style={{
-                      backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                      borderColor: isCur ? effectiveColor : theme.colors.border,
+                      backgroundColor: isCur ? `${theme.colors.accent}15` : theme.colors.bg,
+                      borderColor: isCur ? theme.colors.accent : theme.colors.border,
                     }}
                   >
                     <span className="text-[11px] font-medium" style={{ color: isCur ? theme.colors.text : theme.colors.textMuted }}>
@@ -649,12 +849,12 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                   <button
                     key={bm.id}
                     onClick={() => onChangeBlinkMode(bm.id as any)}
-                    className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all ${
-                      isCur ? 'ring-1.5 ring-cyan-400 font-medium shadow-xs' : 'border-white/10 hover:border-white/20 opacity-70'
+                    className={`flex flex-col items-start p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                      isCur ? 'font-medium shadow-xs' : 'border-white/10 hover:border-white/20 opacity-70'
                     }`}
                     style={{
-                      backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                      borderColor: isCur ? effectiveColor : theme.colors.border,
+                      backgroundColor: isCur ? `${theme.colors.accent}15` : theme.colors.bg,
+                      borderColor: isCur ? theme.colors.accent : theme.colors.border,
                     }}
                   >
                     <span className="text-[10.5px] font-medium" style={{ color: isCur ? theme.colors.text : theme.colors.textMuted }}>
@@ -669,19 +869,28 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 🌟 5. 参数调整 */}
-      <div className="space-y-3 p-4 rounded-2xl border border-white/10 bg-white/[0.02]">
+      {/* 🌟 6. 卡片五：参数微调 (Sliders) */}
+      <div
+        className="space-y-3 p-4 rounded-2xl border transition-colors"
+        style={{
+          backgroundColor: `${theme.colors.bgSecondary}50`,
+          borderColor: `${theme.colors.border}60`,
+        }}
+      >
         <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
-          <Sliders className="h-3.5 w-3.5 opacity-75 text-cyan-400" />
-          <span>参数调整</span>
+          <Sliders className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
+          <span>动力学参数微调</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
           {/* Slider 1: Response Time */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">动画时长</span>
-              <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md bg-white/10 text-cyan-300 font-semibold shadow-inner">
+              <span className="text-[11px] font-medium opacity-75">动画响应时长</span>
+              <span
+                className="font-mono text-[10.5px] px-2 py-0.5 rounded-md font-semibold shadow-inner"
+                style={{ backgroundColor: `${theme.colors.accent}18`, color: theme.colors.accent }}
+              >
                 {Math.round(cursorAnimationLength * 1000)} ms
               </span>
             </div>
@@ -697,15 +906,24 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                   const val = Number(e.target.value);
                   onChangeAnimationLength(val);
                 }}
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 accent-cyan-400 transition-all hover:bg-white/30 focus:outline-none"
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 transition-all hover:bg-white/30 focus:outline-none"
+                style={{ accentColor: theme.colors.accent }}
               />
               <div className="flex justify-between px-1">
                 {[30, 80, 140, 200, 250].map((tick) => {
                   const isCurrent = Math.abs(Math.round(cursorAnimationLength * 1000) - tick) <= 15;
                   return (
                     <div key={tick} className="flex flex-col items-center gap-0.5">
-                      <div className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'bg-cyan-400 h-2' : 'bg-white/20'}`} />
-                      <span className={`text-[8.5px] font-mono ${isCurrent ? 'text-cyan-300 font-bold' : 'opacity-35'}`}>{tick}</span>
+                      <div
+                        className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'h-2' : 'bg-white/20'}`}
+                        style={{ backgroundColor: isCurrent ? theme.colors.accent : undefined }}
+                      />
+                      <span
+                        className={`text-[8.5px] font-mono ${isCurrent ? 'font-bold' : 'opacity-35'}`}
+                        style={{ color: isCurrent ? theme.colors.accent : undefined }}
+                      >
+                        {tick}
+                      </span>
                     </div>
                   );
                 })}
@@ -716,8 +934,11 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           {/* Slider 2: Trail Stretch */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">拖尾长度</span>
-              <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md bg-white/10 text-cyan-300 font-semibold shadow-inner">
+              <span className="text-[11px] font-medium opacity-75">拖尾延展长度</span>
+              <span
+                className="font-mono text-[10.5px] px-2 py-0.5 rounded-md font-semibold shadow-inner"
+                style={{ backgroundColor: `${theme.colors.accent}18`, color: theme.colors.accent }}
+              >
                 {Math.round(cursorTrailSize * 100)} %
               </span>
             </div>
@@ -733,15 +954,24 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                   const val = Number(e.target.value);
                   onChangeTrailSize(val);
                 }}
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 accent-cyan-400 transition-all hover:bg-white/30 focus:outline-none"
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 transition-all hover:bg-white/30 focus:outline-none"
+                style={{ accentColor: theme.colors.accent }}
               />
               <div className="flex justify-between px-1">
                 {[20, 40, 60, 80, 100].map((tick) => {
                   const isCurrent = Math.abs(Math.round(cursorTrailSize * 100) - tick) <= 10;
                   return (
                     <div key={tick} className="flex flex-col items-center gap-0.5">
-                      <div className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'bg-cyan-400 h-2' : 'bg-white/20'}`} />
-                      <span className={`text-[8.5px] font-mono ${isCurrent ? 'text-cyan-300 font-bold' : 'opacity-35'}`}>{tick}%</span>
+                      <div
+                        className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'h-2' : 'bg-white/20'}`}
+                        style={{ backgroundColor: isCurrent ? theme.colors.accent : undefined }}
+                      />
+                      <span
+                        className={`text-[8.5px] font-mono ${isCurrent ? 'font-bold' : 'opacity-35'}`}
+                        style={{ color: isCurrent ? theme.colors.accent : undefined }}
+                      >
+                        {tick}%
+                      </span>
                     </div>
                   );
                 })}
@@ -752,8 +982,11 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           {/* Slider 3: Breathe Cycle */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">呼吸周期</span>
-              <span className="font-mono text-[10.5px] px-2 py-0.5 rounded-md bg-white/10 text-cyan-300 font-semibold shadow-inner">
+              <span className="text-[11px] font-medium opacity-75">静态呼吸周期</span>
+              <span
+                className="font-mono text-[10.5px] px-2 py-0.5 rounded-md font-semibold shadow-inner"
+                style={{ backgroundColor: `${theme.colors.accent}18`, color: theme.colors.accent }}
+              >
                 {breatheCycle.toFixed(1)} s
               </span>
             </div>
@@ -761,23 +994,32 @@ export const LiveCursorTestArena: React.FC<Props> = ({
             <div className="space-y-1.5">
               <input
                 type="range"
-                min="0.4"
-                max="2.5"
-                step="0.1"
+                min="0.6"
+                max="3.0"
+                step="0.2"
                 value={breatheCycle}
                 onChange={(e) => {
                   const val = Number(e.target.value);
                   onChangeBreatheCycle(val);
                 }}
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 accent-cyan-400 transition-all hover:bg-white/30 focus:outline-none"
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/20 transition-all hover:bg-white/30 focus:outline-none"
+                style={{ accentColor: theme.colors.accent }}
               />
               <div className="flex justify-between px-1">
-                {[0.5, 1.0, 1.5, 2.0, 2.5].map((tick) => {
+                {[0.6, 1.2, 1.8, 2.4, 3.0].map((tick) => {
                   const isCurrent = Math.abs(breatheCycle - tick) <= 0.2;
                   return (
                     <div key={tick} className="flex flex-col items-center gap-0.5">
-                      <div className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'bg-cyan-400 h-2' : 'bg-white/20'}`} />
-                      <span className={`text-[8.5px] font-mono ${isCurrent ? 'text-cyan-300 font-bold' : 'opacity-35'}`}>{tick}s</span>
+                      <div
+                        className={`w-0.5 h-1.5 rounded-full ${isCurrent ? 'h-2' : 'bg-white/20'}`}
+                        style={{ backgroundColor: isCurrent ? theme.colors.accent : undefined }}
+                      />
+                      <span
+                        className={`text-[8.5px] font-mono ${isCurrent ? 'font-bold' : 'opacity-35'}`}
+                        style={{ color: isCurrent ? theme.colors.accent : undefined }}
+                      >
+                        {tick}s
+                      </span>
                     </div>
                   );
                 })}

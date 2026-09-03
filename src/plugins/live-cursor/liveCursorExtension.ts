@@ -190,6 +190,9 @@ export function createLiveCursorPluginExtension(
 
     const handleFocus = () => {
       engine.setFocused(true);
+      if (!syncCaretInstant(false)) {
+        measureCaretSafe(false);
+      }
       wakeUp();
     };
 
@@ -223,9 +226,14 @@ export function createLiveCursorPluginExtension(
       update(u: ViewUpdate) {
         if (u.focusChanged) {
           engine.setFocused(view.hasFocus);
+          if (view.hasFocus) {
+            if (!syncCaretInstant(false)) {
+              measureCaretSafe(false);
+            }
+          }
           wakeUp();
         }
-        if (u.docChanged || u.selectionSet) {
+        if (u.docChanged || u.selectionSet || u.geometryChanged) {
           const synced = syncCaretInstant(false);
           if (!synced) {
             measureCaretSafe(false);
@@ -233,7 +241,6 @@ export function createLiveCursorPluginExtension(
         }
         if (u.geometryChanged) {
           resize();
-          measureCaretSafe(false);
         }
       },
       destroy() {

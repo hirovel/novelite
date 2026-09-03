@@ -99,10 +99,10 @@ export const TerminalBar: React.FC<Props> = ({
         <button
           onClick={onToggleSidebar}
           title="切换侧边栏 (Ctrl+B)"
-          className="flex items-center gap-1 hover:text-white px-1 py-0.5 rounded transition-colors"
+          className="flex items-center gap-1 opacity-75 hover:opacity-100 px-1 py-0.5 rounded transition-all cursor-pointer"
         >
           <SidebarIcon className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline text-[10.5px] opacity-70">
+          <span className="hidden sm:inline text-[10.5px]">
             {isSidebarOpen ? '收起' : '展开'}
           </span>
         </button>
@@ -113,7 +113,7 @@ export const TerminalBar: React.FC<Props> = ({
         <div
           onClick={onOpenCommandPalette}
           title="搜索章节 (Ctrl+P)"
-          className="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors truncate"
+          className="flex items-center gap-1.5 cursor-pointer opacity-80 hover:opacity-100 transition-all truncate"
         >
           <span
             className={`h-1.5 w-1.5 rounded-full shrink-0 ${
@@ -182,7 +182,7 @@ export const TerminalBar: React.FC<Props> = ({
         <button
           onClick={onToggleZenMode}
           title="全屏模式 (F11 / Alt+Z)"
-          className="p-1 rounded hover:bg-white/10 hover:text-white transition-colors"
+          className="p-1 rounded opacity-70 hover:opacity-100 transition-all cursor-pointer"
         >
           {isZenMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </button>
@@ -191,7 +191,7 @@ export const TerminalBar: React.FC<Props> = ({
         <button
           onClick={onOpenSettings}
           title="偏好设置 (Ctrl+,)"
-          className="p-1 rounded hover:bg-white/10 hover:text-white transition-colors"
+          className="p-1 rounded opacity-70 hover:opacity-100 transition-all cursor-pointer"
         >
           <Settings className="h-3.5 w-3.5" />
         </button>

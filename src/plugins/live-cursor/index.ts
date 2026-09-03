@@ -1,6 +1,4 @@
 import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
-import { createLiveCursorPluginExtension } from './liveCursorExtension';
-import type { LiveCursorConfig, StreamPresetId } from './LiveCursorEngine';
 
 export const LiveCursorPlugin: NovelitePlugin = {
   metadata: {
@@ -76,46 +74,11 @@ export const LiveCursorPlugin: NovelitePlugin = {
     });
   },
 
-  getEditorExtensions(ctx: PluginContext) {
-    return [
-      createLiveCursorPluginExtension(() => {
-        const shape = ctx.getSetting<'beam' | 'block' | 'underline'>('shape', 'beam');
-        const color = ctx.getSetting<string>('color', 'auto');
-        const themeColor = ctx.getSetting<string>('themeColor', '#a78bfa');
-        const animationLength = ctx.getSetting<number>('animationLength', 0.08);
-        const trailSize = ctx.getSetting<number>('trailSize', 0.75);
-        const vfxMode = ctx.getSetting<'pure' | 'embers' | 'ripples' | 'feather'>('vfxMode', 'pure');
-        const blinkMode = ctx.getSetting<'smooth' | 'solid' | 'blink'>('blinkMode', 'smooth');
-        const breatheCycle = ctx.getSetting<number>('breatheCycle', 1.2);
-        const speedMode = ctx.getSetting<'gentle' | 'balanced' | 'snappy'>('speedMode', 'gentle');
-        const physicsMode = ctx.getSetting<'fluid' | 'ribbon' | 'quantum'>('physicsMode', 'fluid');
-        const luminescence = ctx.getSetting<boolean>('luminescence', true);
-        const inlineSkew = ctx.getSetting<boolean>('inlineSkew', true);
-        const streamPreset = ctx.getSetting<StreamPresetId>('streamPreset', 'theme');
-        const streamHeadColor = ctx.getSetting<string>('streamHeadColor', '#38bdf8');
-        const streamTailColor = ctx.getSetting<string>('streamTailColor', '#a78bfa');
-
-        const cfg: LiveCursorConfig = {
-          enabled: true,
-          shape,
-          color,
-          themeColor,
-          animationLength,
-          trailSize,
-          vfxMode,
-          blinkMode,
-          breatheCycle,
-          speedMode,
-          physicsMode,
-          luminescence,
-          inlineSkew,
-          streamPreset,
-          streamHeadColor,
-          streamTailColor,
-          glow: true,
-        };
-        return cfg;
-      }),
-    ];
+  getEditorExtensions(_ctx: PluginContext) {
+    // 🌟 Live 灵感光标已由 NovelEditor 内置的专用 cursorCompartmentRef 统一托管，
+    // 支持与当前主题色彩/专属流光/React状态零闪烁热重载。
+    // 此处返回空数组，彻底避免挂载双重扩展和生成重复 Canvas 导致的静默切换与状态冲突。
+    return [];
   },
 };
+

@@ -67,10 +67,12 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
 
     const unsub1 = eventBus.on('open-floating-search', handleOpen);
     const unsub2 = eventBus.on('close-floating-search', handleClose);
+    const unsub3 = eventBus.on('search-hud:toggle', handleOpen);
 
     return () => {
       unsub1();
       unsub2();
+      unsub3();
     };
   }, [view]);
 
@@ -224,13 +226,14 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
             placeholder="查找文本..."
-            className="w-full bg-black/15 rounded-lg px-2 py-1 text-xs outline-none border border-white/5 focus:border-white/20 font-sans"
-            style={{ color: theme.colors.text }}
+            className="w-full rounded-lg px-2 py-1 text-xs outline-none border font-sans"
+            style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}60`, color: theme.colors.text }}
           />
           {searchText && (
             <button
               onClick={() => setSearchText('')}
-              className="absolute right-2 top-1.5 opacity-40 hover:opacity-100 text-neutral-400"
+              className="absolute right-2 top-1.5 opacity-40 hover:opacity-100"
+              style={{ color: theme.colors.textMuted }}
             >
               <X className="h-3 w-3" />
             </button>
@@ -308,8 +311,8 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
             value={replaceText}
             onChange={(e) => setReplaceText(e.target.value)}
             placeholder="替换为..."
-            className="flex-1 bg-black/20 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 outline-none border border-white/5 focus:border-cyan-500/50"
-            style={{ color: theme.colors.text }}
+            className="flex-1 rounded-xl px-2.5 py-1.5 text-xs outline-none border focus:border-cyan-500/50"
+            style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}60`, color: theme.colors.text }}
           />
 
           <button

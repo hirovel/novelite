@@ -6,6 +6,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'Obsidian Slate',
     nameZh: '黑曜 (默认)',
     isDark: true,
+    cursorStream: ['#a78bfa', '#818cf8'],
     colors: {
       bg: '#111216',
       bgSecondary: '#15171d',
@@ -28,6 +29,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'Pure Dark',
     nameZh: '纯黑极夜',
     isDark: true,
+    cursorStream: ['#38bdf8', '#a78bfa'],
     colors: {
       bg: '#08090c',
       bgSecondary: '#0f1118',
@@ -50,6 +52,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'Parchment',
     nameZh: '羊皮纸墨',
     isDark: false,
+    cursorStream: ['#c95738', '#d97706'],
     colors: {
       bg: '#fbf8f1',
       bgSecondary: '#f0ebd9',
@@ -72,6 +75,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'Tokyo Navy',
     nameZh: '暗夜深蓝',
     isDark: true,
+    cursorStream: ['#7dcfff', '#bb9af7'],
     colors: {
       bg: '#1a1b26',
       bgSecondary: '#16161e',
@@ -94,6 +98,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'Terminal Green',
     nameZh: '极客终端',
     isDark: true,
+    cursorStream: ['#4ade80', '#15803d'],
     colors: {
       bg: '#070a08',
       bgSecondary: '#0d140e',
@@ -116,6 +121,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'E-Ink Paper',
     nameZh: '电子墨水 (水墨)',
     isDark: false,
+    cursorStream: ['#292524', '#78716c'],
     colors: {
       bg: '#f5f5f4',
       bgSecondary: '#e7e5e4',
@@ -138,6 +144,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'Nord Frost',
     nameZh: '极地冰霜',
     isDark: true,
+    cursorStream: ['#88c0d0', '#5e81ac'],
     colors: {
       bg: '#242933',
       bgSecondary: '#1f232a',
@@ -160,6 +167,7 @@ export const THEMES: Record<string, Theme> = {
     name: 'Dracula Castle',
     nameZh: '暗黑古堡',
     isDark: true,
+    cursorStream: ['#ff79c6', '#bd93f9'],
     colors: {
       bg: '#21222c',
       bgSecondary: '#191a21',

@@ -313,7 +313,11 @@ export class PluginManager {
         const fullKey = `novelite_plugin_${pluginId}_${key}`;
         localStorage.setItem(fullKey, JSON.stringify(value));
         eventBus.emit(`plugin-setting-changed:${pluginId}`, { key, value });
-        eventBus.emit('editor-extensions-changed');
+        // 仅在插件真正注册了编辑器扩展时才通知 CodeMirror 重构扩展，避免无扩展插件（如背景氛围、字数统计等）改动引发无谓重载
+        const plugin = this.plugins.get(pluginId);
+        if (plugin?.getEditorExtensions) {
+          eventBus.emit('editor-extensions-changed');
+        }
       },
     };
   }

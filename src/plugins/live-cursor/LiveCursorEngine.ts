@@ -11,6 +11,7 @@ export interface LiveCursorConfig {
   shape: 'beam' | 'block' | 'underline';
   color: string;
   themeColor: string;
+  themeStreamColors?: [string, string];
   animationLength: number;
   trailSize: number;
   vfxMode: 'pure' | 'particles' | 'glow' | 'embers' | 'ripples' | 'feather';
@@ -565,7 +566,7 @@ export class LiveCursorEngine {
     const hasParticles = this.embers.length > 0 || this.ripples.length > 0;
     const hasAura = this.typingAura > 0.01;
     const shouldBlink = this.isFocused && config.enabled && config.blinkMode !== 'solid';
-    const isFading = !this.isFocused && this.renderedAlpha > 0.01;
+    const isFading = Math.abs(this.renderedAlpha - (this.isFocused ? 1.0 : 0.6)) > 0.02;
 
     return isMoving || hasParticles || hasAura || shouldBlink || isFading;
   }
@@ -610,7 +611,9 @@ export class LiveCursorEngine {
 
     let targetIdleAlpha = 1.0;
     if (!this.isFocused) {
-      targetIdleAlpha = 0.0;
+      // 🌟 Unfocused resting state: Keep cursor comfortably visible (0.6 alpha)
+      // Never vanish into 0% alpha so the author always clearly sees their exact place!
+      targetIdleAlpha = 0.6;
     } else {
       const elapsed = (performance.now() - this.lastActivityTime) / 1000;
       
@@ -654,12 +657,24 @@ export class LiveCursorEngine {
         : config.color;
 
     // 2. Resolve stream preset palette
+    const isLuminescenceOn = config.luminescence !== false;
     const preset = config.streamPreset || 'theme';
     let headColor = baseColor;
     let midColor = baseColor;
     let tailColor = baseColor;
 
-    if (preset === 'cyan-violet') {
+    if (!isLuminescenceOn || preset === 'mono') {
+      // 🌟 经典单色物理模式：完全采用基准纯色，拖尾同色自然衰减，绝不被任何多色渐变覆盖！
+      headColor = baseColor;
+      midColor = baseColor;
+      tailColor = `${baseColor}44`;
+    } else if (preset === 'theme') {
+      // 🌟 跟随主题预制流光：优先读取主题手工调校的专属流光色对
+      const streamColors = config.themeStreamColors || [resolvedThemeColor, `${resolvedThemeColor}44`];
+      headColor = streamColors[0];
+      midColor = streamColors[0];
+      tailColor = streamColors[1];
+    } else if (preset === 'cyan-violet') {
       headColor = '#38bdf8'; midColor = '#c084fc'; tailColor = '#a78bfa';
     } else if (preset === 'ice-blue') {
       headColor = '#67e8f9'; midColor = '#38bdf8'; tailColor = '#3b82f6';
@@ -673,10 +688,6 @@ export class LiveCursorEngine {
       headColor = config.streamHeadColor || '#38bdf8';
       tailColor = config.streamTailColor || '#a78bfa';
       midColor = headColor;
-    } else if (preset === 'theme' || preset === 'mono') {
-      headColor = baseColor;
-      midColor = baseColor;
-      tailColor = baseColor;
     }
 
     // 3. The true resting & moving head color is ALWAYS headColor (Zero popping)

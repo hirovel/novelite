@@ -263,7 +263,11 @@ export class ProjectStore {
   public setActiveChapter(id: string): void {
     this.project.activeChapterId = id;
     this.save();
+    const chap = this.findChapter(id);
     eventBus.emit('active-chapter-changed', id);
+    if (chap) {
+      eventBus.emit('chapter-selected', chap);
+    }
   }
 
   public updateChapterContent(id: string, content: string): void {
@@ -279,7 +283,12 @@ export class ProjectStore {
       this.save();
     }, 400);
 
-    eventBus.emit('chapter-content-updated', { id, content, wordCount: chap.wordCount });
+    eventBus.emit('chapter-content-updated', {
+      id,
+      chapterId: id,
+      content,
+      wordCount: chap.wordCount,
+    });
   }
 
   public addVolume(title = '新建分卷'): Volume {
@@ -650,6 +659,7 @@ export class ProjectStore {
     this.save();
     eventBus.emit('chapter-content-updated', {
       id: chap.id,
+      chapterId: chap.id,
       content: chap.content,
       wordCount: chap.wordCount,
     });

@@ -1,8 +1,7 @@
 import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
-import { createFocusModeExtension, type FocusScope } from '../focus-mode/focusExtension';
-import { createTypewriterExtension, type TypewriterConfig } from '../typewriter/typewriterExtension';
-import { createDialogueHighlighterExtension, type DialogueColorPreset } from '../dialogue-highlighter/dialogueExtension';
-import { createEditorToolkitExtension } from '../editor-toolkit/editorToolkitExtension';
+import { createFocusModeExtension, type FocusScope } from './focusExtension';
+import { createTypewriterExtension, type TypewriterConfig } from './typewriterExtension';
+import { createDialogueHighlighterExtension, type DialogueColorPreset } from './dialogueExtension';
 import { eventBus } from '../../core/events/EventBus';
 
 export const ImmersionPlugin: NovelitePlugin = {
@@ -102,14 +101,19 @@ export const ImmersionPlugin: NovelitePlugin = {
         () => ({
           enabled: ctx.getSetting<boolean>('dialogueEnabled', true),
           colorPreset: ctx.getSetting<DialogueColorPreset>('dialogueColorPreset', 'theme'),
-          customColor: ctx.getSetting<string>('dialogueCustomColor', '#38bdf8'),
+          customColor: ctx.getSetting<string>('dialogueCustomColor', ''),
           highlightThoughts: ctx.getSetting<boolean>('dialogueHighlightThoughts', true),
         }),
-        () => '#38bdf8'
+        () => {
+          if (typeof document !== 'undefined') {
+            const val = document.documentElement.style.getPropertyValue('--novelite-dialogue-color');
+            if (val) return val.trim();
+            const accent = document.documentElement.style.getPropertyValue('--theme-accent');
+            if (accent) return accent.trim();
+          }
+          return '#c95738';
+        }
       ),
-
-      // 4. Editor Toolkit (shortcuts, move line, cleaner)
-      createEditorToolkitExtension(),
     ];
   },
 };

@@ -217,7 +217,8 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                             if (e.key === 'Escape') setEditingId(null);
                           }}
                           onClick={(e) => e.stopPropagation()}
-                          className="bg-black/50 border border-white/30 rounded px-1.5 py-0.5 text-xs outline-none w-full"
+                          className="border rounded px-1.5 py-0.5 text-xs outline-none w-full"
+                          style={{ backgroundColor: theme.colors.bg, borderColor: theme.colors.accent, color: theme.colors.text }}
                           autoFocus
                         />
                       ) : (
@@ -226,19 +227,19 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                     </div>
 
                     {isCur && (
-                      <span className="flex items-center gap-1 text-[9px] font-mono opacity-50 bg-white/10 px-1.5 py-0.5 rounded shrink-0">
-                        <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
+                      <span className="flex items-center gap-1 text-[9px] font-mono opacity-60 px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: `${theme.colors.accent}20`, color: theme.colors.accent }}>
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.colors.accent }} />
                         当前撰写
                       </span>
                     )}
                   </div>
 
-                  <p className="text-[10px] opacity-40 mt-1">
+                  <p className="text-[10px] opacity-50 mt-1" style={{ color: theme.colors.textMuted }}>
                     {book.chapterCount} 章节 · {book.wordCount.toLocaleString()} 字
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-white/[0.04] text-[9.5px] font-mono opacity-35">
+                <div className="flex items-center justify-between pt-2.5 mt-2 border-t text-[9.5px] font-mono opacity-50" style={{ borderColor: `${theme.colors.border}30`, color: theme.colors.textMuted }}>
                   <span>更新于 {updatedStr}</span>
 
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -248,7 +249,8 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                         setEditingId(book.id);
                         setEditTitle(book.title);
                       }}
-                      className="p-1 hover:text-white hover:bg-white/10 rounded"
+                      className="p-1 rounded opacity-70 hover:opacity-100 transition-all cursor-pointer"
+                      style={{ color: theme.colors.text }}
                       title="重命名书名"
                     >
                       <Edit3 className="h-3 w-3" />
@@ -256,7 +258,7 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                     {library.length > 1 && (
                       <button
                         onClick={(e) => handleDeleteBook(e, book.id, book.title)}
-                        className="p-1 hover:text-red-400 hover:bg-red-500/10 rounded"
+                        className="p-1 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
                         title="从书架移除"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -271,13 +273,15 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
 
         {/* Footer */}
         <div
-          className="p-2.5 px-5 border-t border-white/[0.05] flex items-center justify-between text-[10px] font-mono opacity-40 bg-black/10 shrink-0"
+          className="p-2.5 px-5 border-t flex items-center justify-between text-[10px] font-mono shrink-0"
+          style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}30`, color: theme.colors.textMuted }}
         >
           <div className="flex items-center gap-3">
             <span>点击作品卡片快速切换</span>
             <button
               onClick={handleExportToLocalDirectory}
-              className="hover:text-white hover:underline flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity"
+              className="hover:underline flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+              style={{ color: theme.colors.text }}
             >
               <Download className="h-2.5 w-2.5" />
               <span>导出当前作品到本地文件夹</span>

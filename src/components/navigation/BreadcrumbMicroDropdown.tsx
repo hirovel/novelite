@@ -74,8 +74,8 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
       >
         {/* Volume Selector Horizontal Pills */}
         <div
-          className="p-2 px-3 border-b flex items-center gap-1.5 overflow-x-auto bg-black/10 shrink-0"
-          style={{ borderColor: `${theme.colors.border}30` }}
+          className="p-2 px-3 border-b flex items-center gap-1.5 overflow-x-auto shrink-0"
+          style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}40` }}
         >
           {project.volumes.map((vol) => {
             const isVolActive = vol.id === selectedVolId;
@@ -149,7 +149,8 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
 
         {/* Footer info */}
         <div
-          className="p-2 px-4 border-t border-white/5 flex items-center justify-between text-[10px] font-mono opacity-40 bg-black/10 shrink-0"
+          className="p-2 px-4 border-t flex items-center justify-between text-[10px] font-mono opacity-50 shrink-0"
+          style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}40`, color: theme.colors.textMuted }}
         >
           <span>按 ↑ ↓ 选择 · Enter 瞬切</span>
           <span>按 Esc 退出</span>

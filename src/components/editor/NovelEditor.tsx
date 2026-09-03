@@ -9,7 +9,12 @@ import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
 import { createLiveCursorPluginExtension } from '../../plugins/live-cursor/liveCursorExtension';
-import { FloatingSearchHUD } from '../../plugins/editor-toolkit/FloatingSearchHUD';
+import { FloatingSearchHUD } from './FloatingSearchHUD';
+import {
+  formatNovelParagraphs,
+  removeLeadingIndents,
+  cleanChinesePunctuation,
+} from '../../plugins/chinese-typography/chineseTypographyToolkit';
 import { EditorBackground } from './EditorBackground';
 import type { BackgroundEffect } from './EditorBackground';
 import {
@@ -41,6 +46,12 @@ interface Props {
   blinkMode: 'smooth' | 'blink' | 'solid';
   breatheCycle: number;
   speedMode: 'gentle' | 'balanced' | 'snappy' | 'instant';
+  physicsMode?: 'fluid' | 'ribbon' | 'quantum';
+  luminescence?: boolean;
+  inlineSkew?: boolean;
+  streamPreset?: string;
+  streamHeadColor?: string;
+  streamTailColor?: string;
   backgroundEffect: BackgroundEffect;
   backgroundIntensity: number;
   customImage?: string | null;
@@ -50,6 +61,7 @@ interface Props {
   customFontName: string;
   fontSize: number;
   lineHeight: number;
+  editorTextColor?: string;
   contentMaxWidth?: number;
   spotlightMode?: 'none' | 'paragraph';
 }
@@ -58,7 +70,8 @@ function createEditorTheme(
   theme: Theme,
   backgroundEffect: BackgroundEffect = 'solid',
   backgroundIntensity: number = 0.65,
-  lineHeight: number = 1.95
+  lineHeight: number = 1.95,
+  editorTextColor?: string
 ) {
   const isRuled = backgroundEffect === 'ruled';
   const ruledAlpha = Math.max(0.15, Math.min(0.65, (backgroundIntensity || 0.65) * 0.45));
@@ -68,12 +81,16 @@ function createEditorTheme(
     ? `rgba(255, 255, 255, ${ruledAlpha})`
     : `rgba(0, 0, 0, ${ruledAlpha * 0.8})`;
 
+  const resolvedTextColor = (!editorTextColor || editorTextColor === 'auto')
+    ? theme.colors.editorText
+    : editorTextColor;
+
   return EditorView.theme({
     '&': {
       height: '100%',
       width: '100%',
       backgroundColor: 'transparent',
-      color: theme.colors.editorText,
+      color: resolvedTextColor,
       outline: 'none !important',
     },
     '.cm-scroller': {
@@ -189,6 +206,12 @@ export const NovelEditor: React.FC<Props> = ({
   blinkMode,
   breatheCycle,
   speedMode,
+  physicsMode = 'fluid',
+  luminescence = true,
+  inlineSkew = true,
+  streamPreset = 'theme',
+  streamHeadColor,
+  streamTailColor,
   backgroundEffect,
   backgroundIntensity,
   customImage,
@@ -196,7 +219,9 @@ export const NovelEditor: React.FC<Props> = ({
   customImageDim,
   fontPreset: _fontPreset,
   customFontName: _customFontName,
+  fontSize: _fontSize,
   lineHeight = 1.95,
+  editorTextColor = 'auto',
   contentMaxWidth: _contentMaxWidth,
   spotlightMode: _spotlightMode = 'paragraph',
 }) => {
@@ -242,6 +267,17 @@ export const NovelEditor: React.FC<Props> = ({
 
   const [activeChapterTitle, setActiveChapterTitle] = useState<string>('');
   const [charCount, setCharCount] = useState<number>(0);
+
+  const [isLiveCursorEnabled, setIsLiveCursorEnabled] = useState<boolean>(() => {
+    return pluginManager.isPluginEnabled('plugin-live-cursor');
+  });
+
+  useEffect(() => {
+    const unsub = eventBus.on('plugins-changed', () => {
+      setIsLiveCursorEnabled(pluginManager.isPluginEnabled('plugin-live-cursor'));
+    });
+    return unsub;
+  }, []);
 
   // Sync external boundChapterId into secondaryChapterId
   useEffect(() => {
@@ -345,21 +381,29 @@ export const NovelEditor: React.FC<Props> = ({
             initialThemeRef.current,
             backgroundEffect,
             backgroundIntensity,
-            lineHeight
+            lineHeight,
+            editorTextColor
           )
         ),
         cursorCompartmentRef.current.of(
           createLiveCursorPluginExtension(() => ({
-            enabled: true,
+            enabled: isLiveCursorEnabled,
             shape: cursorShape,
             color: cursorColor,
             themeColor: initialThemeRef.current.colors.cursor || initialThemeRef.current.colors.accent || '#a78bfa',
+            themeStreamColors: initialThemeRef.current.cursorStream,
             animationLength: cursorAnimationLength || 0.08,
             trailSize: cursorTrailSize || 0.75,
             vfxMode: (vfxMode as any) || 'pure',
             blinkMode: blinkMode || 'smooth',
             breatheCycle: breatheCycle || 1.2,
             speedMode: (speedMode as any) || 'gentle',
+            physicsMode,
+            luminescence,
+            inlineSkew,
+            streamPreset: streamPreset as any,
+            streamHeadColor,
+            streamTailColor,
             glow: true,
           }))
         ),
@@ -417,6 +461,122 @@ export const NovelEditor: React.FC<Props> = ({
       }
     });
 
+    // Wire plugin manager editor bridges for primary pane
+    if (paneId === 'primary') {
+      pluginManager.setEditorBridges({
+        getContent: () => view.state.doc.toString(),
+        setContent: (c: string) => {
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: c },
+            scrollIntoView: true,
+          });
+        },
+        getCursor: () => {
+          const head = view.state.selection.main.head;
+          const line = view.state.doc.lineAt(head);
+          return {
+            line: line.number,
+            col: head - line.from + 1,
+            from: view.state.selection.main.from,
+            to: view.state.selection.main.to,
+          };
+        },
+        insertText: (t: string) => {
+          const sel = view.state.selection.main;
+          view.dispatch({
+            changes: { from: sel.from, to: sel.to, insert: t },
+            selection: { anchor: sel.from + t.length },
+            scrollIntoView: true,
+          });
+        },
+        getActiveChapterId: () => projectStore.getActiveChapter()?.id || null,
+        getProjectData: () => projectStore.getProject(),
+        saveChapter: () => {
+          const curId = projectStore.getActiveChapter()?.id;
+          if (curId) {
+            const text = view.state.doc.toString();
+            projectStore.updateChapterContent(curId, text);
+            fileSystemStore.writeChapterDirectToDisk(curId, text);
+          }
+        },
+        showToast: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => {
+          eventBus.emit('show-toast', { message: msg, type: type || 'info' });
+        },
+      });
+    }
+
+    const unsubFormatChinese = eventBus.on('editor-action:format-chinese', () => {
+      if (!view.hasFocus && paneId !== 'primary') return;
+      const text = view.state.doc.toString();
+      const { text: formatted, count, changed } = formatNovelParagraphs(text, '2em');
+      if (changed) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: formatted },
+          scrollIntoView: true,
+        });
+        const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+        if (curTargetId) {
+          projectStore.updateChapterContent(curTargetId, formatted);
+          fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
+        }
+        eventBus.emit('show-toast', { message: `已规范本章 ${count} 处段落（段首缩进两格）`, type: 'success' });
+      } else {
+        eventBus.emit('show-toast', { message: '本章段首已全部规范（每段均已缩进两格）', type: 'info' });
+      }
+    });
+
+    const unsubRemoveIndents = eventBus.on('editor-action:remove-indents', () => {
+      if (!view.hasFocus && paneId !== 'primary') return;
+      const text = view.state.doc.toString();
+      const { text: formatted, count, changed } = removeLeadingIndents(text);
+      if (changed) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: formatted },
+          scrollIntoView: true,
+        });
+        const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+        if (curTargetId) {
+          projectStore.updateChapterContent(curTargetId, formatted);
+          fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
+        }
+        eventBus.emit('show-toast', { message: `已清除本章 ${count} 处段落缩进，恢复顶格`, type: 'success' });
+      } else {
+        eventBus.emit('show-toast', { message: '本章段落已全部顶格', type: 'info' });
+      }
+    });
+
+    const unsubCleanPunctuation = eventBus.on('editor-action:clean-punctuation', () => {
+      if (!view.hasFocus && paneId !== 'primary') return;
+      const text = view.state.doc.toString();
+      const { text: formatted, count, changed } = cleanChinesePunctuation(text);
+      if (changed) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: formatted },
+          scrollIntoView: true,
+        });
+        const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+        if (curTargetId) {
+          projectStore.updateChapterContent(curTargetId, formatted);
+          fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
+        }
+        eventBus.emit('show-toast', { message: `已规范本章 ${count} 处中文标点与引号配对`, type: 'success' });
+      } else {
+        eventBus.emit('show-toast', { message: '本章标点符号已全部规范', type: 'info' });
+      }
+    });
+
+    const unsubContentUpdated = eventBus.on('chapter-content-updated', (data: any) => {
+      const targetChapId = data?.chapterId || data?.id;
+      const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+      if (targetChapId && targetChapId === curTargetId && typeof data?.content === 'string' && view.state.doc.toString() !== data.content) {
+        const curHead = Math.min(data.content.length, view.state.selection.main.head);
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: data.content },
+          selection: { anchor: curHead },
+        });
+      }
+    });
+
     const unsubSave = eventBus.on('save-current-chapter', () => {
       const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
       if (curTargetId) {
@@ -449,6 +609,10 @@ export const NovelEditor: React.FC<Props> = ({
       unsubSelect();
       unsubFocus();
       unsubSave();
+      unsubFormatChinese();
+      unsubRemoveIndents();
+      unsubCleanPunctuation();
+      unsubContentUpdated();
       unsubTyping();
       if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
       if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
@@ -500,10 +664,13 @@ export const NovelEditor: React.FC<Props> = ({
     if (!editorView) return;
     editorView.dispatch({
       effects: themeCompartmentRef.current.reconfigure(
-        createEditorTheme(theme, backgroundEffect, backgroundIntensity, lineHeight)
+        createEditorTheme(theme, backgroundEffect, backgroundIntensity, lineHeight, editorTextColor)
       ),
     });
-  }, [theme, backgroundEffect, backgroundIntensity, lineHeight, editorView]);
+    setTimeout(() => {
+      editorView.requestMeasure();
+    }, 20);
+  }, [theme, backgroundEffect, backgroundIntensity, lineHeight, editorTextColor, editorView]);
 
   // 🌟 3. Live 灵感光标动态热重载 (0-Flicker via Compartment)
   useEffect(() => {
@@ -511,22 +678,30 @@ export const NovelEditor: React.FC<Props> = ({
     editorView.dispatch({
       effects: cursorCompartmentRef.current.reconfigure(
         createLiveCursorPluginExtension(() => ({
-          enabled: true,
+          enabled: isLiveCursorEnabled,
           shape: cursorShape,
           color: cursorColor,
           themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
+          themeStreamColors: theme.cursorStream,
           animationLength: cursorAnimationLength || 0.08,
           trailSize: cursorTrailSize || 0.75,
           vfxMode: (vfxMode as any) || 'pure',
           blinkMode: blinkMode || 'smooth',
           breatheCycle: breatheCycle || 1.2,
           speedMode: (speedMode as any) || 'gentle',
+          physicsMode,
+          luminescence,
+          inlineSkew,
+          streamPreset: streamPreset as any,
+          streamHeadColor,
+          streamTailColor,
           glow: true,
         }))
       ),
     });
   }, [
     editorView,
+    isLiveCursorEnabled,
     cursorShape,
     cursorColor,
     cursorAnimationLength,
@@ -535,6 +710,12 @@ export const NovelEditor: React.FC<Props> = ({
     blinkMode,
     breatheCycle,
     speedMode,
+    physicsMode,
+    luminescence,
+    inlineSkew,
+    streamPreset,
+    streamHeadColor,
+    streamTailColor,
     theme,
   ]);
 
@@ -562,6 +743,7 @@ export const NovelEditor: React.FC<Props> = ({
 
   // Chapter List for Quick Dropdown Selector
   const allChapters = useMemo(() => {
+    if (!isChapterDropdownOpen) return [];
     const project = projectStore.getProject();
     if (!project) return [];
     const list: { volTitle: string; chapter: { id: string; title: string; wordCount?: number } }[] = [];
@@ -652,7 +834,8 @@ export const NovelEditor: React.FC<Props> = ({
                     placeholder="搜索章节..."
                     value={chapterSearchQuery}
                     onChange={(e) => setChapterSearchQuery(e.target.value)}
-                    className="bg-transparent text-xs outline-none w-full text-neutral-200 placeholder:opacity-30"
+                    className="bg-transparent text-xs outline-none w-full placeholder:opacity-30"
+                    style={{ color: theme.colors.text }}
                     autoFocus
                   />
                 </div>
@@ -666,7 +849,7 @@ export const NovelEditor: React.FC<Props> = ({
                         key={chapter.id}
                         onClick={() => handleSelectChapter(chapter.id)}
                         className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
-                          isSelected ? 'bg-cyan-500/20 text-cyan-300 font-medium' : 'hover:bg-white/5 text-neutral-300'
+                          isSelected ? 'bg-cyan-500/20 text-cyan-300 font-medium' : 'hover:bg-white/5'
                         }`}
                       >
                         <div className="flex flex-col min-w-0 pr-2">
@@ -689,7 +872,8 @@ export const NovelEditor: React.FC<Props> = ({
                 <button
                   onClick={onSwapPanes}
                   title="左右/上下对调窗格章节 (Alt+X)"
-                  className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-50 hover:opacity-100 cursor-pointer"
+                  className="p-1 rounded-md transition-all opacity-60 hover:opacity-100 cursor-pointer"
+                  style={{ color: theme.colors.text }}
                 >
                   <ArrowLeftRight className="h-3.5 w-3.5" />
                 </button>
@@ -698,7 +882,8 @@ export const NovelEditor: React.FC<Props> = ({
                 <button
                   onClick={onToggleSplitDirection}
                   title={`切换为${splitDirection === 'vertical' ? '水平上下' : '垂直左右'}分屏`}
-                  className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-50 hover:opacity-100 cursor-pointer"
+                  className="p-1 rounded-md transition-all opacity-60 hover:opacity-100 cursor-pointer"
+                  style={{ color: theme.colors.text }}
                 >
                   {splitDirection === 'vertical' ? (
                     <Rows3 className="h-3.5 w-3.5" />
@@ -724,7 +909,12 @@ export const NovelEditor: React.FC<Props> = ({
       {/* 🌟 100% 全宽标准编辑器工作区 */}
       <div
         ref={editorWrapperRef}
-        className="relative flex-1 w-full h-full overflow-hidden"
+        onClick={() => {
+          if (editorView && !editorView.hasFocus) {
+            editorView.focus();
+          }
+        }}
+        className="relative flex-1 w-full h-full overflow-hidden cursor-text"
       >
         <div ref={editorRef} className="h-full w-full overflow-hidden" />
       </div>

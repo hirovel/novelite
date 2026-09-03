@@ -3,6 +3,7 @@ export interface Theme {
   name: string;
   nameZh: string;
   isDark: boolean;
+  cursorStream?: [string, string];
   colors: {
     bg: string;
     bgSecondary: string;

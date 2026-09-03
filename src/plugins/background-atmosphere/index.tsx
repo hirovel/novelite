@@ -67,7 +67,7 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
         const effects = hasCustom
           ? ['custom', 'solid', 'aurora', 'ruled']
           : ['solid', 'aurora', 'ruled'];
-        const current = c.getSetting('effect', 'aurora');
+        const current = (typeof localStorage !== 'undefined' && localStorage.getItem('novelite_bg_effect')) || c.getSetting('effect', 'aurora');
         const next = effects[(effects.indexOf(current) + 1) % effects.length];
         c.setSetting('effect', next);
         c.emit('background-effect-changed', next);

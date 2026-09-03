@@ -216,8 +216,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
       >
         {/* Input Bar */}
         <div
-          className="flex items-center gap-3 border-b px-5 py-4 bg-black/20"
-          style={{ borderColor: `${theme.colors.border}80` }}
+          className="flex items-center gap-3 border-b px-5 py-4"
+          style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}80` }}
         >
           <Search className="h-4 w-4 shrink-0" style={{ color: theme.colors.accent }} />
           <input
@@ -233,9 +233,9 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
             className="flex-1 bg-transparent text-sm outline-none placeholder:opacity-40 font-mono tracking-tight"
             style={{ color: theme.colors.text }}
           />
-          <div className="flex items-center gap-1.5 font-mono text-[10px] opacity-60">
-            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 shadow-xs">Esc</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 shadow-xs">↵</kbd>
+          <div className="flex items-center gap-1.5 font-mono text-[10px]">
+            <kbd className="px-1.5 py-0.5 rounded border shadow-xs" style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border, color: theme.colors.textMuted }}>Esc</kbd>
+            <kbd className="px-1.5 py-0.5 rounded border shadow-xs" style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border, color: theme.colors.textMuted }}>↵</kbd>
           </div>
         </div>
 
@@ -305,8 +305,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
 
         {/* Footer info */}
         <div
-          className="flex items-center justify-between border-t px-5 py-2.5 text-[10px] font-mono opacity-50 bg-black/30"
-          style={{ borderColor: `${theme.colors.border}80` }}
+          className="flex items-center justify-between border-t px-5 py-2.5 text-[10px] font-mono opacity-60"
+          style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}80`, color: theme.colors.textMuted }}
         >
           <div className="flex items-center gap-3">
             <span>↑↓ 切换选择</span>

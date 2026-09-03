@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { THEMES, DEFAULT_THEME_ID } from './core/themes/themeDefinitions';
 import type { Theme } from './core/themes/types';
 import { NovelEditor } from './components/editor/NovelEditor';
@@ -118,6 +118,18 @@ export const App: React.FC = () => {
   });
   const [lineHeight, setLineHeight] = useState<number>(() => {
     return Number(localStorage.getItem('novelite_line_height')) || 1.95;
+  });
+  const [editorTextColor, setEditorTextColor] = useState<string>(() => {
+    return localStorage.getItem('novelite_editor_text_color') || 'auto';
+  });
+  const [uiAccentColor, setUiAccentColor] = useState<string>(() => {
+    return localStorage.getItem('novelite_ui_accent_color') || 'auto';
+  });
+  const [dialogueColor, setDialogueColor] = useState<string>(() => {
+    return localStorage.getItem('novelite_dialogue_color') || 'auto';
+  });
+  const [dialogueEnabled, setDialogueEnabled] = useState<boolean>(() => {
+    return localStorage.getItem('novelite_dialogue_enabled') !== 'false';
   });
   const [contentMaxWidth, setContentMaxWidth] = useState<number>(() => {
     return Number(localStorage.getItem('novelite_content_max_width')) || 780;
@@ -243,9 +255,14 @@ export const App: React.FC = () => {
     return active?.id || null;
   });
 
-  const handleSwapPanes = () => {
+  const secondaryChapterIdRef = useRef(secondaryChapterId);
+  useEffect(() => {
+    secondaryChapterIdRef.current = secondaryChapterId;
+  }, [secondaryChapterId]);
+
+  const handleSwapPanes = useCallback(() => {
     const primaryChap = projectStore.getActiveChapter();
-    const secId = secondaryChapterId;
+    const secId = secondaryChapterIdRef.current;
     if (!primaryChap || !secId || primaryChap.id === secId) return;
 
     const oldPrimaryId = primaryChap.id;
@@ -255,7 +272,7 @@ export const App: React.FC = () => {
     localStorage.setItem('novelite_split_secondary_chapter', oldPrimaryId);
     projectStore.setActiveChapter(oldSecId);
     eventBus.emit('show-toast', { message: '左右/上下分屏章节已对调', type: 'info' });
-  };
+  }, []);
 
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
@@ -290,6 +307,42 @@ export const App: React.FC = () => {
     // Initialize previously installed community and custom JS plugins
     dynamicPluginLoader.init();
   }, []);
+
+  const effectiveAccent = (uiAccentColor && uiAccentColor !== 'auto') ? uiAccentColor : theme.colors.accent;
+
+  const effectiveDialogueColor = !dialogueEnabled
+    ? 'inherit'
+    : (dialogueColor && dialogueColor !== 'auto')
+      ? dialogueColor
+      : (!theme.isDark
+          ? (theme.id === 'paper-parchment' ? '#c95738' : '#292524')
+          : (effectiveAccent || '#8b5cf6'));
+
+  // 🌟 Universal Theme Tokens Injection on documentElement
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--theme-bg', theme.colors.bg);
+    root.style.setProperty('--theme-bg-secondary', theme.colors.bgSecondary);
+    root.style.setProperty('--theme-bg-hover', theme.colors.bgHover);
+    root.style.setProperty('--theme-text', theme.colors.text);
+    root.style.setProperty('--theme-text-muted', theme.colors.textMuted);
+    root.style.setProperty('--theme-border', theme.colors.border);
+    root.style.setProperty('--theme-accent', effectiveAccent);
+    root.style.setProperty('--theme-accent-glow', `${effectiveAccent}40`);
+    root.style.setProperty('--theme-cursor', theme.colors.cursor);
+    root.style.setProperty('--theme-selection', theme.colors.selection);
+    root.style.setProperty('--theme-editor-bg', theme.colors.editorBg);
+    root.style.setProperty(
+      '--theme-editor-text',
+      editorTextColor !== 'auto' && editorTextColor ? editorTextColor : theme.colors.editorText
+    );
+    root.style.setProperty('--theme-statusbar-bg', theme.colors.statusbarBg);
+    root.style.setProperty('--theme-statusbar-text', theme.colors.statusbarText);
+    root.style.setProperty('--novelite-dialogue-color', effectiveDialogueColor);
+    root.setAttribute('data-theme', theme.id);
+    root.setAttribute('data-theme-mode', theme.isDark ? 'dark' : 'light');
+    root.style.colorScheme = theme.isDark ? 'dark' : 'light';
+  }, [theme, editorTextColor, effectiveAccent, effectiveDialogueColor, dialogueEnabled]);
 
   // Update cursor settings into plugin manager
   useEffect(() => {
@@ -378,6 +431,13 @@ export const App: React.FC = () => {
       }
     });
 
+    const unsubFontSize = eventBus.on('font-size-changed', (newSize: any) => {
+      if (typeof newSize === 'number') {
+        setFontSize(newSize);
+        localStorage.setItem('novelite_font_size', String(newSize));
+      }
+    });
+
     const unsubTypo = eventBus.on('plugin-setting-changed:plugin-chinese-typography', ({ key, value }: any) => {
       if (key === 'indentEnabled' && typeof value === 'boolean') {
         setIndentEnabled(value);
@@ -388,16 +448,39 @@ export const App: React.FC = () => {
       }
     });
 
-    const unsubTypewriter = eventBus.on('plugin-setting-changed:plugin-typewriter', ({ key, value }: any) => {
-      if (key === 'enabled' && typeof value === 'boolean') {
+    const unsubImmersion = eventBus.on('plugin-setting-changed:plugin-immersion', ({ key, value }: any) => {
+      if (key === 'typewriterEnabled' && typeof value === 'boolean') {
         setTypewriterEnabled(value);
         localStorage.setItem('novelite_typewriter_enabled', String(value));
-      } else if (key === 'anchorRatio' && typeof value === 'number') {
+      } else if (key === 'typewriterAnchorRatio' && typeof value === 'number') {
         setTypewriterRatio(value);
         localStorage.setItem('novelite_typewriter_ratio', String(value));
-      } else if (key === 'speedMode' && typeof value === 'string') {
+      } else if (key === 'typewriterSpeedMode' && typeof value === 'string') {
         setTypewriterSpeed(value as any);
         localStorage.setItem('novelite_typewriter_speed', value);
+      } else if (key === 'dialogueEnabled' && typeof value === 'boolean') {
+        setDialogueEnabled(value);
+        localStorage.setItem('novelite_dialogue_enabled', String(value));
+      } else if (key === 'focusEnabled' && typeof value === 'boolean') {
+        setSpotlightMode(value ? 'paragraph' : 'none');
+        localStorage.setItem('novelite_spotlight_mode', value ? 'paragraph' : 'none');
+      }
+    });
+
+    const unsubBgEffect = eventBus.on('background-effect-changed', (effect: any) => {
+      if (effect && typeof effect === 'string') {
+        setBackgroundEffect(effect as BackgroundEffect);
+        localStorage.setItem('novelite_bg_effect', effect);
+      }
+    });
+
+    const unsubBgPlugin = eventBus.on('plugin-setting-changed:plugin-background-atmosphere', ({ key, value }: any) => {
+      if (key === 'effect' && typeof value === 'string') {
+        setBackgroundEffect(value as BackgroundEffect);
+        localStorage.setItem('novelite_bg_effect', value);
+      } else if (key === 'intensity' && typeof value === 'number') {
+        setBackgroundIntensity(value);
+        localStorage.setItem('novelite_bg_intensity', String(value));
       }
     });
 
@@ -425,12 +508,13 @@ export const App: React.FC = () => {
       }
     });
 
-    const unsubChapContent = eventBus.on('chapter-content-updated', ({ chapterId, content }: any) => {
+    const unsubChapContent = eventBus.on('chapter-content-updated', (data: any) => {
+      const targetChapId = data?.chapterId || data?.id;
       const active = projectStore.getActiveChapter();
-      if (active && active.id === chapterId) {
+      if (active && targetChapId && active.id === targetChapId && typeof data?.content === 'string') {
         setHudStats({
           title: active.title || '未命名章节',
-          wordCount: countWordsFast(content || ''),
+          wordCount: countWordsFast(data.content),
           isSaving: false,
         });
       }
@@ -441,8 +525,11 @@ export const App: React.FC = () => {
       unsubTheme();
       unsubVfx();
       unsubPhysics();
+      unsubFontSize();
       unsubTypo();
-      unsubTypewriter();
+      unsubImmersion();
+      unsubBgEffect();
+      unsubBgPlugin();
       unsubTyping();
       unsubChapSelect();
       unsubChapContent();
@@ -495,7 +582,7 @@ export const App: React.FC = () => {
       unsubSettings();
       unsubCloseAll();
     };
-  }, []);
+  }, [handleSwapPanes]);
 
   const handleSelectTheme = (id: string) => {
     setThemeId(id);
@@ -530,6 +617,40 @@ export const App: React.FC = () => {
   const handleChangeLineHeight = (height: number) => {
     setLineHeight(height);
     localStorage.setItem('novelite_line_height', String(height));
+  };
+
+  const handleChangeEditorTextColor = (color: string) => {
+    setEditorTextColor(color);
+    localStorage.setItem('novelite_editor_text_color', color);
+  };
+
+  const handleChangeUiAccentColor = (color: string) => {
+    setUiAccentColor(color);
+    localStorage.setItem('novelite_ui_accent_color', color);
+  };
+
+  const handleChangeDialogueColor = (color: string) => {
+    setDialogueColor(color);
+    localStorage.setItem('novelite_dialogue_color', color);
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
+    if (color === 'auto') {
+      ctx?.setSetting('dialogueColorPreset', 'theme');
+    } else {
+      ctx?.setSetting('dialogueColorPreset', 'custom');
+      ctx?.setSetting('dialogueCustomColor', color);
+    }
+    eventBus.emit('editor-extensions-changed');
+  };
+
+  const handleToggleDialogue = () => {
+    setDialogueEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('novelite_dialogue_enabled', String(next));
+      const ctx = pluginManager.getPluginContext('plugin-immersion');
+      ctx?.setSetting('dialogueEnabled', next);
+      eventBus.emit('editor-extensions-changed');
+      return next;
+    });
   };
 
   const handleChangeContentMaxWidth = (width: number) => {
@@ -656,11 +777,15 @@ export const App: React.FC = () => {
   const handleChangeBackgroundEffect = (eff: BackgroundEffect) => {
     setBackgroundEffect(eff);
     localStorage.setItem('novelite_bg_effect', eff);
+    const ctx = pluginManager.getPluginContext('plugin-background-atmosphere');
+    ctx?.setSetting('effect', eff);
   };
 
   const handleChangeBackgroundIntensity = (intensity: number) => {
     setBackgroundIntensity(intensity);
     localStorage.setItem('novelite_bg_intensity', String(intensity));
+    const ctx = pluginManager.getPluginContext('plugin-background-atmosphere');
+    ctx?.setSetting('intensity', intensity);
   };
 
   const handleChangeCustomImage = (img: string | null) => {
@@ -785,6 +910,12 @@ export const App: React.FC = () => {
             blinkMode={blinkMode}
             breatheCycle={breatheCycle}
             speedMode={speedMode}
+            physicsMode={physicsMode}
+            luminescence={luminescence}
+            inlineSkew={inlineSkew}
+            streamPreset={streamPreset}
+            streamHeadColor={streamHeadColor}
+            streamTailColor={streamTailColor}
             backgroundEffect={backgroundEffect}
             backgroundIntensity={backgroundIntensity}
             customImage={customImage}
@@ -794,6 +925,7 @@ export const App: React.FC = () => {
             customFontName={customFontName}
             fontSize={fontSize}
             lineHeight={lineHeight}
+            editorTextColor={editorTextColor}
             contentMaxWidth={contentMaxWidth}
             spotlightMode={spotlightMode}
           />
@@ -854,6 +986,12 @@ export const App: React.FC = () => {
               blinkMode={blinkMode}
               breatheCycle={breatheCycle}
               speedMode={speedMode}
+              physicsMode={physicsMode}
+              luminescence={luminescence}
+              inlineSkew={inlineSkew}
+              streamPreset={streamPreset}
+              streamHeadColor={streamHeadColor}
+              streamTailColor={streamTailColor}
               backgroundEffect={backgroundEffect}
               backgroundIntensity={backgroundIntensity}
               customImage={customImage}
@@ -863,6 +1001,7 @@ export const App: React.FC = () => {
               customFontName={customFontName}
               fontSize={fontSize}
               lineHeight={lineHeight}
+              editorTextColor={editorTextColor}
               contentMaxWidth={contentMaxWidth}
               spotlightMode={spotlightMode}
             />
@@ -919,11 +1058,12 @@ export const App: React.FC = () => {
           </span>
 
           {/* Micro Action Dock (Clean 2-button: Command Palette & Settings) */}
-          <div className="flex items-center gap-1 pl-1.5 border-l border-white/10 ml-0.5">
+          <div className="flex items-center gap-1 pl-1.5 border-l ml-0.5" style={{ borderColor: `${theme.colors.border}60` }}>
             <button
               onClick={() => setIsCommandPaletteOpen(true)}
               title="命令面板 (Ctrl+P / ⌘K)"
-              className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-60 hover:opacity-100 cursor-pointer"
+              className="p-1 rounded-md opacity-60 hover:opacity-100 transition-all cursor-pointer"
+              style={{ color: theme.colors.text }}
             >
               <Command className="h-3.5 w-3.5" />
             </button>
@@ -931,7 +1071,8 @@ export const App: React.FC = () => {
             <button
               onClick={() => setIsSettingsOpen(true)}
               title="偏好设置 (Ctrl+, / ⌘,)"
-              className="p-1 hover:text-white rounded-md hover:bg-white/10 transition-all opacity-60 hover:opacity-100 cursor-pointer"
+              className="p-1 rounded-md opacity-60 hover:opacity-100 transition-all cursor-pointer"
+              style={{ color: theme.colors.text }}
             >
               <Settings className="h-3.5 w-3.5" />
             </button>
@@ -956,14 +1097,20 @@ export const App: React.FC = () => {
       {/* Command Palette */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
+        onClose={() => {
+          setIsCommandPaletteOpen(false);
+          setTimeout(() => eventBus.emit('split-view:focus-pane', 'primary'), 40);
+        }}
         theme={theme}
       />
 
       {/* Settings Drawer */}
       <SettingsDrawer
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={() => {
+          setIsSettingsOpen(false);
+          setTimeout(() => eventBus.emit('split-view:focus-pane', 'primary'), 40);
+        }}
         theme={theme}
         onSelectTheme={handleSelectTheme}
         cursorShape={cursorShape}
@@ -1016,6 +1163,14 @@ export const App: React.FC = () => {
         onChangeFontSize={handleChangeFontSize}
         lineHeight={lineHeight}
         onChangeLineHeight={handleChangeLineHeight}
+        editorTextColor={editorTextColor}
+        onChangeEditorTextColor={handleChangeEditorTextColor}
+        uiAccentColor={uiAccentColor}
+        onChangeUiAccentColor={handleChangeUiAccentColor}
+        dialogueColor={dialogueColor}
+        onChangeDialogueColor={handleChangeDialogueColor}
+        dialogueEnabledProp={dialogueEnabled}
+        onToggleDialogueProp={handleToggleDialogue}
         contentMaxWidth={contentMaxWidth}
         onChangeContentMaxWidth={handleChangeContentMaxWidth}
         horizontalPadding={horizontalPadding}

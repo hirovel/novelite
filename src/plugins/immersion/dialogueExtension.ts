@@ -1,16 +1,17 @@
 import type { Extension } from '@codemirror/state';
 import { MatchDecorator, ViewPlugin, Decoration, type DecorationSet, EditorView, type ViewUpdate } from '@codemirror/view';
 
-export type DialogueColorPreset = 'theme' | 'cyan' | 'amber' | 'emerald' | 'rose' | 'violet' | 'gold' | 'custom';
+export type DialogueColorPreset = 'theme' | 'cinnabar' | 'ink' | 'amber' | 'emerald' | 'azure' | 'violet' | 'white' | 'custom';
 
 export const DIALOGUE_COLOR_MAP: Record<Exclude<DialogueColorPreset, 'custom'>, { name: string; hex: string }> = {
-  theme: { name: '跟随主题', hex: '#38bdf8' },
-  cyan: { name: '淡青', hex: '#38bdf8' },
-  amber: { name: '暖黄', hex: '#fbbf24' },
-  emerald: { name: '淡绿', hex: '#34d399' },
-  rose: { name: '粉红', hex: '#fb7185' },
-  violet: { name: '柔紫', hex: '#a78bfa' },
-  gold: { name: '淡金', hex: '#f59e0b' },
+  theme: { name: '跟随主题', hex: 'var(--theme-accent, #c95738)' },
+  cinnabar: { name: '朱砂赤羽', hex: '#c95738' },
+  ink: { name: '水墨玄石', hex: '#292524' },
+  amber: { name: '暖褐琥珀', hex: '#d97706' },
+  emerald: { name: '青瓷墨绿', hex: '#0f766e' },
+  azure: { name: '深海霁蓝', hex: '#1d4ed8' },
+  violet: { name: '紫藤微光', hex: '#7c3aed' },
+  white: { name: '纯白高光', hex: '#ffffff' },
 };
 
 export interface DialogueHighlighterConfig {
@@ -86,13 +87,13 @@ export function createDialogueHighlighterExtension(
     const config = getConfig();
     if (!config.enabled) return null;
 
-    let targetHex = '#38bdf8';
+    let targetHex = 'var(--novelite-dialogue-color, var(--theme-accent, #c95738))';
     if (config.colorPreset === 'custom' && config.customColor) {
       targetHex = config.customColor;
     } else if (config.colorPreset === 'theme') {
       const themeAcc = getThemeAccent?.();
       if (themeAcc) targetHex = themeAcc;
-      else targetHex = '#38bdf8';
+      else targetHex = 'var(--novelite-dialogue-color, var(--theme-accent, #c95738))';
     } else if (config.colorPreset in DIALOGUE_COLOR_MAP) {
       targetHex = DIALOGUE_COLOR_MAP[config.colorPreset as keyof typeof DIALOGUE_COLOR_MAP].hex;
     }
@@ -104,12 +105,12 @@ export function createDialogueHighlighterExtension(
 
   const theme = EditorView.theme({
     '.cm-dialogue-quote': {
-      color: 'var(--novelite-dialogue-color, #38bdf8) !important',
+      color: 'var(--novelite-dialogue-color, var(--theme-accent, #c95738)) !important',
       fontWeight: '500',
       transition: 'color 0.15s ease',
     },
     '.cm-dialogue-thought': {
-      color: 'var(--novelite-dialogue-color, #38bdf8) !important',
+      color: 'var(--novelite-dialogue-color, var(--theme-accent, #c95738)) !important',
       opacity: '0.85',
       fontStyle: 'italic',
       transition: 'color 0.15s ease, opacity 0.15s ease',

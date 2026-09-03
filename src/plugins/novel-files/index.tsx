@@ -1,7 +1,7 @@
 import React from 'react';
 import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
 import { NovelTree } from '../../components/sidebar/NovelTree';
-import { WordCounterWidget } from '../word-counter/WordCounterWidget';
+import { WordCounterWidget } from '../immersion/WordCounterWidget';
 
 export const NovelFilesPlugin: NovelitePlugin = {
   metadata: {

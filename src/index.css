@@ -61,3 +61,28 @@
   background-color: transparent !important;
   color: inherit !important;
 }
+
+/* 🎨 Theme-aware adaptive utility classes */
+.theme-text {
+  color: var(--theme-text) !important;
+}
+
+.theme-text-muted {
+  color: var(--theme-text-muted) !important;
+}
+
+.theme-border {
+  border-color: var(--theme-border) !important;
+}
+
+.theme-bg {
+  background-color: var(--theme-bg) !important;
+}
+
+.theme-bg-secondary {
+  background-color: var(--theme-bg-secondary) !important;
+}
+
+.theme-hover:hover {
+  background-color: var(--theme-bg-hover) !important;
+}

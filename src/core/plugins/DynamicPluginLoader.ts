@@ -1,5 +1,4 @@
 import { pluginManager } from './PluginManager';
-import { AVAILABLE_COMMUNITY_PLUGINS } from './communityPlugins';
 import type { NovelitePlugin } from './types';
 import { eventBus } from '../events/EventBus';
 
@@ -15,7 +14,6 @@ export interface CustomPluginEntry {
 
 class DynamicPluginLoaderService {
   private static instance: DynamicPluginLoaderService;
-  private installedCommunityIds: Set<string> = new Set();
   private customPlugins: Map<string, CustomPluginEntry> = new Map();
 
   private constructor() {
@@ -31,14 +29,6 @@ class DynamicPluginLoaderService {
 
   private loadState() {
     try {
-      const commSaved = localStorage.getItem('novelite_installed_community_plugins');
-      if (commSaved) {
-        const ids = JSON.parse(commSaved);
-        if (Array.isArray(ids)) {
-          this.installedCommunityIds = new Set(ids);
-        }
-      }
-
       const customSaved = localStorage.getItem('novelite_custom_plugins_code');
       if (customSaved) {
         const list: CustomPluginEntry[] = JSON.parse(customSaved);
@@ -55,72 +45,22 @@ class DynamicPluginLoaderService {
 
   private saveState() {
     localStorage.setItem(
-      'novelite_installed_community_plugins',
-      JSON.stringify(Array.from(this.installedCommunityIds))
-    );
-    localStorage.setItem(
       'novelite_custom_plugins_code',
       JSON.stringify(Array.from(this.customPlugins.values()))
     );
   }
 
   /**
-   * Initializes and dynamically registers all previously installed plugins on startup.
+   * Initializes and dynamically registers all custom JS plugins on startup.
    */
   public init() {
-    // 1. Mount installed community plugins
-    for (const plugin of AVAILABLE_COMMUNITY_PLUGINS) {
-      if (this.installedCommunityIds.has(plugin.metadata.id)) {
-        pluginManager.registerPlugin(plugin);
-      }
-    }
-
-    // 2. Mount installed custom JS plugins
     for (const custom of this.customPlugins.values()) {
       this.executeAndRegisterCustomPlugin(custom.code);
     }
   }
 
   /**
-   * Returns whether a community plugin is currently installed.
-   */
-  public isCommunityPluginInstalled(id: string): boolean {
-    return this.installedCommunityIds.has(id);
-  }
-
-  /**
-   * Installs a verified community plugin.
-   */
-  public installCommunityPlugin(id: string): boolean {
-    const found = AVAILABLE_COMMUNITY_PLUGINS.find((p) => p.metadata.id === id);
-    if (!found) return false;
-
-    this.installedCommunityIds.add(id);
-    this.saveState();
-
-    pluginManager.registerPlugin(found);
-    eventBus.emit('editor-extensions-changed');
-    eventBus.emit('plugins-changed');
-    return true;
-  }
-
-  /**
-   * Uninstalls a community plugin.
-   */
-  public uninstallCommunityPlugin(id: string): boolean {
-    if (!this.installedCommunityIds.has(id)) return false;
-
-    this.installedCommunityIds.delete(id);
-    this.saveState();
-
-    pluginManager.unregisterPlugin(id);
-    return true;
-  }
-
-  /**
    * Safely evaluates and registers a custom JavaScript plugin.
-   *
-   * @param code The JavaScript source code defining a NovelitePlugin object.
    */
   public executeAndRegisterCustomPlugin(code: string): { success: boolean; error?: string; plugin?: NovelitePlugin } {
     try {
@@ -128,7 +68,7 @@ class DynamicPluginLoaderService {
       if (sanitized.includes('export default')) {
         sanitized = sanitized.replace(/export\s+default\s+/, 'return ');
       }
-      
+
       const wrapped = new Function(`
         "use strict";
         const module = { exports: {} };

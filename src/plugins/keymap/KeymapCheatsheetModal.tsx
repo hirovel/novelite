@@ -16,6 +16,9 @@ import {
   Sliders,
 } from 'lucide-react';
 import { keymapRegistry } from '../../core/keymap/KeymapRegistry';
+import { commandRegistry } from '../../core/plugins/CommandRegistry';
+import { pluginManager } from '../../core/plugins/PluginManager';
+import { projectStore } from '../../core/storage/ProjectStore';
 import type { KeybindingCategory, KeybindingItem } from '../../core/keymap/types';
 import type { Theme } from '../../core/themes/types';
 import { eventBus } from '../../core/events/EventBus';
@@ -169,65 +172,106 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
     onClose();
     if (item.run) {
       item.run();
-    } else {
-      // Simulate trigger via global dispatcher
-      eventBus.emit(`keymap:trigger:${item.id}`);
-      switch (item.id) {
-        case 'split:toggle':
-          eventBus.emit('split-view:toggle');
-          break;
-        case 'split:focus-toggle':
-          eventBus.emit('split-view:focus-pane', 'toggle');
-          break;
-        case 'split:focus-primary':
-          eventBus.emit('split-view:focus-pane', 'primary');
-          break;
-        case 'split:focus-secondary':
-          eventBus.emit('split-view:focus-pane', 'secondary');
-          break;
-        case 'split:swap-panes':
-          eventBus.emit('split-view:swap');
-          break;
-        case 'literary:save-chapter':
-          eventBus.emit('save-current-chapter');
-          break;
-        case 'literary:format-chinese':
-          eventBus.emit('editor-action:format-chinese');
-          break;
-        case 'literary:toggle-spotlight':
-          eventBus.emit('editor-action:toggle-spotlight');
-          break;
-        case 'literary:toggle-dialogue':
-          eventBus.emit('editor-action:toggle-dialogue');
-          break;
-        case 'literary:quick-export':
-          eventBus.emit('quick-export:open');
-          break;
-        case 'view:toggle-zen':
-          eventBus.emit('zen-mode:toggle');
-          break;
-        case 'view:open-settings':
-          eventBus.emit('settings:open');
-          break;
-        case 'search:toggle-hud':
-          eventBus.emit('search-hud:toggle');
-          break;
-        case 'nav:command-palette':
-          eventBus.emit('command-palette:toggle');
-          break;
-        case 'nav:flight-deck':
-          eventBus.emit('quick-search:open');
-          break;
-        case 'nav:bookshelf':
-          eventBus.emit('bookshelf:open');
-          break;
-        case 'nav:prev-chapter':
-          eventBus.emit('chapter:navigate-prev');
-          break;
-        case 'nav:next-chapter':
-          eventBus.emit('chapter:navigate-next');
-          break;
+      return;
+    }
+
+    const cmd = commandRegistry.get(item.id);
+    if (cmd) {
+      const targetId = cmd.pluginId || cmd.id;
+      const ctx = pluginManager.getPluginContext(targetId) || pluginManager.createPluginContext(targetId);
+      cmd.run(ctx);
+      return;
+    }
+
+    // Fallback switch
+    switch (item.id) {
+      case 'split:toggle':
+        eventBus.emit('split-view:toggle');
+        break;
+      case 'split:focus-toggle':
+        eventBus.emit('split-view:focus-pane', 'toggle');
+        break;
+      case 'split:focus-primary':
+        eventBus.emit('split-view:focus-pane', 'primary');
+        break;
+      case 'split:focus-secondary':
+        eventBus.emit('split-view:focus-pane', 'secondary');
+        break;
+      case 'split:swap-panes':
+        eventBus.emit('split-view:swap');
+        break;
+      case 'literary:save-chapter':
+        eventBus.emit('save-current-chapter');
+        break;
+      case 'literary:format-chinese':
+        eventBus.emit('editor-action:format-chinese');
+        break;
+      case 'focus:toggle':
+      case 'literary:toggle-spotlight': {
+        const ctx = pluginManager.getPluginContext('plugin-immersion');
+        const current = ctx?.getSetting<boolean>('focusEnabled', false) ?? false;
+        const next = !current;
+        ctx?.setSetting('focusEnabled', next);
+        eventBus.emit('editor-extensions-changed');
+        ctx?.showToast(next ? '已开启专注聚光灯' : '已关闭专注聚光灯', 'info');
+        break;
       }
+      case 'focus:toggle-scope': {
+        const ctx = pluginManager.getPluginContext('plugin-immersion');
+        const scopes = ['paragraph', 'sentence', 'horizon'] as const;
+        const names = { paragraph: '当前逻辑段落', sentence: '当前单句推敲', horizon: '三行微光渐变' };
+        const current = ctx?.getSetting<(typeof scopes)[number]>('focusScope', 'paragraph') || 'paragraph';
+        const next = scopes[(scopes.indexOf(current) + 1) % scopes.length];
+        ctx?.setSetting('focusScope', next);
+        eventBus.emit('editor-extensions-changed');
+        ctx?.showToast(`聚光范围: ${names[next] || next}`, 'info');
+        break;
+      }
+      case 'literary:toggle-dialogue': {
+        const ctx = pluginManager.getPluginContext('plugin-immersion');
+        const current = ctx?.getSetting<boolean>('dialogueEnabled', true) ?? true;
+        const next = !current;
+        ctx?.setSetting('dialogueEnabled', next);
+        eventBus.emit('editor-extensions-changed');
+        ctx?.showToast(next ? '已开启台词高亮' : '已关闭台词高亮', 'info');
+        break;
+      }
+      case 'literary:quick-export': {
+        const ctx = pluginManager.getPluginContext('plugin-novel-files');
+        const exportCmd = commandRegistry.get('novel.export-txt');
+        if (exportCmd && ctx) exportCmd.run(ctx);
+        break;
+      }
+      case 'view:toggle-zen':
+        eventBus.emit('zen-mode:toggle');
+        break;
+      case 'view:open-settings':
+        eventBus.emit('settings-drawer:open');
+        break;
+      case 'search:toggle-hud':
+        eventBus.emit('open-floating-search', { mode: 'search' });
+        break;
+      case 'search:replace-hud':
+        eventBus.emit('open-floating-search', { mode: 'replace' });
+        break;
+      case 'nav:command-palette':
+        eventBus.emit('command-palette:toggle');
+        break;
+      case 'nav:flight-deck':
+        eventBus.emit('quick-search:open');
+        break;
+      case 'nav:bookshelf':
+        eventBus.emit('bookshelf:open');
+        break;
+      case 'nav:prev-chapter':
+        projectStore.navigateToPrevChapter();
+        break;
+      case 'nav:next-chapter':
+        projectStore.navigateToNextChapter();
+        break;
+      default:
+        eventBus.emit(`keymap:trigger:${item.id}`);
+        break;
     }
   };
 

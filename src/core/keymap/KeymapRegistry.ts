@@ -1,6 +1,7 @@
 import { DEFAULT_KEYMAPS } from './defaultKeymaps';
 import type { KeybindingCategory, KeybindingItem } from './types';
 import { eventBus } from '../events/EventBus';
+import { commandRegistry } from '../plugins/CommandRegistry';
 
 const STORAGE_KEY = 'novelite_custom_keybindings';
 
@@ -56,6 +57,28 @@ export class KeymapRegistry {
    * Register a new or plugin-contributed keybinding
    */
   public register(item: Omit<KeybindingItem, 'currentKey' | 'isCustomized'> & { defaultKey: string }): () => void {
+    // 🌟 Check if an existing binding matches by id, alias, or colon/dot notation
+    const alias = commandRegistry.getAlias(item.id);
+    let existing = this.keybindings.get(item.id);
+    if (!existing && alias) {
+      existing = this.keybindings.get(alias);
+    }
+    if (!existing) {
+      const asColon = item.id.replace(/\./g, ':');
+      const asDot = item.id.replace(/:/g, '.');
+      existing = this.keybindings.get(asColon) || this.keybindings.get(asDot);
+    }
+
+    // If an existing binding exists, attach the runnable action directly rather than creating a duplicate
+    if (existing) {
+      if (item.run) existing.run = item.run;
+      this.notify();
+      return () => {
+        if (existing.run === item.run) existing.run = undefined;
+        this.notify();
+      };
+    }
+
     const custom = this.customOverrides[item.id];
     const fullItem: KeybindingItem = {
       ...item,
@@ -208,6 +231,8 @@ export class KeymapRegistry {
     const hasShift = e.shiftKey;
     const actualKey = e.key.toLowerCase();
 
+    let matchedFallback: KeybindingItem | undefined = undefined;
+
     for (const item of this.getAll()) {
       const parts = item.currentKey.split('+').map((s) => s.trim().toLowerCase());
       const needsCtrl = parts.includes('ctrl') || parts.includes('control') || parts.includes('cmd') || parts.includes('meta');
@@ -234,11 +259,17 @@ export class KeymapRegistry {
         (targetKey === '=' && (actualKey === '=' || actualKey === '+')) ||
         (targetKey === '-' && (actualKey === '-' || actualKey === '_'))
       ) {
-        return item;
+        // If this binding has a direct run action or matches a registered command, return it with top priority!
+        if (item.run || commandRegistry.get(item.id)) {
+          return item;
+        }
+        if (!matchedFallback) {
+          matchedFallback = item;
+        }
       }
     }
 
-    return undefined;
+    return matchedFallback;
   }
 
   /**

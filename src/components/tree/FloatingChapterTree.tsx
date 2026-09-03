@@ -414,7 +414,10 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
               <button
                 onClick={() => {
                   const targetVol = project.volumes[0];
-                  targetVol.isExpanded = true;
+                  setProject((prev) => ({
+                    ...prev,
+                    volumes: prev.volumes.map((v, idx) => (idx === 0 ? { ...v, isExpanded: true } : v)),
+                  }));
                   setInlineNewChap({ volId: targetVol.id });
                   setNewChapTitle(`第 ${(targetVol.chapters.length || 0) + 1} 章`);
                 }}
@@ -496,8 +499,8 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
         {/* 2. Fast Search Bar */}
         <div className="px-3 py-2 border-b shrink-0" style={{ borderColor: `${theme.colors.border}20` }}>
           <div
-            className="flex items-center gap-2 px-2.5 py-1 rounded-lg border bg-black/15 focus-within:border-white/20 transition-colors"
-            style={{ borderColor: `${theme.colors.border}40` }}
+            className="flex items-center gap-2 px-2.5 py-1 rounded-lg border transition-colors"
+            style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}60` }}
           >
             <Search className="h-3 w-3 opacity-35 shrink-0" />
             <input
@@ -569,8 +572,8 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                           if (e.key === 'Escape') setEditingId(null);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-black/40 border border-white/20 rounded px-1.5 py-0.2 text-xs font-medium outline-none w-full"
-                        style={{ color: theme.colors.text }}
+                        className="border rounded px-1.5 py-0.2 text-xs font-medium outline-none w-full"
+                        style={{ backgroundColor: theme.colors.bg, borderColor: theme.colors.accent, color: theme.colors.text }}
                       />
                     ) : (
                       <span
@@ -682,8 +685,8 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                                     if (e.key === 'Escape') setEditingId(null);
                                   }}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="bg-black/40 border border-white/20 rounded px-1 py-0.2 text-xs outline-none w-full"
-                                  style={{ color: theme.colors.text }}
+                                  className="border rounded px-1 py-0.2 text-xs outline-none w-full"
+                                  style={{ backgroundColor: theme.colors.bg, borderColor: theme.colors.accent, color: theme.colors.text }}
                                 />
                               ) : (
                                 <span
@@ -788,8 +791,8 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
 
         {/* 4. Footer: Status & New Volume Button */}
         <div
-          className="flex items-center justify-between border-t px-3.5 py-2.5 bg-black/10 shrink-0"
-          style={{ borderColor: `${theme.colors.border}30` }}
+          className="flex items-center justify-between border-t px-3.5 py-2.5 shrink-0"
+          style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}30`, color: theme.colors.textMuted }}
         >
           <span className="text-[10px] font-mono opacity-40">
             {project.volumes.length} 卷 · {totalChapters} 章 · {totalWords.toLocaleString()} 字

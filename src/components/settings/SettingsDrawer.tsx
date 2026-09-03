@@ -18,15 +18,10 @@ import {
   ChevronRight,
   Focus,
   FolderTree,
-  Download,
   AlignJustify,
   AlignLeft,
   Code2,
   Trash,
-  Clock,
-  SpellCheck,
-  Target,
-  Globe,
   RefreshCw,
   Keyboard,
   Replace,
@@ -42,23 +37,16 @@ import type { Theme } from '../../core/themes/types';
 import { THEMES } from '../../core/themes/themeDefinitions';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { dynamicPluginLoader } from '../../core/plugins/DynamicPluginLoader';
-import { AVAILABLE_COMMUNITY_PLUGINS } from '../../core/plugins/communityPlugins';
 import { LiveCursorTestArena } from './LiveCursorTestArena';
 import { ImageCropModal, type CropParams } from './ImageCropModal';
 import type { BackgroundEffect } from '../editor/EditorBackground';
-import type { FocusScope } from '../../plugins/focus-mode/focusExtension';
-import { type DialogueColorPreset, DIALOGUE_COLOR_MAP } from '../../plugins/dialogue-highlighter/dialogueExtension';
-import { cleanChineseNovelText } from '../../plugins/editor-toolkit/chineseTextCleaner';
-import { projectStore } from '../../core/storage/ProjectStore';
+import type { FocusScope } from '../../plugins/immersion/focusExtension';
+import { type DialogueColorPreset, DIALOGUE_COLOR_MAP } from '../../plugins/immersion/dialogueExtension';
 import { eventBus } from '../../core/events/EventBus';
 import { keymapRegistry } from '../../core/keymap/KeymapRegistry';
 import type { KeybindingCategory, KeybindingItem } from '../../core/keymap/types';
 
-const COMMUNITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  Clock,
-  SpellCheck,
-  Target,
-};
+
 
 interface Props {
   isOpen: boolean;
@@ -74,6 +62,14 @@ interface Props {
   onChangeFontSize: (size: number) => void;
   lineHeight: number;
   onChangeLineHeight: (height: number) => void;
+  editorTextColor?: string;
+  onChangeEditorTextColor?: (color: string) => void;
+  uiAccentColor?: string;
+  onChangeUiAccentColor?: (color: string) => void;
+  dialogueColor?: string;
+  onChangeDialogueColor?: (color: string) => void;
+  dialogueEnabledProp?: boolean;
+  onToggleDialogueProp?: () => void;
   contentMaxWidth: number;
   onChangeContentMaxWidth: (width: number) => void;
   horizontalPadding: number;
@@ -255,6 +251,14 @@ export const SettingsDrawer: React.FC<Props> = ({
   onChangeFontSize,
   lineHeight,
   onChangeLineHeight,
+  editorTextColor = 'auto',
+  onChangeEditorTextColor,
+  uiAccentColor = 'auto',
+  onChangeUiAccentColor,
+  dialogueColor = 'auto',
+  onChangeDialogueColor,
+  dialogueEnabledProp,
+  onToggleDialogueProp,
   contentMaxWidth,
   onChangeContentMaxWidth,
   horizontalPadding,
@@ -301,7 +305,7 @@ export const SettingsDrawer: React.FC<Props> = ({
   const isLiveCursorEnabled = pluginManager.isPluginEnabled('plugin-live-cursor');
   const isBackgroundEnabled = pluginManager.isPluginEnabled('plugin-background-atmosphere');
 
-  const [pluginFilter, setPluginFilter] = useState<'all' | 'installed' | 'available'>('all');
+  const [pluginFilter, setPluginFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
   const [isRefreshingRegistry, setIsRefreshingRegistry] = useState<boolean>(false);
   const [isCustomScriptModalOpen, setIsCustomScriptModalOpen] = useState<boolean>(false);
   const [customScriptCode, setCustomScriptCode] = useState<string>(`// Novelite 自定义插件模板
@@ -326,16 +330,6 @@ return {
   }
 };`);
   const [customScriptError, setCustomScriptError] = useState<string | null>(null);
-
-  const handleInstallCommunityPlugin = (id: string) => {
-    dynamicPluginLoader.installCommunityPlugin(id);
-    setPluginsVersion((v) => v + 1);
-  };
-
-  const handleUninstallCommunityPlugin = (id: string) => {
-    dynamicPluginLoader.uninstallCommunityPlugin(id);
-    setPluginsVersion((v) => v + 1);
-  };
 
   const handleRefreshRegistry = () => {
     setIsRefreshingRegistry(true);
@@ -452,6 +446,34 @@ return {
     return pluginManager.getPluginContext('plugin-immersion')?.getSetting<number>('focusDimOpacity', 0.28) ?? 0.28;
   });
 
+  // 🌟 Synchronize with live plugin settings whenever drawer opens or external settings change
+  useEffect(() => {
+    const syncFromPlugins = () => {
+      const immCtx = pluginManager.getPluginContext('plugin-immersion');
+      if (immCtx) {
+        setFocusEnabled(immCtx.getSetting<boolean>('focusEnabled', false));
+        setFocusScope(immCtx.getSetting<FocusScope>('focusScope', 'paragraph'));
+        setFocusDimOpacity(immCtx.getSetting<number>('focusDimOpacity', 0.28));
+        setDialogueEnabled(immCtx.getSetting<boolean>('dialogueEnabled', true));
+        setDialogueColorPreset(immCtx.getSetting<DialogueColorPreset>('dialogueColorPreset', 'theme'));
+        setDialogueHighlightThoughts(immCtx.getSetting<boolean>('dialogueHighlightThoughts', true));
+        setDialogueCustomColor(immCtx.getSetting<string>('dialogueCustomColor', '#c95738'));
+      }
+    };
+
+    if (isOpen) {
+      syncFromPlugins();
+    }
+
+    const unsubImmersion = eventBus.on('plugin-setting-changed:plugin-immersion', syncFromPlugins);
+    const unsubExt = eventBus.on('editor-extensions-changed', syncFromPlugins);
+
+    return () => {
+      unsubImmersion();
+      unsubExt();
+    };
+  }, [isOpen]);
+
   const handleToggleFocusMode = () => {
     const ctx = pluginManager.getPluginContext('plugin-immersion');
     const next = !focusEnabled;
@@ -477,9 +499,17 @@ return {
     setPluginsVersion((v) => v + 1);
   };
 
+  const accentColor = (uiAccentColor && uiAccentColor !== 'auto') ? uiAccentColor : theme.colors.accent;
+  // High-contrast text accent for light mode
+  const textAccentColor = (!theme.isDark && (accentColor === '#38bdf8' || accentColor === '#06b6d4' || accentColor === '#22d3ee'))
+    ? '#0284c7'
+    : accentColor;
+
   const [dialogueEnabled, setDialogueEnabled] = useState<boolean>(() => {
     return pluginManager.getPluginContext('plugin-immersion')?.getSetting<boolean>('dialogueEnabled', true) ?? true;
   });
+  const isDialogueActive = dialogueEnabledProp !== undefined ? dialogueEnabledProp : dialogueEnabled;
+
   const [dialogueColorPreset, setDialogueColorPreset] = useState<DialogueColorPreset>(() => {
     return pluginManager.getPluginContext('plugin-immersion')?.getSetting<DialogueColorPreset>('dialogueColorPreset', 'theme') ?? 'theme';
   });
@@ -488,30 +518,40 @@ return {
   });
 
   const [dialogueCustomColor, setDialogueCustomColor] = useState<string>(() => {
-    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<string>('dialogueCustomColor', '#38bdf8') ?? '#38bdf8';
+    return pluginManager.getPluginContext('plugin-immersion')?.getSetting<string>('dialogueCustomColor', '#c95738') ?? '#c95738';
   });
 
   const handleToggleDialogue = () => {
-    const ctx = pluginManager.getPluginContext('plugin-immersion');
-    const next = !dialogueEnabled;
-    setDialogueEnabled(next);
-    ctx?.setSetting('dialogueEnabled', next);
-    eventBus.emit('editor-extensions-changed');
-    setPluginsVersion((v) => v + 1);
+    if (onToggleDialogueProp) {
+      onToggleDialogueProp();
+    } else {
+      const ctx = pluginManager.getPluginContext('plugin-immersion');
+      const next = !dialogueEnabled;
+      setDialogueEnabled(next);
+      ctx?.setSetting('dialogueEnabled', next);
+      eventBus.emit('editor-extensions-changed');
+      setPluginsVersion((v) => v + 1);
+    }
   };
 
   const handleChangeDialogueColorPreset = (preset: DialogueColorPreset) => {
-    const ctx = pluginManager.getPluginContext('plugin-immersion');
     setDialogueColorPreset(preset);
+    if (preset === 'theme') {
+      onChangeDialogueColor?.('auto');
+    } else if (preset in DIALOGUE_COLOR_MAP) {
+      onChangeDialogueColor?.(DIALOGUE_COLOR_MAP[preset as keyof typeof DIALOGUE_COLOR_MAP].hex);
+    }
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     ctx?.setSetting('dialogueColorPreset', preset);
     eventBus.emit('editor-extensions-changed');
     setPluginsVersion((v) => v + 1);
   };
 
   const handleChangeDialogueCustomColor = (color: string) => {
-    const ctx = pluginManager.getPluginContext('plugin-immersion');
     setDialogueCustomColor(color);
     setDialogueColorPreset('custom');
+    onChangeDialogueColor?.(color);
+    const ctx = pluginManager.getPluginContext('plugin-immersion');
     ctx?.setSetting('dialogueColorPreset', 'custom');
     ctx?.setSetting('dialogueCustomColor', color);
     eventBus.emit('editor-extensions-changed');
@@ -528,16 +568,15 @@ return {
   };
 
   const handleCleanChapterPhysicalIndent = () => {
-    const curChap = projectStore.getActiveChapter();
-    if (!curChap) return;
-    const { cleanedText, changesCount } = cleanChineseNovelText(curChap.content);
-    if (changesCount > 0 && cleanedText !== curChap.content) {
-      projectStore.updateChapterContent(curChap.id, cleanedText);
-      eventBus.emit('chapter-content-updated', { chapterId: curChap.id, content: cleanedText });
-      eventBus.emit('show-toast', { message: `已规范本章 ${changesCount} 处段落的段首缩进`, type: 'success' });
-    } else {
-      eventBus.emit('show-toast', { message: '本章段落已具备规范的段首缩进', type: 'info' });
-    }
+    eventBus.emit('editor-action:format-chinese');
+  };
+
+  const handleRemoveChapterPhysicalIndent = () => {
+    eventBus.emit('editor-action:remove-indents');
+  };
+
+  const handleCleanChapterPunctuation = () => {
+    eventBus.emit('editor-action:clean-punctuation');
   };
 
   const handleUninstallCustomPlugin = (id: string) => {
@@ -732,8 +771,8 @@ return {
       >
         {/* 🌟 Left Master Navigation Sidebar */}
         <div
-          className="w-56 sm:w-64 border-r flex flex-col justify-between p-4 bg-black/25 shrink-0"
-          style={{ borderColor: `${theme.colors.border}70` }}
+          className="w-56 sm:w-64 border-r flex flex-col justify-between p-4 shrink-0"
+          style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}70` }}
         >
           <div className="space-y-4">
             {/* Logo / Header */}
@@ -777,8 +816,8 @@ return {
                     }`}
                     style={{
                       backgroundColor: isActive ? theme.colors.bgHover : 'transparent',
-                      color: isActive ? theme.colors.accent : tab.isOff ? theme.colors.textMuted : theme.colors.text,
-                      boxShadow: isActive ? `inset 0 0 0 1px ${theme.colors.accent}30` : 'none',
+                      color: isActive ? textAccentColor : tab.isOff ? theme.colors.textMuted : theme.colors.text,
+                      boxShadow: isActive ? `inset 0 0 0 1px ${accentColor}30` : 'none',
                     }}
                   >
                     <div className="flex items-center gap-2.5">
@@ -789,8 +828,8 @@ return {
                       <span
                         className="text-[9px] font-mono px-1.5 py-0.5 rounded-full"
                         style={{
-                          backgroundColor: isActive ? `${theme.colors.accent}20` : tab.isOff ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)',
-                          color: isActive ? theme.colors.accent : tab.isOff ? '#fca5a5' : theme.colors.textMuted,
+                          backgroundColor: isActive ? `${accentColor}20` : tab.isOff ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)',
+                          color: isActive ? textAccentColor : tab.isOff ? '#fca5a5' : theme.colors.textMuted,
                         }}
                       >
                         {tab.badge}
@@ -819,8 +858,8 @@ return {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Header */}
           <div
-            className="flex items-center justify-between border-b px-7 py-4 bg-black/10 shrink-0"
-            style={{ borderColor: `${theme.colors.border}60` }}
+            className="flex items-center justify-between border-b px-7 py-4 shrink-0"
+            style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}60` }}
           >
             <div>
               <h3 className="text-sm font-semibold tracking-tight" style={{ color: theme.colors.text }}>
@@ -970,12 +1009,24 @@ return {
                         {backgroundEffect !== 'custom' ? (
                           <button
                             onClick={() => onChangeBackgroundEffect('custom')}
-                            className="px-2.5 py-1 rounded-lg text-xs font-mono border border-cyan-400/40 text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20 transition-all"
+                            className="px-2.5 py-1 rounded-lg text-xs font-mono border transition-all cursor-pointer"
+                            style={{
+                              backgroundColor: `${accentColor}20`,
+                              color: textAccentColor,
+                              borderColor: `${accentColor}40`,
+                            }}
                           >
                             应用背景
                           </button>
                         ) : (
-                          <span className="flex items-center gap-1 text-[10px] font-mono text-cyan-400 bg-cyan-400/15 border border-cyan-400/30 px-2 py-0.5 rounded-full font-semibold">
+                          <span
+                            className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold border"
+                            style={{
+                              backgroundColor: `${accentColor}18`,
+                              color: textAccentColor,
+                              borderColor: `${accentColor}35`,
+                            }}
+                          >
                             <Check className="h-3 w-3" />
                             <span>生效中</span>
                           </span>
@@ -1026,7 +1077,7 @@ return {
                           className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono transition-all"
                           style={{ color: theme.colors.text }}
                         >
-                          <Crop className="h-3.5 w-3.5 text-cyan-400" />
+                          <Crop className="h-3.5 w-3.5" style={{ color: textAccentColor }} />
                           <span>调整位置与裁剪</span>
                         </button>
                         <button
@@ -1050,15 +1101,19 @@ return {
                     /* Empty Upload Dropzone */
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full border-2 border-dashed border-white/15 hover:border-cyan-400/60 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 hover:bg-white/5 transition-all group cursor-pointer"
+                      className="w-full border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-2 transition-all group cursor-pointer"
+                      style={{
+                        borderColor: `${theme.colors.border}80`,
+                        backgroundColor: `${theme.colors.bgSecondary}50`,
+                      }}
                     >
                       <div className="h-10 w-10 rounded-2xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Upload className="h-5 w-5 opacity-60 group-hover:text-cyan-400 group-hover:opacity-100 transition-colors" />
+                        <Upload className="h-5 w-5 opacity-60 group-hover:opacity-100 transition-colors" style={{ color: textAccentColor }} />
                       </div>
-                      <span className="font-semibold text-xs group-hover:text-cyan-400 transition-colors" style={{ color: theme.colors.text }}>
+                      <span className="font-semibold text-xs transition-colors" style={{ color: theme.colors.text }}>
                         选择或上传本地图片
                       </span>
-                      <span className="text-[10px] font-mono opacity-40">
+                      <span className="text-[10px] font-mono opacity-40" style={{ color: theme.colors.textMuted }}>
                         支持 PNG、JPG、WebP 格式
                       </span>
                     </button>
@@ -1073,7 +1128,7 @@ return {
                           <span className="text-[11px] font-medium opacity-75" style={{ color: theme.colors.text }}>
                             暗化遮罩
                           </span>
-                          <span className="font-mono text-cyan-400 text-[10px] font-bold">
+                          <span className="font-mono text-[10px] font-bold" style={{ color: textAccentColor }}>
                             {Math.round(customImageDim * 100)}%
                           </span>
                         </div>
@@ -1084,7 +1139,8 @@ return {
                           step="0.05"
                           value={customImageDim}
                           onChange={(e) => onChangeCustomImageDim(Number(e.target.value))}
-                          className="w-full accent-cyan-400 cursor-pointer"
+                          className="w-full cursor-pointer"
+                          style={{ accentColor: accentColor }}
                         />
                       </div>
 
@@ -1094,7 +1150,7 @@ return {
                           <span className="text-[11px] font-medium opacity-75" style={{ color: theme.colors.text }}>
                             模糊程度
                           </span>
-                          <span className="font-mono text-cyan-400 text-[10px] font-bold">
+                          <span className="font-mono text-[10px] font-bold" style={{ color: textAccentColor }}>
                             {customImageBlur} px
                           </span>
                         </div>
@@ -1105,7 +1161,8 @@ return {
                           step="1"
                           value={customImageBlur}
                           onChange={(e) => onChangeCustomImageBlur(Number(e.target.value))}
-                          className="w-full accent-cyan-400 cursor-pointer"
+                          className="w-full cursor-pointer"
+                          style={{ accentColor: accentColor }}
                         />
                       </div>
                     </div>
@@ -1129,11 +1186,12 @@ return {
                           key={bg.id}
                           onClick={() => onChangeBackgroundEffect(bg.id as any)}
                           className={`flex flex-col items-start rounded-2xl border p-4 text-left transition-all ${
-                            isCur ? 'ring-2 ring-cyan-400 shadow-md font-semibold' : 'hover:border-white/20'
+                            isCur ? 'shadow-md font-semibold' : 'hover:border-white/20'
                           }`}
                           style={{
                             backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                            borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                            borderColor: isCur ? accentColor : theme.colors.border,
+                            boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
                           }}
                         >
                           <span className="text-xs" style={{ color: theme.colors.text }}>
@@ -1158,7 +1216,10 @@ return {
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
                         效果强度
                       </span>
-                      <span className="font-mono text-cyan-400 font-bold px-2 py-0.5 rounded bg-cyan-400/10">
+                      <span
+                        className="font-mono font-bold px-2 py-0.5 rounded"
+                        style={{ backgroundColor: `${accentColor}18`, color: textAccentColor }}
+                      >
                         {Math.round(backgroundIntensity * 100)}%
                       </span>
                     </div>
@@ -1169,7 +1230,8 @@ return {
                       step="0.05"
                       value={backgroundIntensity}
                       onChange={(e) => onChangeBackgroundIntensity(Number(e.target.value))}
-                      className="w-full accent-cyan-400 cursor-pointer"
+                      className="w-full cursor-pointer"
+                      style={{ accentColor: accentColor }}
                     />
                     <div className="flex justify-between text-[10px] opacity-40 font-mono">
                       <span>较弱 (10%)</span>
@@ -1224,11 +1286,12 @@ return {
                           key={f.id}
                           onClick={() => onSelectFontPreset(f.id as any)}
                           className={`flex flex-col items-start rounded-2xl border p-3.5 text-left transition-all ${
-                            isCur ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold' : 'hover:border-white/20'
+                            isCur ? 'shadow-md font-semibold' : 'hover:border-white/20'
                           }`}
                           style={{
                             backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bg,
-                            borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                            borderColor: isCur ? accentColor : theme.colors.border,
+                            boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
                           }}
                         >
                           <span className="text-[12px]" style={{ color: theme.colors.text }}>
@@ -1246,7 +1309,7 @@ return {
                 {fontPreset === 'custom' && (
                   <div
                     className="rounded-2xl border p-4 space-y-2 animate-in fade-in duration-150"
-                    style={{ borderColor: theme.colors.accent, backgroundColor: `${theme.colors.bgHover}40` }}
+                    style={{ borderColor: accentColor, backgroundColor: `${theme.colors.bgHover}40` }}
                   >
                     <label className="block font-medium text-[11px]" style={{ color: theme.colors.text }}>
                       输入系统已安装的自定义字体名称 (Font Family Name)
@@ -1256,7 +1319,7 @@ return {
                       value={customFontName}
                       onChange={(e) => onChangeCustomFontName(e.target.value)}
                       placeholder="例如: 方正兰亭黑, Noto Serif CJK SC, Georgia, 汉仪中宋..."
-                      className="w-full rounded-xl border p-2.5 text-xs outline-none font-mono focus:border-cyan-400"
+                      className="w-full rounded-xl border p-2.5 text-xs outline-none font-mono"
                       style={{
                         backgroundColor: theme.colors.bg,
                         borderColor: theme.colors.border,
@@ -1265,6 +1328,372 @@ return {
                     />
                   </div>
                 )}
+
+                {/* 🌟 正文字体颜色定制 (Editor Font / Text Color Setting) */}
+                <div
+                  className="space-y-4 rounded-2xl border p-5"
+                  style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
+                >
+                  <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: `${theme.colors.border}40` }}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                          正文字体颜色
+                        </span>
+                        <span
+                          className="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium"
+                          style={{
+                            backgroundColor: editorTextColor === 'auto' || !editorTextColor ? `${theme.colors.accent}20` : 'rgba(255,255,255,0.06)',
+                            color: editorTextColor === 'auto' || !editorTextColor ? theme.colors.accent : theme.colors.textMuted,
+                          }}
+                        >
+                          {editorTextColor === 'auto' || !editorTextColor ? '跟随主题' : '自定义'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
+                        独立自定义手稿正文字体颜色，或一键恢复跟随当前主题预设
+                      </p>
+                    </div>
+
+                    {/* Reset to Follow Theme Button */}
+                    {Boolean(editorTextColor && editorTextColor !== 'auto') && (
+                      <button
+                        onClick={() => onChangeEditorTextColor?.('auto')}
+                        className="px-2.5 py-1 rounded-lg text-xs font-mono transition-all border cursor-pointer hover:opacity-100 opacity-80"
+                        style={{
+                          backgroundColor: theme.colors.bgSecondary,
+                          borderColor: theme.colors.border,
+                          color: textAccentColor,
+                        }}
+                      >
+                        恢复跟随主题
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Mode: Follow Theme Option + Presets + Custom Pipette */}
+                  <div className="space-y-3">
+                    {/* Follow Theme Default Card */}
+                    <button
+                      onClick={() => onChangeEditorTextColor?.('auto')}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer text-left ${
+                        (editorTextColor === 'auto' || !editorTextColor)
+                          ? 'shadow-xs font-semibold'
+                          : 'opacity-70 hover:opacity-100 hover:border-white/20'
+                      }`}
+                      style={{
+                        backgroundColor: (editorTextColor === 'auto' || !editorTextColor) ? `${accentColor}15` : theme.colors.bgSecondary,
+                        borderColor: (editorTextColor === 'auto' || !editorTextColor) ? accentColor : theme.colors.border,
+                        boxShadow: (editorTextColor === 'auto' || !editorTextColor) ? `0 0 0 1.5px ${accentColor}` : undefined,
+                      }}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="h-4 w-4 rounded-full border shadow-xs shrink-0"
+                          style={{ backgroundColor: theme.colors.editorText, borderColor: theme.colors.border }}
+                        />
+                        <div>
+                          <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
+                            跟随当前主题 ({theme.nameZh})
+                          </div>
+                          <span className="text-[10px] opacity-50 font-mono" style={{ color: theme.colors.textMuted }}>
+                            默认字色: {theme.colors.editorText}
+                          </span>
+                        </div>
+                      </div>
+                      {(editorTextColor === 'auto' || !editorTextColor) && (
+                        <Check className="h-3.5 w-3.5" style={{ color: textAccentColor }} />
+                      )}
+                    </button>
+
+                    {/* Curated Reading Swatches */}
+                    <div>
+                      <span className="text-[11px] opacity-75 block mb-2 font-medium" style={{ color: theme.colors.text }}>
+                        精选阅读字色预设
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: '#ffffff', name: '纯白高光', desc: '纯净清晰' },
+                          { id: '#e1e3e8', name: '晨雾银灰', desc: '素雅舒适' },
+                          { id: '#d1d5db', name: '素灰微润', desc: '低眩光' },
+                          { id: '#fef3c7', name: '羊皮暖白', desc: '温暖柔和' },
+                          { id: '#bbf7d0', name: '护眼薄荷', desc: '青翠静心' },
+                          { id: '#bae6fd', name: '冰霜微蓝', desc: '冷峻透亮' },
+                          { id: '#1c1917', name: '水墨沉黑', desc: '浅色主题' },
+                          { id: '#374151', name: '玄灰典雅', desc: '墨韵灰调' },
+                        ].map((swatch) => {
+                          const isCur = editorTextColor === swatch.id;
+                          return (
+                            <button
+                              key={swatch.id}
+                              onClick={() => onChangeEditorTextColor?.(swatch.id)}
+                              className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer text-left ${
+                                isCur
+                                  ? 'shadow-xs font-semibold'
+                                  : 'hover:border-white/20'
+                              }`}
+                              style={{
+                                backgroundColor: isCur ? `${accentColor}15` : theme.colors.bgSecondary,
+                                borderColor: isCur ? accentColor : theme.colors.border,
+                                boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
+                              }}
+                            >
+                              <span
+                                className="h-3.5 w-3.5 rounded-full border shadow-xs shrink-0"
+                                style={{ backgroundColor: swatch.id, borderColor: 'rgba(128,128,128,0.3)' }}
+                              />
+                              <div className="min-w-0 flex-1">
+                                <span className="text-[11px] block truncate" style={{ color: theme.colors.text }}>
+                                  {swatch.name}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Custom Color Pipette */}
+                    <div
+                      className="flex items-center justify-between p-2.5 rounded-xl border"
+                      style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={editorTextColor === 'auto' || !editorTextColor ? theme.colors.editorText : editorTextColor}
+                          onChange={(e) => onChangeEditorTextColor?.(e.target.value)}
+                          className="h-6 w-6 rounded-lg border-0 cursor-pointer bg-transparent"
+                        />
+                        <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
+                          自定义字色 (取色器)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editorTextColor === 'auto' || !editorTextColor ? theme.colors.editorText : editorTextColor}
+                          onChange={(e) => onChangeEditorTextColor?.(e.target.value)}
+                          placeholder="#ffffff"
+                          className="w-20 px-2 py-0.5 rounded-lg border text-xs font-mono outline-none text-center"
+                          style={{
+                            backgroundColor: theme.colors.bg,
+                            borderColor: theme.colors.border,
+                            color: theme.colors.text,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 🌟 对白引号“”特殊配色定制 (Dialogue Quotation Mark Color Setting) */}
+                <div
+                  className="space-y-4 rounded-2xl border p-5 transition-all"
+                  style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
+                >
+                  <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: `${theme.colors.border}40` }}>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                          对白引号“”特殊配色
+                        </span>
+                        <span
+                          className="text-[9.5px] px-2 py-0.5 rounded-full font-mono font-medium"
+                          style={{
+                            backgroundColor: `${accentColor}18`,
+                            color: textAccentColor,
+                            border: `1px solid ${accentColor}35`,
+                          }}
+                        >
+                          {!isDialogueActive
+                            ? '已关闭高亮'
+                            : (dialogueColor === 'auto' || !dialogueColor ? '跟随主题自适应' : '自定义配色')}
+                        </span>
+                      </div>
+                      <p className="text-[10px] opacity-60 mt-0.5" style={{ color: theme.colors.textMuted }}>
+                        自定义双引号（“……”）、直角引号（「……」）内小说人物对白的高亮色彩，浅色模式下自动适配高对比度
+                      </p>
+                    </div>
+
+                    {/* 开关按钮 */}
+                    <button
+                      onClick={handleToggleDialogue}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all cursor-pointer font-medium"
+                      style={{
+                        backgroundColor: isDialogueActive ? `${accentColor}20` : 'transparent',
+                        color: isDialogueActive ? textAccentColor : theme.colors.textMuted,
+                        border: `1px solid ${isDialogueActive ? `${accentColor}50` : theme.colors.border}`,
+                      }}
+                    >
+                      {isDialogueActive && <Check className="h-3 w-3" />}
+                      <span>{isDialogueActive ? '已开启' : '已关闭'}</span>
+                    </button>
+                  </div>
+
+                  {isDialogueActive && (
+                    <div className="space-y-3 pt-1 animate-in fade-in duration-150">
+                      {/* 实时微光效果预览条 */}
+                      <div
+                        className="p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs"
+                        style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="text-[10px] opacity-50 shrink-0 font-mono">预览效果:</span>
+                          <span
+                            className="font-medium truncate"
+                            style={{
+                              color: (dialogueColor && dialogueColor !== 'auto')
+                                ? dialogueColor
+                                : (!theme.isDark ? (theme.id === 'paper-parchment' ? '#c95738' : '#292524') : accentColor),
+                            }}
+                          >
+                            “小二，来两斤熟牛肉，一角烧刀子。”
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-50 shrink-0">
+                          {dialogueColor === 'auto' || !dialogueColor
+                            ? (!theme.isDark ? (theme.id === 'paper-parchment' ? '#c95738 (纸墨朱砂)' : '#292524 (水墨玄黑)') : `${accentColor} (主题主色)`)
+                            : dialogueColor}
+                        </span>
+                      </div>
+
+                      {/* 跟随当前主题卡片 */}
+                      <button
+                        onClick={() => handleChangeDialogueColorPreset('theme')}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer text-left"
+                        style={{
+                          backgroundColor: (dialogueColor === 'auto' || !dialogueColor || dialogueColorPreset === 'theme')
+                            ? `${accentColor}15`
+                            : theme.colors.bgSecondary,
+                          borderColor: (dialogueColor === 'auto' || !dialogueColor || dialogueColorPreset === 'theme')
+                            ? accentColor
+                            : theme.colors.border,
+                          boxShadow: (dialogueColor === 'auto' || !dialogueColor || dialogueColorPreset === 'theme')
+                            ? `0 0 0 1.5px ${accentColor}`
+                            : undefined,
+                        }}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="h-4 w-4 rounded-full border shadow-xs shrink-0"
+                            style={{
+                              backgroundColor: !theme.isDark ? (theme.id === 'paper-parchment' ? '#c95738' : '#292524') : accentColor,
+                              borderColor: theme.colors.border,
+                            }}
+                          />
+                          <div>
+                            <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
+                              跟随当前主题高对比自适应 ({theme.nameZh})
+                            </div>
+                            <span className="text-[10px] opacity-50 font-mono" style={{ color: theme.colors.textMuted }}>
+                              浅色模式自动选用深色水墨/朱砂红，暗黑模式选用主题强调色，绝不发虚看不清
+                            </span>
+                          </div>
+                        </div>
+                        {(dialogueColor === 'auto' || !dialogueColor || dialogueColorPreset === 'theme') && (
+                          <Check className="h-3.5 w-3.5" style={{ color: textAccentColor }} />
+                        )}
+                      </button>
+
+                      {/* 8 大精选高对比文学对白预设 */}
+                      <div>
+                        <span className="text-[11px] opacity-75 block mb-2 font-medium" style={{ color: theme.colors.text }}>
+                          精选高对比度对白字色
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[
+                            { id: '#c95738', name: '朱砂赤羽', desc: '雅致典籍' },
+                            { id: '#292524', name: '水墨玄石', desc: '浅色极清' },
+                            { id: '#d97706', name: '暖褐琥珀', desc: '温润橙金' },
+                            { id: '#0f766e', name: '青瓷墨绿', desc: '沉稳护眼' },
+                            { id: '#1d4ed8', name: '深海霁蓝', desc: '清雅深蓝' },
+                            { id: '#7c3aed', name: '紫藤微光', desc: '浪漫沉着' },
+                            { id: '#ffffff', name: '纯白高光', desc: '暗色高亮' },
+                            { id: '#475569', name: '玄青深灰', desc: '低调耐看' },
+                          ].map((swatch) => {
+                            const isCur = dialogueColor === swatch.id;
+                            return (
+                              <button
+                                key={swatch.id}
+                                onClick={() => handleChangeDialogueCustomColor(swatch.id)}
+                                className="flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer text-left"
+                                style={{
+                                  backgroundColor: isCur ? `${swatch.id}20` : theme.colors.bgSecondary,
+                                  borderColor: isCur ? swatch.id : theme.colors.border,
+                                  boxShadow: isCur ? `0 0 0 1.5px ${swatch.id}` : undefined,
+                                }}
+                              >
+                                <span
+                                  className="h-3.5 w-3.5 rounded-full border shadow-xs shrink-0"
+                                  style={{ backgroundColor: swatch.id, borderColor: 'rgba(128,128,128,0.3)' }}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-[11px] block truncate" style={{ color: theme.colors.text }}>
+                                    {swatch.name}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 自定义拾色器与输入框 */}
+                      <div
+                        className="flex items-center justify-between p-2.5 rounded-xl border"
+                        style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={dialogueCustomColor}
+                            onChange={(e) => handleChangeDialogueCustomColor(e.target.value)}
+                            className="h-6 w-6 rounded-lg border-0 cursor-pointer bg-transparent"
+                          />
+                          <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
+                            自定义对白颜色 (吸管取色)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={dialogueColor === 'auto' || !dialogueColor ? dialogueCustomColor : dialogueColor}
+                            onChange={(e) => handleChangeDialogueCustomColor(e.target.value)}
+                            placeholder="#c95738"
+                            className="w-20 px-2 py-0.5 rounded border text-[11px] font-mono outline-none text-center font-bold"
+                            style={{
+                              backgroundColor: theme.colors.bg,
+                              borderColor: theme.colors.border,
+                              color: textAccentColor,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* 心理独白括号小开关 */}
+                      <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: `${theme.colors.border}30` }}>
+                        <div>
+                          <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
+                            同时高亮心理独白 （……）
+                          </span>
+                          <p className="text-[9.5px] opacity-40">自动识别全角及半角括号内的角色内心独白并应用轻柔斜体</p>
+                        </div>
+                        <button
+                          onClick={handleToggleDialogueThoughts}
+                          className="flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-mono transition-all cursor-pointer font-medium"
+                          style={{
+                            backgroundColor: dialogueHighlightThoughts ? `${accentColor}20` : 'transparent',
+                            color: dialogueHighlightThoughts ? textAccentColor : theme.colors.textMuted,
+                            border: `1px solid ${dialogueHighlightThoughts ? `${accentColor}40` : theme.colors.border}`,
+                          }}
+                        >
+                          {dialogueHighlightThoughts ? '已开启' : '未开启'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* 🌟 1. 中文首行缩进定制 */}
                 <div
@@ -1285,54 +1714,82 @@ return {
                     </div>
                     <button
                       onClick={onToggleIndent}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all ${
-                        indentEnabled
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold'
-                          : 'bg-white/5 text-neutral-400 border border-white/5'
-                      }`}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all font-medium cursor-pointer"
+                      style={{
+                        backgroundColor: indentEnabled ? `${accentColor}20` : 'transparent',
+                        color: indentEnabled ? textAccentColor : theme.colors.textMuted,
+                        border: `1px solid ${indentEnabled ? `${accentColor}50` : theme.colors.border}`,
+                      }}
                     >
                       {indentEnabled && <Check className="h-3 w-3" />}
                       <span>{indentEnabled ? '已开启' : '已关闭'}</span>
                     </button>
                   </div>
 
-                  {indentEnabled && (
-                    <div className="space-y-3 pt-1 animate-in fade-in duration-150">
-                      {/* 一键规范化段首空格按钮 */}
-                      <div
-                        className="flex items-center justify-between p-3 rounded-xl border transition-all"
-                        style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
-                      >
-                        <div>
-                          <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
-                            一键规范本章段首缩进
-                          </span>
-                          <p className="text-[9.5px] opacity-40">为正文段落统一补齐段首两个全角空格，标题与分割线自动保持顶格</p>
-                        </div>
+                  <div className="space-y-3 pt-2">
+                    {/* 一键排版工具组 */}
+                    <div
+                      className="p-3.5 rounded-xl border space-y-2.5 transition-all"
+                      style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                          一键排版操作
+                        </span>
+                        <span className="text-[10px] opacity-40 font-mono">作用于当前章节</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         <button
                           onClick={handleCleanChapterPhysicalIndent}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/10 hover:border-cyan-400/50 hover:bg-cyan-500/10 text-cyan-400 transition-all shadow-xs"
+                          className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border transition-all cursor-pointer shadow-xs"
+                          style={{
+                            backgroundColor: `${accentColor}18`,
+                            color: textAccentColor,
+                            borderColor: `${accentColor}40`,
+                          }}
+                          title="为每一行正文开头统一加入两个格子（全角双空格），标题与分割线自动顶格"
                         >
-                          <Sparkles className="h-3 w-3" />
-                          <span>一键格式化</span>
+                          <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                          <span>一键缩进两格</span>
+                        </button>
+
+                        <button
+                          onClick={handleRemoveChapterPhysicalIndent}
+                          className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-all cursor-pointer shadow-xs"
+                          style={{ color: theme.colors.text }}
+                          title="清除每一行开头的多余空格，全篇恢复顶格排版"
+                        >
+                          <span>一键恢复顶格</span>
+                        </button>
+
+                        <button
+                          onClick={handleCleanChapterPunctuation}
+                          className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-all cursor-pointer shadow-xs"
+                          style={{ color: theme.colors.text }}
+                          title="将英文半角标点统一转为中文全角标点，智能修复成对引号与双破折号"
+                        >
+                          <span>一键修复标点</span>
                         </button>
                       </div>
 
-                      {/* 排版特性说明 */}
-                      <div className="rounded-xl border border-white/5 p-3 bg-white/2 space-y-1.5 text-[10.5px]">
-                        <div className="flex items-center gap-1.5 font-medium text-cyan-400">
-                          <Check className="h-3 w-3 shrink-0" />
-                          <span>排版特性说明</span>
-                        </div>
-                        <ul className="space-y-1 text-neutral-400 pl-4 list-disc text-[10px] leading-relaxed">
-                          <li><strong>标准全角空格</strong>：段首插入 2 个中文全角空格（<code>\u3000\u3000</code>），兼容各大阅读平台与导出排版</li>
-                          <li><strong>智能换行</strong>：回车换行时自动对齐正文，空行再次按回车会自动清空多余空格</li>
-                          <li><strong>整块删除</strong>：在段首按 <code>Backspace</code> 可一次性删除双空格</li>
-                          <li><strong>特殊行避让</strong>：标题（<code># 第一章</code>）、引用（<code>&gt; </code>）与分割线（<code>---</code>）自动顶格，不添加空格</li>
-                        </ul>
-                      </div>
+                      <p className="text-[10px] opacity-50 leading-relaxed" style={{ color: theme.colors.textMuted }}>
+                        <strong>段首缩进两格</strong>：为每个正文自然段开头规范添加 2 个全角空格（两个字框格子宽度），章节标题（如 <code># 第一章</code> 或 <code>第一章 标题</code>）与分割线自动保持顶格避让。
+                      </p>
                     </div>
-                  )}
+
+                    {indentEnabled && (
+                      <div className="rounded-xl border border-white/5 p-3 bg-white/[0.02] space-y-1 text-[10.5px] animate-in fade-in duration-150">
+                        <div className="flex items-center gap-1.5 font-medium" style={{ color: textAccentColor }}>
+                          <Check className="h-3 w-3 shrink-0" />
+                          <span>换行自动缩进已开启</span>
+                        </div>
+                        <p className="opacity-60 text-[10px] leading-relaxed" style={{ color: theme.colors.textMuted }}>
+                          打字时按回车换行会自动对齐正文缩进两格，空行再次回车自动清空，段首按 Backspace 键可整块删除两格。
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* 🌟 2. 标点避头尾与微排版 (GB/T 15834 Kinsoku) */}
@@ -1366,11 +1823,12 @@ return {
                               key={k.id}
                               onClick={() => onChangeKinsoku?.(k.id as any)}
                               className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
-                                isCur ? 'ring-2 ring-cyan-400/80 shadow-xs font-semibold' : 'hover:border-white/20'
+                                isCur ? 'shadow-xs font-semibold' : 'hover:border-white/20'
                               }`}
                               style={{
-                                backgroundColor: isCur ? `${theme.colors.accent}15` : theme.colors.bgSecondary,
-                                borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                                backgroundColor: isCur ? `${accentColor}15` : theme.colors.bgSecondary,
+                                borderColor: isCur ? accentColor : theme.colors.border,
+                                boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
                               }}
                             >
                               <span className="text-[11px]" style={{ color: theme.colors.text }}>
@@ -1402,11 +1860,12 @@ return {
                               key={a.id}
                               onClick={() => onChangeTextAlignment?.(a.id as any)}
                               className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
-                                isCur ? 'ring-2 ring-cyan-400/80 shadow-xs font-semibold' : 'hover:border-white/20'
+                                isCur ? 'shadow-xs font-semibold' : 'hover:border-white/20'
                               }`}
                               style={{
-                                backgroundColor: isCur ? `${theme.colors.accent}15` : theme.colors.bgSecondary,
-                                borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                                backgroundColor: isCur ? `${accentColor}15` : theme.colors.bgSecondary,
+                                borderColor: isCur ? accentColor : theme.colors.border,
+                                boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
                               }}
                             >
                               <div className="flex items-center gap-1.5">
@@ -1435,11 +1894,12 @@ return {
                     </div>
                     <button
                       onClick={onTogglePunctuationHalt}
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all ${
-                        punctuationHalt !== false
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold'
-                          : 'bg-white/5 text-neutral-400 border border-white/5'
-                      }`}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all font-medium cursor-pointer"
+                      style={{
+                        backgroundColor: punctuationHalt !== false ? `${accentColor}20` : 'transparent',
+                        color: punctuationHalt !== false ? textAccentColor : theme.colors.textMuted,
+                        border: `1px solid ${punctuationHalt !== false ? `${accentColor}50` : theme.colors.border}`,
+                      }}
                     >
                       {punctuationHalt !== false && <Check className="h-3 w-3" />}
                       <span>{punctuationHalt !== false ? '已开启' : '已关闭'}</span>
@@ -1461,7 +1921,7 @@ return {
                     <div>
                       <div className="flex justify-between mb-1">
                         <span style={{ color: theme.colors.text }}>版心最大宽度</span>
-                        <span className="font-mono text-cyan-400 font-bold">{contentMaxWidth}px</span>
+                        <span className="font-mono font-bold" style={{ color: textAccentColor }}>{contentMaxWidth}px</span>
                       </div>
                       <input
                         type="range"
@@ -1470,14 +1930,15 @@ return {
                         step="20"
                         value={contentMaxWidth}
                         onChange={(e) => onChangeContentMaxWidth(Number(e.target.value))}
-                        className="w-full accent-cyan-400 cursor-pointer"
+                        className="w-full cursor-pointer"
+                        style={{ accentColor: accentColor }}
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between mb-1">
                         <span style={{ color: theme.colors.text }}>左右页边距</span>
-                        <span className="font-mono text-cyan-400 font-bold">{horizontalPadding}px</span>
+                        <span className="font-mono font-bold" style={{ color: textAccentColor }}>{horizontalPadding}px</span>
                       </div>
                       <input
                         type="range"
@@ -1486,7 +1947,8 @@ return {
                         step="4"
                         value={horizontalPadding}
                         onChange={(e) => onChangeHorizontalPadding(Number(e.target.value))}
-                        className="w-full accent-cyan-400 cursor-pointer"
+                        className="w-full cursor-pointer"
+                        style={{ accentColor: accentColor }}
                       />
                     </div>
                   </div>
@@ -1496,7 +1958,7 @@ return {
                     <div>
                       <div className="flex justify-between mb-1">
                         <span style={{ color: theme.colors.text }}>正文字号</span>
-                        <span className="font-mono text-cyan-400 font-bold">{fontSize}px</span>
+                        <span className="font-mono font-bold" style={{ color: textAccentColor }}>{fontSize}px</span>
                       </div>
                       <input
                         type="range"
@@ -1505,14 +1967,15 @@ return {
                         step="1"
                         value={fontSize}
                         onChange={(e) => onChangeFontSize(Number(e.target.value))}
-                        className="w-full accent-cyan-400 cursor-pointer"
+                        className="w-full cursor-pointer"
+                        style={{ accentColor: accentColor }}
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between mb-1">
                         <span style={{ color: theme.colors.text }}>行高比例</span>
-                        <span className="font-mono text-cyan-400 font-bold">{lineHeight}</span>
+                        <span className="font-mono font-bold" style={{ color: textAccentColor }}>{lineHeight}</span>
                       </div>
                       <input
                         type="range"
@@ -1521,14 +1984,15 @@ return {
                         step="0.05"
                         value={lineHeight}
                         onChange={(e) => onChangeLineHeight(Number(e.target.value))}
-                        className="w-full accent-cyan-400 cursor-pointer"
+                        className="w-full cursor-pointer"
+                        style={{ accentColor: accentColor }}
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between mb-1">
                         <span style={{ color: theme.colors.text }}>段落间距</span>
-                        <span className="font-mono text-cyan-400 font-bold">{paragraphSpacing}em</span>
+                        <span className="font-mono font-bold" style={{ color: textAccentColor }}>{paragraphSpacing}em</span>
                       </div>
                       <input
                         type="range"
@@ -1537,14 +2001,15 @@ return {
                         step="0.05"
                         value={paragraphSpacing}
                         onChange={(e) => onChangeParagraphSpacing(Number(e.target.value))}
-                        className="w-full accent-cyan-400 cursor-pointer"
+                        className="w-full cursor-pointer"
+                        style={{ accentColor: accentColor }}
                       />
                     </div>
 
                     <div>
                       <div className="flex justify-between mb-1">
                         <span style={{ color: theme.colors.text }}>字间微距</span>
-                        <span className="font-mono text-cyan-400 font-bold">{letterSpacing || 0.02}em</span>
+                        <span className="font-mono font-bold" style={{ color: textAccentColor }}>{letterSpacing || 0.02}em</span>
                       </div>
                       <input
                         type="range"
@@ -1553,7 +2018,8 @@ return {
                         step="0.005"
                         value={letterSpacing || 0.02}
                         onChange={(e) => onChangeLetterSpacing?.(Number(e.target.value))}
-                        className="w-full accent-cyan-400 cursor-pointer"
+                        className="w-full cursor-pointer"
+                        style={{ accentColor: accentColor }}
                       />
                     </div>
                   </div>
@@ -1617,10 +2083,14 @@ return {
                           }}
                           className={`p-2.5 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-cyan-500/15 border-cyan-400/50 text-cyan-300 font-semibold shadow-xs'
-                              : 'bg-white/[0.02] border-white/5 opacity-60 hover:opacity-100 hover:bg-white/5'
+                              ? 'shadow-xs font-semibold'
+                              : 'opacity-60 hover:opacity-100 hover:bg-white/5'
                           }`}
-                          style={{ color: isSelected ? undefined : theme.colors.text }}
+                          style={{
+                            backgroundColor: isSelected ? `${accentColor}18` : 'transparent',
+                            borderColor: isSelected ? accentColor : `${theme.colors.border}40`,
+                            color: isSelected ? textAccentColor : theme.colors.text,
+                          }}
                         >
                           <div className="font-medium text-[11px] truncate">{opt.label}</div>
                           <div className="text-[9px] opacity-40 font-mono mt-0.5">{opt.desc}</div>
@@ -1645,11 +2115,12 @@ return {
                   </div>
                   <button
                     onClick={onToggleZeroChrome}
-                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all ${
-                      zeroChrome
-                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold shadow-xs'
-                        : 'bg-white/5 text-neutral-400 border border-white/5 hover:bg-white/10'
-                    }`}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all font-medium cursor-pointer"
+                    style={{
+                      backgroundColor: zeroChrome ? `${accentColor}20` : 'transparent',
+                      color: zeroChrome ? textAccentColor : theme.colors.textMuted,
+                      border: `1px solid ${zeroChrome ? `${accentColor}50` : theme.colors.border}`,
+                    }}
                   >
                     {zeroChrome && <Check className="h-3 w-3" />}
                     <span>{zeroChrome ? '已开启' : '未开启'}</span>
@@ -1667,7 +2138,10 @@ return {
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
                           打字机视线锁定模式
                         </span>
-                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400">
+                        <span
+                          className="text-[9px] font-mono px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: `${accentColor}18`, color: textAccentColor }}
+                        >
                           视线居中
                         </span>
                       </div>
@@ -1678,11 +2152,12 @@ return {
 
                     <button
                       onClick={() => onToggleTypewriter?.(!typewriterEnabled)}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all ${
-                        typewriterEnabled
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-semibold shadow-xs'
-                          : 'bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10'
-                      }`}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all font-medium cursor-pointer"
+                      style={{
+                        backgroundColor: typewriterEnabled ? `${accentColor}20` : 'transparent',
+                        color: typewriterEnabled ? textAccentColor : theme.colors.textMuted,
+                        border: `1px solid ${typewriterEnabled ? `${accentColor}50` : theme.colors.border}`,
+                      }}
                     >
                       {typewriterEnabled && <Check className="h-3 w-3" />}
                       <span>{typewriterEnabled ? '已开启' : '未开启'}</span>
@@ -1708,11 +2183,12 @@ return {
                                 key={item.value}
                                 onClick={() => onChangeTypewriterRatio?.(item.value)}
                                 className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
-                                  isCur ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold' : 'hover:border-white/20'
+                                  isCur ? 'shadow-md font-semibold' : 'hover:border-white/20'
                                 }`}
                                 style={{
                                   backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bgSecondary,
-                                  borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                                  borderColor: isCur ? accentColor : theme.colors.border,
+                                  boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
                                 }}
                               >
                                 <span className="text-[11px]" style={{ color: theme.colors.text }}>
@@ -1744,11 +2220,12 @@ return {
                                 key={sp.id}
                                 onClick={() => onChangeTypewriterSpeed?.(sp.id as any)}
                                 className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
-                                  isCur ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold' : 'hover:border-white/20'
+                                  isCur ? 'shadow-md font-semibold' : 'hover:border-white/20'
                                 }`}
                                 style={{
                                   backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bgSecondary,
-                                  borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                                  borderColor: isCur ? accentColor : theme.colors.border,
+                                  boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
                                 }}
                               >
                                 <span className="text-[11px]" style={{ color: theme.colors.text }}>
@@ -1788,11 +2265,12 @@ return {
 
                     <button
                       onClick={handleToggleFocusMode}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all ${
-                        focusEnabled
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-semibold shadow-xs'
-                          : 'bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10'
-                      }`}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all font-medium cursor-pointer"
+                      style={{
+                        backgroundColor: focusEnabled ? `${accentColor}20` : 'transparent',
+                        color: focusEnabled ? textAccentColor : theme.colors.textMuted,
+                        border: `1px solid ${focusEnabled ? `${accentColor}50` : theme.colors.border}`,
+                      }}
                     >
                       {focusEnabled && <Check className="h-3 w-3" />}
                       <span>{focusEnabled ? '已开启' : '未开启'}</span>
@@ -1824,11 +2302,12 @@ return {
                                 key={mode.id}
                                 onClick={() => handleChangeFocusScope(mode.id as FocusScope)}
                                 className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition-all ${
-                                  isCur ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold' : 'hover:border-white/20'
+                                  isCur ? 'shadow-md font-semibold' : 'hover:border-white/20'
                                 }`}
                                 style={{
                                   backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bgSecondary,
-                                  borderColor: isCur ? theme.colors.accent : theme.colors.border,
+                                  borderColor: isCur ? accentColor : theme.colors.border,
+                                  boxShadow: isCur ? `0 0 0 1.5px ${accentColor}` : undefined,
                                 }}
                               >
                                 <span className="text-[11px]" style={{ color: theme.colors.text }}>
@@ -1849,7 +2328,7 @@ return {
                           <label className="font-medium text-[11px] opacity-80" style={{ color: theme.colors.text }}>
                             周围非活动文字暗化深度
                           </label>
-                          <span className="text-xs font-mono text-cyan-400 font-semibold">
+                          <span className="text-xs font-mono font-semibold" style={{ color: textAccentColor }}>
                             {Math.round((1 - focusDimOpacity) * 100)}% 弱化 (透明度 {Math.round(focusDimOpacity * 100)}%)
                           </span>
                         </div>
@@ -1860,190 +2339,14 @@ return {
                           step={0.02}
                           value={focusDimOpacity}
                           onChange={(e) => handleChangeFocusDimOpacity(parseFloat(e.target.value))}
-                          className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-white/10 accent-cyan-400"
+                          className="w-full h-1.5 rounded-lg appearance-none cursor-pointer bg-white/10"
+                          style={{ accentColor: accentColor }}
                         />
                         <div className="flex justify-between text-[9.5px] opacity-40 font-mono mt-1">
                           <span>0.10 (深邃沉浸)</span>
                           <span>0.28 (标准平衡)</span>
                           <span>0.55 (轻度微暗)</span>
                         </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 🌟 小说台词对话微光设置卡片 (Dialogue Highlighter 2.0 Card) */}
-                <div
-                  className="space-y-4 rounded-2xl border p-5 transition-all"
-                  style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          小说台词对话微光
-                        </span>
-                      </div>
-                      <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        自动为引号内对白（“” / 「」 / 『』）与心理独白赋予清晰微光，增强小说对话节奏感
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={handleToggleDialogue}
-                      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all ${
-                        dialogueEnabled
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-semibold shadow-xs'
-                          : 'bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10'
-                      }`}
-                    >
-                      {dialogueEnabled && <Check className="h-3 w-3" />}
-                      <span>{dialogueEnabled ? '已开启' : '未开启'}</span>
-                    </button>
-                  </div>
-
-                  {dialogueEnabled && (
-                    <div className="space-y-4 pt-3 border-t border-white/5 animate-in fade-in duration-200">
-                      {/* 台词颜色预设选择 */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="font-medium text-[11px] opacity-80" style={{ color: theme.colors.text }}>
-                            台词高亮颜色
-                          </label>
-                          <span className="text-[10px] font-mono opacity-50">
-                            {dialogueColorPreset === 'custom' ? `自定义: ${dialogueCustomColor}` : (DIALOGUE_COLOR_MAP[dialogueColorPreset as keyof typeof DIALOGUE_COLOR_MAP]?.name || '跟随主题')}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-                          {(Object.keys(DIALOGUE_COLOR_MAP) as (keyof typeof DIALOGUE_COLOR_MAP)[]).map((presetKey) => {
-                            const item = DIALOGUE_COLOR_MAP[presetKey];
-                            const isCur = dialogueColorPreset === presetKey;
-                            return (
-                              <button
-                                key={presetKey}
-                                onClick={() => handleChangeDialogueColorPreset(presetKey)}
-                                className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all ${
-                                  isCur
-                                    ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold'
-                                    : 'hover:border-white/20'
-                                }`}
-                                style={{
-                                  backgroundColor: isCur ? theme.colors.bgHover : theme.colors.bgSecondary,
-                                  borderColor: isCur ? theme.colors.accent : theme.colors.border,
-                                }}
-                              >
-                                <span
-                                  className="h-3.5 w-3.5 rounded-full mb-1 shadow-xs"
-                                  style={{ backgroundColor: presetKey === 'theme' ? (theme.colors.accent || '#38bdf8') : item.hex }}
-                                />
-                                <span className="text-[10px] leading-tight" style={{ color: theme.colors.text }}>
-                                  {item.name}
-                                </span>
-                              </button>
-                            );
-                          })}
-
-                          {/* 自定义颜色按钮 */}
-                          <button
-                            onClick={() => handleChangeDialogueColorPreset('custom')}
-                            className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all ${
-                              dialogueColorPreset === 'custom'
-                                ? 'ring-2 ring-cyan-400/80 shadow-md font-semibold'
-                                : 'hover:border-white/20'
-                            }`}
-                            style={{
-                              backgroundColor: dialogueColorPreset === 'custom' ? theme.colors.bgHover : theme.colors.bgSecondary,
-                              borderColor: dialogueColorPreset === 'custom' ? theme.colors.accent : theme.colors.border,
-                            }}
-                          >
-                            <span
-                              className="h-3.5 w-3.5 rounded-full mb-1 shadow-xs border border-white/30"
-                              style={{ backgroundColor: dialogueCustomColor }}
-                            />
-                            <span className="text-[10px] leading-tight" style={{ color: theme.colors.text }}>
-                              自定义
-                            </span>
-                          </button>
-                        </div>
-
-                        {/* 自定义颜色细调栏 */}
-                        {dialogueColorPreset === 'custom' && (
-                          <div
-                            className="mt-3 p-3 rounded-xl border space-y-2.5 animate-in fade-in duration-150"
-                            style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10.5px] font-medium" style={{ color: theme.colors.text }}>
-                                自由调色板 / 取色器
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="color"
-                                  value={dialogueCustomColor}
-                                  onChange={(e) => handleChangeDialogueCustomColor(e.target.value)}
-                                  className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
-                                />
-                                <input
-                                  type="text"
-                                  value={dialogueCustomColor}
-                                  onChange={(e) => handleChangeDialogueCustomColor(e.target.value)}
-                                  placeholder="#38bdf8"
-                                  className="w-20 px-2 py-0.5 rounded border text-[11px] font-mono outline-none text-center"
-                                  style={{
-                                    backgroundColor: theme.colors.bg,
-                                    borderColor: theme.colors.border,
-                                    color: theme.colors.text,
-                                  }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* 文人雅致推荐快选色条 */}
-                            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-white/5">
-                              <span className="text-[9.5px] opacity-40">雅致推荐:</span>
-                              {[
-                                { name: '天青', hex: '#38bdf8' },
-                                { name: '竹青', hex: '#34d399' },
-                                { name: '金杏', hex: '#fbbf24' },
-                                { name: '朱砂', hex: '#f87171' },
-                                { name: '海棠', hex: '#f472b6' },
-                                { name: '黛紫', hex: '#a78bfa' },
-                                { name: '茶白', hex: '#fde047' },
-                                { name: '霜月', hex: '#cbd5e1' },
-                              ].map((c) => (
-                                <button
-                                  key={c.hex}
-                                  onClick={() => handleChangeDialogueCustomColor(c.hex)}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded text-[9.5px] border border-white/10 hover:border-white/30 transition-all"
-                                  style={{ backgroundColor: `${c.hex}15` }}
-                                >
-                                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.hex }} />
-                                  <span style={{ color: c.hex }}>{c.name}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 心理独白括号开关 */}
-                      <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                        <div>
-                          <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
-                            高亮心理独白 （……）
-                          </span>
-                          <p className="text-[9.5px] opacity-40">自动识别全角及半角括号内的角色心理活动并应用轻柔斜体</p>
-                        </div>
-                        <button
-                          onClick={handleToggleDialogueThoughts}
-                          className={`flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-mono transition-all ${
-                            dialogueHighlightThoughts
-                              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold'
-                              : 'bg-white/5 text-neutral-400 border border-white/5 hover:bg-white/10'
-                          }`}
-                        >
-                          {dialogueHighlightThoughts ? '已开启' : '未开启'}
-                        </button>
                       </div>
                     </div>
                   )}
@@ -2088,7 +2391,12 @@ return {
                             eventBus.emit('open-floating-search', { mode: 'replace' });
                           }, 150);
                         }}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all font-semibold cursor-pointer"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs border transition-all font-semibold cursor-pointer"
+                        style={{
+                          backgroundColor: `${accentColor}20`,
+                          color: textAccentColor,
+                          borderColor: `${accentColor}40`,
+                        }}
                       >
                         <Replace className="h-3 w-3" />
                         <span>批量替换 ({keymapRegistry.getFormattedKey('search:replace-hud', 'Ctrl+H')})</span>
@@ -2103,7 +2411,8 @@ return {
                       </span>
                       <button
                         onClick={() => setActiveTab('keymap')}
-                        className="text-[10px] text-cyan-400/80 hover:text-cyan-300 font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                        className="text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
+                        style={{ color: textAccentColor }}
                       >
                         <span>管理所有快捷键</span>
                         <ChevronRight className="h-2.5 w-2.5" />
@@ -2168,12 +2477,13 @@ return {
                         onClick={() => onSelectTheme(th.id)}
                         className={`group relative flex flex-col gap-3 rounded-2xl border p-4 cursor-pointer transition-all duration-200 ${
                           isCur
-                            ? 'ring-2 ring-cyan-400/80 shadow-lg scale-[1.01]'
+                            ? 'shadow-lg scale-[1.01]'
                             : 'hover:border-white/20 hover:scale-[1.005] opacity-80 hover:opacity-100'
                         }`}
                         style={{
                           backgroundColor: th.colors.bgSecondary,
                           borderColor: isCur ? th.colors.accent : `${th.colors.border}80`,
+                          boxShadow: isCur ? `0 0 0 2px ${th.colors.accent}` : undefined,
                         }}
                       >
                         {/* Mini Editor Mockup Preview */}
@@ -2233,7 +2543,7 @@ return {
                             </span>
                           </div>
                           {isCur ? (
-                            <span className="flex items-center gap-1 text-[10px] font-mono text-cyan-400 font-semibold">
+                            <span className="flex items-center gap-1 text-[10px] font-mono font-semibold" style={{ color: textAccentColor }}>
                               <Check className="h-3 w-3" /> 当前应用
                             </span>
                           ) : (
@@ -2246,6 +2556,120 @@ return {
                     );
                   })}
                 </div>
+
+                {/* 🌟 全局界面强调色调配工坊 (Universal UI Accent Color Card) */}
+                <div
+                  className="space-y-4 rounded-2xl border p-5 transition-all"
+                  style={{
+                    borderColor: `${accentColor}40`,
+                    backgroundColor: `${accentColor}06`,
+                  }}
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" style={{ color: textAccentColor }} />
+                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                          界面交互强调色
+                        </span>
+                        <span
+                          className="text-[9.5px] px-2 py-0.5 rounded-full font-mono font-medium"
+                          style={{
+                            backgroundColor: `${accentColor}18`,
+                            color: textAccentColor,
+                            border: `1px solid ${accentColor}35`,
+                          }}
+                        >
+                          {uiAccentColor === 'auto' ? '跟随当前主题' : '自定义调色'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] opacity-60 leading-relaxed" style={{ color: theme.colors.textMuted }}>
+                        统一控制设置抽屉、切换标签、状态栏高亮、选框与滑块的强调色彩，避免浅色或深色下色彩失调
+                      </p>
+                    </div>
+
+                    {uiAccentColor !== 'auto' && (
+                      <button
+                        onClick={() => onChangeUiAccentColor?.('auto')}
+                        className="text-[10.5px] font-mono opacity-70 hover:opacity-100 underline cursor-pointer shrink-0"
+                        style={{ color: textAccentColor }}
+                      >
+                        重置为跟随主题
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 pt-2 border-t" style={{ borderColor: `${theme.colors.border}40` }}>
+                    {/* 8 大精选强调色芯片 */}
+                    <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+                      {[
+                        { name: '水墨玄石', hex: '#292524', desc: '高对比深墨' },
+                        { name: '朱砂赤羽', hex: '#c95738', desc: '纸墨典雅红' },
+                        { name: '极光青蓝', hex: '#0284c7', desc: '沉稳霁蓝' },
+                        { name: '曜石幻紫', hex: '#8b5cf6', desc: '极光幻夜紫' },
+                        { name: '翡翠森绿', hex: '#059669', desc: '清新护眼绿' },
+                        { name: '暖褐琥珀', hex: '#d97706', desc: '温暖琥珀橙' },
+                        { name: '玫瑰绯红', hex: '#e11d48', desc: '浓郁绯红' },
+                        { name: '深海群青', hex: '#2563eb', desc: '经典皇家蓝' },
+                      ].map((c) => {
+                        const isCur = uiAccentColor === c.hex;
+                        return (
+                          <button
+                            key={c.hex}
+                            onClick={() => onChangeUiAccentColor?.(c.hex)}
+                            className="flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer hover:scale-[1.02]"
+                            style={{
+                              backgroundColor: isCur ? `${c.hex}22` : theme.colors.bgSecondary,
+                              borderColor: isCur ? c.hex : theme.colors.border,
+                              boxShadow: isCur ? `0 0 0 1.5px ${c.hex}` : undefined,
+                            }}
+                          >
+                            <span
+                              className="h-4 w-4 rounded-full mb-1 shadow-xs border border-white/20"
+                              style={{ backgroundColor: c.hex }}
+                            />
+                            <span className="text-[10px] font-medium leading-tight" style={{ color: theme.colors.text }}>
+                              {c.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* 吸管与自定义色值输入 */}
+                    <div
+                      className="p-2.5 rounded-xl border flex items-center justify-between gap-3"
+                      style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
+                          原生拾色器与色号输入
+                        </span>
+                        <span className="text-[9.5px] opacity-40 font-mono">（实时全局无感生效）</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={accentColor}
+                          onChange={(e) => onChangeUiAccentColor?.(e.target.value)}
+                          className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                        />
+                        <input
+                          type="text"
+                          value={uiAccentColor === 'auto' ? theme.colors.accent : uiAccentColor}
+                          onChange={(e) => onChangeUiAccentColor?.(e.target.value)}
+                          placeholder={theme.colors.accent}
+                          className="w-20 px-2 py-0.5 rounded border text-[11px] font-mono outline-none text-center font-bold"
+                          style={{
+                            backgroundColor: theme.colors.bg,
+                            borderColor: theme.colors.border,
+                            color: textAccentColor,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -2255,59 +2679,45 @@ return {
                 {/* 🌟 1. Top Header: Filter Pills & Action Buttons */}
                 <div className="flex items-center justify-between pb-3 border-b border-white/5 flex-wrap gap-2.5">
                   {/* Filter Pills */}
-                  <div className="flex items-center p-1 rounded-xl bg-black/30 border border-white/5">
-                    <button
-                      onClick={() => setPluginFilter('all')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        pluginFilter === 'all'
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold'
-                          : 'opacity-60 hover:opacity-100 text-neutral-300'
-                      }`}
-                    >
-                      <span>全部插件</span>
-                      <span className="text-[10px] font-mono opacity-60">
-                        ({pluginManager.getAllPlugins().length + AVAILABLE_COMMUNITY_PLUGINS.filter((p) => !pluginManager.getAllPlugins().some((ip) => ip.metadata.id === p.metadata.id)).length})
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setPluginFilter('installed')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        pluginFilter === 'installed'
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold'
-                          : 'opacity-60 hover:opacity-100 text-neutral-300'
-                      }`}
-                    >
-                      <span>已启用</span>
-                      <span className="text-[10px] font-mono opacity-60">
-                        ({pluginManager.getEnabledPlugins().length})
-                      </span>
-                    </button>
-
-                    <button
-                      onClick={() => setPluginFilter('available')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        pluginFilter === 'available'
-                          ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-semibold'
-                          : 'opacity-60 hover:opacity-100 text-neutral-300'
-                      }`}
-                    >
-                      <Globe className="h-3.5 w-3.5" />
-                      <span>扩展库</span>
-                      <span className="text-[10px] font-mono opacity-60">
-                        ({AVAILABLE_COMMUNITY_PLUGINS.filter((p) => !pluginManager.getAllPlugins().some((ip) => ip.metadata.id === p.metadata.id)).length})
-                      </span>
-                    </button>
+                  <div
+                    className="flex items-center p-1 rounded-xl border"
+                    style={{ backgroundColor: `${theme.colors.bgSecondary}`, borderColor: theme.colors.border }}
+                  >
+                    {[
+                      { id: 'all', label: '全部插件', count: pluginManager.getAllPlugins().length },
+                      { id: 'enabled', label: '已启用', count: pluginManager.getEnabledPlugins().length },
+                      { id: 'disabled', label: '已禁用', count: pluginManager.getAllPlugins().length - pluginManager.getEnabledPlugins().length },
+                    ].map((f) => {
+                      const isCur = pluginFilter === f.id;
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => setPluginFilter(f.id as any)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                          style={{
+                            backgroundColor: isCur ? `${accentColor}20` : 'transparent',
+                            color: isCur ? textAccentColor : theme.colors.textMuted,
+                            border: `1px solid ${isCur ? `${accentColor}40` : 'transparent'}`,
+                            fontWeight: isCur ? 600 : 400,
+                          }}
+                        >
+                          <span>{f.label}</span>
+                          <span className="text-[10px] font-mono opacity-60">
+                            ({f.count})
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Actions: Custom JS script */}
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsCustomScriptModalOpen(true)}
-                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all font-mono"
+                      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all font-mono cursor-pointer"
                       style={{ color: theme.colors.text }}
                     >
-                      <Code2 className="h-3.5 w-3.5 text-cyan-400" />
+                      <Code2 className="h-3.5 w-3.5" style={{ color: textAccentColor }} />
                       <span>+ 自定义脚本 (JS)</span>
                     </button>
                   </div>
@@ -2347,164 +2757,55 @@ return {
                     onClick={handleRefreshRegistry}
                     disabled={isRefreshingRegistry}
                     title="刷新插件列表"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-xs font-mono shrink-0 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-xs font-mono shrink-0 disabled:opacity-50 cursor-pointer"
                     style={{ color: theme.colors.text }}
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 text-cyan-400 ${isRefreshingRegistry ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingRegistry ? 'animate-spin' : ''}`} style={{ color: textAccentColor }} />
                     <span>{isRefreshingRegistry ? '刷新中...' : '刷新'}</span>
                   </button>
                 </div>
 
                 {/* 🌟 3. Unified Plugin Cards List */}
                 <div className="space-y-3">
-                  {/* 3.1 Local Installed & Built-in Plugins */}
-                  {pluginFilter !== 'available' &&
-                    pluginManager
-                      .getAllPlugins()
-                      .filter((p) => {
-                        const isEnabled = pluginManager.isPluginEnabled(p.metadata.id);
-                        if (pluginFilter === 'installed' && !isEnabled) return false;
+                  {pluginManager
+                    .getAllPlugins()
+                    .filter((p) => {
+                      const isEnabled = pluginManager.isPluginEnabled(p.metadata.id);
+                      if (pluginFilter === 'enabled' && !isEnabled) return false;
+                      if (pluginFilter === 'disabled' && isEnabled) return false;
 
-                        if (!pluginSearch.trim()) return true;
-                        const q = pluginSearch.toLowerCase().trim();
-                        const info = PLUGIN_RICH_INFO[p.metadata.id];
-                        const matchName = p.metadata.name.toLowerCase().includes(q);
-                        const matchDesc = p.metadata.description.toLowerCase().includes(q);
-                        const matchAuthor = (p.metadata.author || '').toLowerCase().includes(q);
-                        const matchCat = (info?.category || '').toLowerCase().includes(q);
-                        return matchName || matchDesc || matchAuthor || matchCat;
-                      })
-                      .map((p) => {
-                        const isEnabled = pluginManager.isPluginEnabled(p.metadata.id);
-                        const info = PLUGIN_RICH_INFO[p.metadata.id];
-                        const IconComp = info?.icon || COMMUNITY_ICONS[p.metadata.icon || ''] || Layers;
-                        const isCommunityInstalled = dynamicPluginLoader.isCommunityPluginInstalled(p.metadata.id);
+                      if (!pluginSearch.trim()) return true;
+                      const q = pluginSearch.toLowerCase().trim();
+                      const info = PLUGIN_RICH_INFO[p.metadata.id];
+                      const matchName = p.metadata.name.toLowerCase().includes(q);
+                      const matchDesc = p.metadata.description.toLowerCase().includes(q);
+                      const matchAuthor = (p.metadata.author || '').toLowerCase().includes(q);
+                      const matchCat = (info?.category || '').toLowerCase().includes(q);
+                      return matchName || matchDesc || matchAuthor || matchCat;
+                    })
+                    .map((p) => {
+                      const isEnabled = pluginManager.isPluginEnabled(p.metadata.id);
+                      const info = PLUGIN_RICH_INFO[p.metadata.id];
+                      const IconComp = info?.icon || Layers;
+                      const isCustom = dynamicPluginLoader.getAllCustomPlugins().some((c) => c.id === p.metadata.id);
 
-                        return (
-                          <div
-                            key={p.metadata.id}
-                            className="rounded-2xl border p-4 transition-all"
-                            style={{
-                              backgroundColor: theme.colors.bg,
-                              borderColor: isEnabled ? `${theme.colors.accent}40` : theme.colors.border,
-                            }}
-                          >
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3">
-                                <div
-                                  className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border"
-                                  style={{
-                                    backgroundColor: isEnabled ? `${theme.colors.accent}15` : 'rgba(255,255,255,0.03)',
-                                    color: isEnabled ? theme.colors.accent : theme.colors.textMuted,
-                                    borderColor: isEnabled ? `${theme.colors.accent}30` : 'rgba(255,255,255,0.06)',
-                                  }}
-                                >
-                                  <IconComp className="h-4.5 w-4.5" />
-                                </div>
-
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                                      {p.metadata.name}
-                                    </span>
-                                    <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-neutral-400 border border-white/5">
-                                      v{p.metadata.version}
-                                    </span>
-                                    {p.metadata.author && (
-                                      <span className="text-[10px] opacity-40 font-mono">
-                                        by {p.metadata.author}
-                                      </span>
-                                    )}
-                                    {info?.category && (
-                                      <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-white/5 text-neutral-400">
-                                        {info.category}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-[11px] leading-relaxed opacity-65" style={{ color: theme.colors.textMuted }}>
-                                    {p.metadata.description}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Toggle or Uninstall */}
-                              <div className="flex items-center gap-2 shrink-0">
-                                {isCommunityInstalled && (
-                                  <button
-                                    onClick={() => handleUninstallCommunityPlugin(p.metadata.id)}
-                                    className="p-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all"
-                                    title="卸载此扩展"
-                                  >
-                                    <Trash className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-
-                                <button
-                                  onClick={() => {
-                                    if (isEnabled) {
-                                      pluginManager.disablePlugin(p.metadata.id);
-                                    } else {
-                                      pluginManager.enablePlugin(p.metadata.id);
-                                    }
-                                  }}
-                                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all shrink-0 ${
-                                    isEnabled
-                                      ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 font-semibold'
-                                      : 'bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10'
-                                  }`}
-                                >
-                                  {isEnabled && <Check className="h-3 w-3" />}
-                                  <span>{isEnabled ? '已启用' : '已禁用'}</span>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Footer with clean jump link */}
-                            {info?.targetTab && (
-                              <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-end text-[10.5px]">
-                                <button
-                                  onClick={() => setActiveTab(info.targetTab!)}
-                                  className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity ml-auto text-[11px] cursor-pointer"
-                                  style={{ color: theme.colors.accent }}
-                                >
-                                  <span>前往详细配置</span>
-                                  <ChevronRight className="h-3 w-3" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                  {/* 3.2 Uninstalled Online Plugins */}
-                  {pluginFilter !== 'installed' &&
-                    AVAILABLE_COMMUNITY_PLUGINS.filter(
-                      (p) => !pluginManager.getAllPlugins().some((ip) => ip.metadata.id === p.metadata.id)
-                    )
-                      .filter((p) => {
-                        if (!pluginSearch.trim()) return true;
-                        const q = pluginSearch.toLowerCase().trim();
-                        const matchName = p.metadata.name.toLowerCase().includes(q);
-                        const matchDesc = p.metadata.description.toLowerCase().includes(q);
-                        const matchAuthor = (p.metadata.author || '').toLowerCase().includes(q);
-                        return matchName || matchDesc || matchAuthor;
-                      })
-                      .map((item) => {
-                        const IconComp = COMMUNITY_ICONS[item.metadata.icon || ''] || Globe;
-
-                        return (
-                          <div
-                            key={item.metadata.id}
-                            className="rounded-2xl border p-4 flex items-start justify-between gap-4 transition-all bg-white/2"
-                            style={{ borderColor: theme.colors.border }}
-                          >
+                      return (
+                        <div
+                          key={p.metadata.id}
+                          className="rounded-2xl border p-4 transition-all"
+                          style={{
+                            backgroundColor: theme.colors.bg,
+                            borderColor: isEnabled ? `${theme.colors.accent}40` : theme.colors.border,
+                          }}
+                        >
+                          <div className="flex items-start justify-between gap-4">
                             <div className="flex items-start gap-3">
                               <div
                                 className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border"
                                 style={{
-                                  backgroundColor: 'rgba(255,255,255,0.03)',
-                                  color: theme.colors.textMuted,
-                                  borderColor: 'rgba(255,255,255,0.06)',
+                                  backgroundColor: isEnabled ? `${theme.colors.accent}15` : 'rgba(255,255,255,0.03)',
+                                  color: isEnabled ? theme.colors.accent : theme.colors.textMuted,
+                                  borderColor: isEnabled ? `${theme.colors.accent}30` : 'rgba(255,255,255,0.06)',
                                 }}
                               >
                                 <IconComp className="h-4.5 w-4.5" />
@@ -2513,35 +2814,84 @@ return {
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                                    {item.metadata.name}
+                                    {p.metadata.name}
                                   </span>
-                                  <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-neutral-400">
-                                    v{item.metadata.version}
+                                  <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-neutral-400 border border-white/5">
+                                    v{p.metadata.version}
                                   </span>
-                                  {item.metadata.author && (
+                                  {p.metadata.author && (
                                     <span className="text-[10px] opacity-40 font-mono">
-                                      by {item.metadata.author}
+                                      by {p.metadata.author}
+                                    </span>
+                                  )}
+                                  {info?.category && (
+                                    <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-white/5 text-neutral-400">
+                                      {info.category}
+                                    </span>
+                                  )}
+                                  {isCustom && (
+                                    <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                                      自定义脚本
                                     </span>
                                   )}
                                 </div>
                                 <p className="text-[11px] leading-relaxed opacity-65" style={{ color: theme.colors.textMuted }}>
-                                  {item.metadata.description}
+                                  {p.metadata.description}
                                 </p>
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleInstallCommunityPlugin(item.metadata.id)}
-                              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono transition-all shrink-0 bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 font-semibold"
-                            >
-                              <Download className="h-3 w-3" />
-                              <span>安装</span>
-                            </button>
-                          </div>
-                        );
-                      })}
+                            {/* Toggle or Uninstall */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isCustom && (
+                                <button
+                                  onClick={() => handleUninstallCustomPlugin(p.metadata.id)}
+                                  className="p-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
+                                  title="卸载此脚本"
+                                >
+                                  <Trash className="h-3.5 w-3.5" />
+                                </button>
+                              )}
 
-                  {/* 3.3 Custom Injected JS Scripts */}
+                              <button
+                                onClick={() => {
+                                  if (isEnabled) {
+                                    pluginManager.disablePlugin(p.metadata.id);
+                                  } else {
+                                    pluginManager.enablePlugin(p.metadata.id);
+                                  }
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono transition-all shrink-0 cursor-pointer font-medium"
+                                style={{
+                                  backgroundColor: isEnabled ? `${accentColor}20` : 'transparent',
+                                  color: isEnabled ? textAccentColor : theme.colors.textMuted,
+                                  border: `1px solid ${isEnabled ? `${accentColor}50` : theme.colors.border}`,
+                                }}
+                              >
+                                {isEnabled && <Check className="h-3 w-3" />}
+                                <span>{isEnabled ? '已启用' : '已禁用'}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Footer with clean jump link */}
+                          {info?.targetTab && (
+                            <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-end text-[10.5px]">
+                              <button
+                                onClick={() => setActiveTab(info.targetTab!)}
+                                className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity ml-auto text-[11px] cursor-pointer"
+                                style={{ color: textAccentColor }}
+                              >
+                                <span>前往详细配置</span>
+                                <ChevronRight className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                  {/* 3.2 Custom Injected JS Scripts */}
                   {dynamicPluginLoader.getAllCustomPlugins().length > 0 && (
                     <div className="pt-3 border-t border-white/5 space-y-2">
                       <span className="font-semibold text-xs opacity-75" style={{ color: theme.colors.text }}>
@@ -2559,7 +2909,7 @@ return {
                                 {c.name}
                               </span>
                               <span className="text-[9.5px] font-mono opacity-50">v{c.version}</span>
-                              <span className="text-[9.5px] font-mono text-cyan-400/80">({c.id})</span>
+                              <span className="text-[9.5px] font-mono font-medium" style={{ color: textAccentColor }}>({c.id})</span>
                             </div>
                             <p className="text-[10.5px] opacity-60 line-clamp-1" style={{ color: theme.colors.textMuted }}>
                               {c.description}
@@ -2590,13 +2940,13 @@ return {
                 >
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-2">
-                      <Keyboard className="h-4 w-4 text-cyan-400" />
+                      <Keyboard className="h-4 w-4" style={{ color: textAccentColor }} />
                       <h4 className="text-xs font-semibold" style={{ color: theme.colors.text }}>
                         全景交互式快捷键速查 HUD
                       </h4>
                     </div>
                     <p className="text-[11px] opacity-55" style={{ color: theme.colors.textMuted }}>
-                      支持随时在写作或分屏时按下 <kbd className="font-mono font-bold text-cyan-300">{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd>（或 <kbd className="font-mono font-bold text-cyan-300">F1</kbd>）呼出全屏悬浮面板
+                      支持随时在写作或分屏时按下 <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd>（或 <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>F1</kbd>）呼出全屏悬浮面板
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2616,7 +2966,12 @@ return {
                         onClose();
                         eventBus.emit('keymap:open-cheatsheet');
                       }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all shadow-xs cursor-pointer shrink-0"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all shadow-xs cursor-pointer shrink-0"
+                      style={{
+                        backgroundColor: `${accentColor}20`,
+                        color: textAccentColor,
+                        borderColor: `${accentColor}40`,
+                      }}
                     >
                       <Keyboard className="h-3.5 w-3.5" />
                       <span>唤起悬浮面板 ({keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl+/')})</span>
@@ -2633,7 +2988,7 @@ return {
                       value={keymapSearch}
                       onChange={(e) => setKeymapSearch(e.target.value)}
                       placeholder="搜索快捷键动作、按键名称或描述..."
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-xs outline-none focus:border-cyan-400 transition-colors shadow-inner"
+                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-xs outline-none transition-colors shadow-inner"
                       style={{
                         backgroundColor: theme.colors.bg,
                         borderColor: theme.colors.border,
@@ -2669,9 +3024,14 @@ return {
                           onClick={() => setKeymapCategory(cat.id as any)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
                             isCur
-                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold shadow-xs'
+                              ? 'shadow-xs font-semibold'
                               : 'bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10 hover:text-neutral-200'
                           }`}
+                          style={{
+                            backgroundColor: isCur ? `${accentColor}20` : undefined,
+                            color: isCur ? textAccentColor : undefined,
+                            border: isCur ? `1px solid ${accentColor}40` : undefined,
+                          }}
                         >
                           <Icon className="h-3 w-3 opacity-70" />
                           <span>{cat.label}</span>
@@ -2701,118 +3061,131 @@ return {
                             key={item.id}
                             className={`group p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 ${
                               isRecording
-                                ? 'ring-2 ring-cyan-400/80 bg-cyan-950/40 border-cyan-500/60 shadow-lg'
+                                ? 'shadow-lg'
                                 : 'bg-black/20 hover:bg-white/[0.04]'
                             }`}
-                            style={{ borderColor: isRecording ? undefined : `${theme.colors.border}40` }}
+                            style={{
+                              borderColor: isRecording ? accentColor : `${theme.colors.border}40`,
+                              backgroundColor: isRecording ? `${accentColor}18` : undefined,
+                              boxShadow: isRecording ? `0 0 0 2px ${accentColor}` : undefined,
+                            }}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0 space-y-0.5">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-semibold text-xs truncate" style={{ color: theme.colors.text }}>
-                                    {item.title}
-                                  </span>
-                                  {isCustom && (
-                                    <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                      已自定义
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-[11px] opacity-55 line-clamp-1" style={{ color: theme.colors.textMuted }}>
-                                  {item.description}
-                                </p>
-                              </div>
+                                 <div className="flex items-center gap-1.5 flex-wrap">
+                                   <span className="font-semibold text-xs truncate" style={{ color: theme.colors.text }}>
+                                     {item.title}
+                                   </span>
+                                   {isCustom && (
+                                     <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                       已自定义
+                                     </span>
+                                   )}
+                                 </div>
+                                 <p className="text-[11px] opacity-55 line-clamp-1" style={{ color: theme.colors.textMuted }}>
+                                   {item.description}
+                                 </p>
+                               </div>
 
-                              {/* Key Badge or Recording Input */}
-                              <div className="shrink-0 flex items-center gap-1.5">
-                                {isRecording ? (
-                                  <div className="flex items-center gap-1">
-                                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-cyan-500/25 border border-cyan-400 font-mono text-[11px] text-cyan-200 animate-pulse shadow-sm">
-                                      {displayKey.mods.map((m, idx) => (
-                                        <kbd key={idx} className="font-semibold">
-                                          {m}
-                                        </kbd>
-                                      ))}
-                                      {displayKey.mods.length > 0 && <span className="opacity-40">+</span>}
-                                      <kbd className="font-bold">{displayKey.key || '请按下新按键...'}</kbd>
-                                    </div>
-                                    <button
-                                      onClick={() => handleSaveKeymapRecording(item.id)}
-                                      disabled={!recordedKeymapStr}
-                                      className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-30 cursor-pointer"
-                                      title="保存"
-                                    >
-                                      <Check className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        setRecordingKeymapId(null);
-                                        setRecordedKeymapStr('');
-                                        setConflictKeymapItem(null);
-                                      }}
-                                      className="p-1.5 rounded-lg bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10 cursor-pointer"
-                                      title="取消"
-                                    >
-                                      <X className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1">
-                                    {item.run && (
-                                      <button
-                                        onClick={() => {
-                                          item.run?.();
-                                          eventBus.emit('show-toast', { message: `已执行「${item.title}」`, type: 'info' });
-                                        }}
-                                        className="p-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 hover:text-cyan-300 text-neutral-400 border border-white/5 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                                        title="立即运行此动作"
-                                      >
-                                        <Play className="h-2.5 w-2.5 fill-current" />
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => {
-                                        setRecordingKeymapId(item.id);
-                                        setRecordedKeymapStr('');
-                                        setConflictKeymapItem(null);
-                                      }}
-                                      className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/40 border border-white/10 font-mono text-[11px] hover:border-cyan-400/50 hover:bg-white/5 transition-all cursor-pointer group/btn"
-                                      title="点击录制新按键"
-                                    >
-                                      {displayKey.mods.map((m, idx) => (
-                                        <kbd key={idx} className="opacity-70 font-semibold text-neutral-300">
-                                          {m}
-                                        </kbd>
-                                      ))}
-                                      {displayKey.mods.length > 0 && <span className="opacity-30">+</span>}
-                                      <kbd className="font-bold text-cyan-300">{displayKey.key}</kbd>
-                                      <Edit2 className="h-2.5 w-2.5 ml-1 opacity-0 group-hover/btn:opacity-60 text-cyan-300 transition-opacity" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                               {/* Key Badge or Recording Input */}
+                               <div className="shrink-0 flex items-center gap-1.5">
+                                 {isRecording ? (
+                                   <div className="flex items-center gap-1">
+                                     <div
+                                       className="flex items-center gap-1 px-2.5 py-1 rounded-xl border font-mono text-[11px] animate-pulse shadow-sm"
+                                       style={{
+                                         backgroundColor: `${accentColor}25`,
+                                         borderColor: accentColor,
+                                         color: textAccentColor,
+                                       }}
+                                     >
+                                       {displayKey.mods.map((m, idx) => (
+                                         <kbd key={idx} className="font-semibold">
+                                           {m}
+                                         </kbd>
+                                       ))}
+                                       {displayKey.mods.length > 0 && <span className="opacity-40">+</span>}
+                                       <kbd className="font-bold">{displayKey.key || '请按下新按键...'}</kbd>
+                                     </div>
+                                     <button
+                                       onClick={() => handleSaveKeymapRecording(item.id)}
+                                       disabled={!recordedKeymapStr}
+                                       className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-30 cursor-pointer"
+                                       title="保存"
+                                     >
+                                       <Check className="h-3.5 w-3.5" />
+                                     </button>
+                                     <button
+                                       onClick={() => {
+                                         setRecordingKeymapId(null);
+                                         setRecordedKeymapStr('');
+                                         setConflictKeymapItem(null);
+                                       }}
+                                       className="p-1.5 rounded-lg bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10 cursor-pointer"
+                                       title="取消"
+                                     >
+                                       <X className="h-3.5 w-3.5" />
+                                     </button>
+                                   </div>
+                                 ) : (
+                                   <div className="flex items-center gap-1">
+                                     {item.run && (
+                                       <button
+                                         onClick={() => {
+                                           item.run?.();
+                                           eventBus.emit('show-toast', { message: `已执行「${item.title}」`, type: 'info' });
+                                         }}
+                                         className="p-1 rounded-lg bg-white/5 border border-white/5 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                                         style={{ color: textAccentColor }}
+                                         title="立即运行此动作"
+                                       >
+                                         <Play className="h-2.5 w-2.5 fill-current" />
+                                       </button>
+                                     )}
+                                     <button
+                                       onClick={() => {
+                                         setRecordingKeymapId(item.id);
+                                         setRecordedKeymapStr('');
+                                         setConflictKeymapItem(null);
+                                       }}
+                                       className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/40 border border-white/10 font-mono text-[11px] hover:bg-white/5 transition-all cursor-pointer group/btn"
+                                       title="点击录制新按键"
+                                     >
+                                       {displayKey.mods.map((m, idx) => (
+                                         <kbd key={idx} className="opacity-70 font-semibold text-neutral-300">
+                                           {m}
+                                         </kbd>
+                                       ))}
+                                       {displayKey.mods.length > 0 && <span className="opacity-30">+</span>}
+                                       <kbd className="font-bold" style={{ color: textAccentColor }}>{displayKey.key}</kbd>
+                                       <Edit2 className="h-2.5 w-2.5 ml-1 opacity-0 group-hover/btn:opacity-60 transition-opacity" style={{ color: textAccentColor }} />
+                                     </button>
+                                   </div>
+                                 )}
+                               </div>
+                             </div>
 
-                            {/* Conflict Warning or Reset if custom */}
-                            {isRecording && conflictKeymapItem && (
-                              <div className="flex items-center gap-1.5 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-[10.5px]">
-                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                <span>按键与「{conflictKeymapItem.title}」冲突，保存将覆盖原绑定</span>
-                              </div>
-                            )}
+                             {/* Conflict Warning or Reset if custom */}
+                             {isRecording && conflictKeymapItem && (
+                               <div className="flex items-center gap-1.5 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-[10.5px]">
+                                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                 <span>按键与「{conflictKeymapItem.title}」冲突，保存将覆盖原绑定</span>
+                               </div>
+                             )}
 
-                            {!isRecording && isCustom && (
-                              <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-white/5">
-                                <span className="opacity-40 font-mono">出厂默认：{item.defaultKey}</span>
-                                <button
-                                  onClick={() => handleResetSingleKeymap(item.id)}
-                                  className="flex items-center gap-1 text-cyan-400/75 hover:text-cyan-300 transition-colors cursor-pointer"
-                                >
-                                  <RotateCcw className="h-2.5 w-2.5" />
-                                  <span>恢复默认</span>
-                                </button>
-                              </div>
-                            )}
+                             {!isRecording && isCustom && (
+                               <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-white/5">
+                                 <span className="opacity-40 font-mono">出厂默认：{item.defaultKey}</span>
+                                 <button
+                                   onClick={() => handleResetSingleKeymap(item.id)}
+                                   className="flex items-center gap-1 transition-colors cursor-pointer"
+                                   style={{ color: textAccentColor }}
+                                 >
+                                   <RotateCcw className="h-2.5 w-2.5" />
+                                   <span>恢复默认</span>
+                                 </button>
+                               </div>
+                             )}
                           </div>
                         );
                       })}
@@ -2840,14 +3213,14 @@ return {
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Code2 className="h-4 w-4 text-cyan-400" />
+                <Code2 className="h-4 w-4" style={{ color: textAccentColor }} />
                 <h4 className="font-bold text-sm" style={{ color: theme.colors.text }}>
                   编写 / 注入自定义小说插件 (JavaScript)
                 </h4>
               </div>
               <button
                 onClick={() => setIsCustomScriptModalOpen(false)}
-                className="p-1 rounded-full opacity-60 hover:opacity-100"
+                className="p-1 rounded-full opacity-60 hover:opacity-100 cursor-pointer"
                 style={{ color: theme.colors.text }}
               >
                 <X className="h-4 w-4" />
@@ -2864,7 +3237,7 @@ return {
                 onChange={(e) => setCustomScriptCode(e.target.value)}
                 rows={12}
                 spellCheck={false}
-                className="w-full p-3 rounded-xl border text-xs font-mono outline-hidden focus:border-cyan-400 leading-relaxed resize-none"
+                className="w-full p-3 rounded-xl border text-xs font-mono outline-hidden leading-relaxed resize-none"
                 style={{
                   backgroundColor: theme.colors.bg,
                   borderColor: theme.colors.border,
@@ -2881,14 +3254,19 @@ return {
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/5">
               <button
                 onClick={() => setIsCustomScriptModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-sans opacity-70 hover:opacity-100"
+                className="px-4 py-2 rounded-xl text-xs font-sans opacity-70 hover:opacity-100 cursor-pointer"
                 style={{ color: theme.colors.text }}
               >
                 取消
               </button>
               <button
                 onClick={handleSaveAndRunCustomScript}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all font-mono"
+                className="px-4 py-2 rounded-xl text-xs font-semibold border transition-all font-mono cursor-pointer"
+                style={{
+                  backgroundColor: `${accentColor}20`,
+                  color: textAccentColor,
+                  borderColor: `${accentColor}40`,
+                }}
               >
                 测试运行并安装
               </button>

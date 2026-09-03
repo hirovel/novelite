@@ -3,6 +3,7 @@ import { keymapRegistry } from './KeymapRegistry';
 import { commandRegistry } from '../plugins/CommandRegistry';
 import { pluginManager } from '../plugins/PluginManager';
 import { eventBus } from '../events/EventBus';
+import { projectStore } from '../storage/ProjectStore';
 
 export function useGlobalKeymap() {
   useEffect(() => {
@@ -36,7 +37,7 @@ export function useGlobalKeymap() {
         return;
       }
 
-      // Check if there is a matching Command in CommandRegistry
+      // Check if there is a matching Command in CommandRegistry (with alias resolution)
       const cmd = commandRegistry.get(matched.id);
       if (cmd) {
         const targetId = cmd.pluginId || cmd.id;
@@ -60,10 +61,16 @@ export function useGlobalKeymap() {
           eventBus.emit('bookshelf:open');
           break;
         case 'nav:prev-chapter':
-          eventBus.emit('chapter:navigate-prev');
+          projectStore.navigateToPrevChapter();
           break;
         case 'nav:next-chapter':
-          eventBus.emit('chapter:navigate-next');
+          projectStore.navigateToNextChapter();
+          break;
+        case 'search:toggle-hud':
+          eventBus.emit('open-floating-search', { mode: 'search' });
+          break;
+        case 'search:replace-hud':
+          eventBus.emit('open-floating-search', { mode: 'replace' });
           break;
         case 'split:toggle':
           eventBus.emit('split-view:toggle');
@@ -82,28 +89,78 @@ export function useGlobalKeymap() {
           break;
         case 'literary:save-chapter':
           eventBus.emit('save-current-chapter');
-          eventBus.emit('show-toast', { message: '手稿已安全保存', type: 'success' });
           break;
         case 'literary:format-chinese':
           eventBus.emit('editor-action:format-chinese');
           break;
-        case 'literary:toggle-spotlight':
-          eventBus.emit('editor-action:toggle-spotlight');
+        case 'focus:toggle':
+        case 'literary:toggle-spotlight': {
+          const ctx = pluginManager.getPluginContext('plugin-immersion');
+          const current = ctx?.getSetting<boolean>('focusEnabled', false) ?? false;
+          const next = !current;
+          ctx?.setSetting('focusEnabled', next);
+          eventBus.emit('editor-extensions-changed');
+          ctx?.showToast(next ? '已开启专注聚光灯' : '已关闭专注聚光灯', 'info');
           break;
-        case 'literary:toggle-dialogue':
-          eventBus.emit('editor-action:toggle-dialogue');
+        }
+        case 'focus:toggle-scope': {
+          const ctx = pluginManager.getPluginContext('plugin-immersion');
+          const scopes = ['paragraph', 'sentence', 'horizon'] as const;
+          const names = { paragraph: '当前逻辑段落', sentence: '当前单句推敲', horizon: '三行微光渐变' };
+          const current = ctx?.getSetting<(typeof scopes)[number]>('focusScope', 'paragraph') || 'paragraph';
+          const next = scopes[(scopes.indexOf(current) + 1) % scopes.length];
+          ctx?.setSetting('focusScope', next);
+          eventBus.emit('editor-extensions-changed');
+          ctx?.showToast(`聚光范围: ${names[next] || next}`, 'info');
           break;
-        case 'literary:quick-export':
-          eventBus.emit('quick-export:open');
+        }
+        case 'literary:toggle-dialogue': {
+          const ctx = pluginManager.getPluginContext('plugin-immersion');
+          const current = ctx?.getSetting<boolean>('dialogueEnabled', true) ?? true;
+          const next = !current;
+          ctx?.setSetting('dialogueEnabled', next);
+          eventBus.emit('editor-extensions-changed');
+          ctx?.showToast(next ? '已开启台词高亮' : '已关闭台词高亮', 'info');
           break;
+        }
+        case 'literary:quick-export': {
+          const ctx = pluginManager.getPluginContext('plugin-novel-files');
+          const exportCmd = commandRegistry.get('novel.export-txt');
+          if (exportCmd && ctx) exportCmd.run(ctx);
+          break;
+        }
+        case 'editor:zoom-in': {
+          const ctx = pluginManager.getPluginContext('plugin-chinese-typography');
+          const zoomCmd = commandRegistry.get('typography.font-increase');
+          if (zoomCmd && ctx) zoomCmd.run(ctx);
+          break;
+        }
+        case 'editor:zoom-out': {
+          const ctx = pluginManager.getPluginContext('plugin-chinese-typography');
+          const zoomCmd = commandRegistry.get('typography.font-decrease');
+          if (zoomCmd && ctx) zoomCmd.run(ctx);
+          break;
+        }
         case 'view:toggle-zen':
           eventBus.emit('zen-mode:toggle');
           break;
         case 'view:open-settings':
           eventBus.emit('settings:open');
           break;
-        case 'search:toggle-hud':
-          eventBus.emit('search-hud:toggle');
+        case 'editor:history-undo':
+          eventBus.emit('editor-action:undo');
+          break;
+        case 'editor:history-redo':
+          eventBus.emit('editor-action:redo');
+          break;
+        case 'editor:clean-indent':
+          eventBus.emit('editor-action:clean-indent');
+          break;
+        case 'editor:clean-punctuation':
+          eventBus.emit('editor-action:clean-punctuation');
+          break;
+        case 'editor:remove-indents':
+          eventBus.emit('editor-action:remove-indents');
           break;
         default:
           eventBus.emit(`keymap:trigger:${matched.id}`);
