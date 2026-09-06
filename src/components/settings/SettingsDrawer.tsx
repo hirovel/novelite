@@ -31,6 +31,7 @@ import {
   Compass,
   BookOpen,
   Play,
+  Globe,
 } from 'lucide-react';
 import type { Theme } from '../../core/themes/types';
 import { THEMES } from '../../core/themes/themeDefinitions';
@@ -45,6 +46,7 @@ import { eventBus } from '../../core/events/EventBus';
 import { BrandIcon } from '../common/BrandIcon';
 import { keymapRegistry } from '../../core/keymap/KeymapRegistry';
 import type { KeybindingCategory, KeybindingItem } from '../../core/keymap/types';
+import { useTranslation } from '../../core/i18n';
 
 
 
@@ -289,6 +291,7 @@ export const SettingsDrawer: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'cursor' | 'background' | 'typography' | 'themes' | 'plugins' | 'keymap'>('cursor');
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
+  const { t, language, setLanguage } = useTranslation();
 
   const [pluginSearch, setPluginSearch] = useState<string>('');
   const [, setPluginsVersion] = useState<number>(0);
@@ -733,31 +736,31 @@ return {
 
   const tabMeta: Record<string, { title: string; desc: string; onReset?: () => void }> = {
     cursor: {
-      title: '灵感光标',
-      desc: isLiveCursorEnabled ? '光标形状、平滑跟随、拖尾与动画速度调节' : '「灵感光标」插件当前已禁用',
+      title: t('settings.tabs.cursor'),
+      desc: isLiveCursorEnabled ? t('settings.tabDesc.cursor') : t('settings.tabs.cursor') + ' (' + t('common.disabled') + ')',
       onReset: handleResetCursor,
     },
     background: {
-      title: '背景与氛围',
-      desc: isBackgroundEnabled ? '自定义背景图片、暗化遮罩、模糊度与预设效果' : '「背景与氛围」插件当前已禁用',
+      title: t('settings.tabs.background'),
+      desc: isBackgroundEnabled ? t('settings.tabDesc.background') : t('settings.tabs.background') + ' (' + t('common.disabled') + ')',
       onReset: handleResetBackground,
     },
     typography: {
-      title: '排版与字体',
-      desc: (isChineseTypographyEnabled || isImmersionEnabled) ? '字体选择、版心宽度、字号行距与沉浸写作' : '「中文排版」与「沉浸写作」插件当前已禁用',
+      title: t('settings.tabs.typography'),
+      desc: (isChineseTypographyEnabled || isImmersionEnabled) ? t('settings.tabDesc.typography') : t('settings.tabDesc.typographyDisabled'),
       onReset: handleResetTypography,
     },
     themes: {
-      title: '主题配色',
-      desc: '界面与文字色彩方案',
+      title: t('settings.tabs.themes'),
+      desc: t('settings.tabDesc.themes'),
     },
     plugins: {
-      title: '插件管理',
-      desc: '按需启用或禁用功能插件',
+      title: t('settings.tabs.plugins'),
+      desc: t('settings.tabDesc.plugins'),
     },
     keymap: {
-      title: '快捷键管理',
-      desc: '快捷键速查、自定义改键与按键冲突检测',
+      title: t('settings.tabs.keymap'),
+      desc: t('settings.tabDesc.keymap'),
       onReset: () => {
         keymapRegistry.resetAll();
         eventBus.emit('show-toast', { message: '所有快捷键已恢复默认设置', type: 'success' });
@@ -798,21 +801,21 @@ return {
               <BrandIcon size={24} className="shrink-0 drop-shadow-sm" />
               <div>
                 <h2 className="text-xs font-bold tracking-tight" style={{ color: theme.colors.text }}>
-                  Novelite 设置
+                  {t('settings.title')}
                 </h2>
-                <span className="text-[10px] opacity-40 font-mono">Preferences</span>
+                <span className="text-[10px] opacity-40 font-mono">{t('settings.preferences')}</span>
               </div>
             </div>
 
             {/* Navigation Tab Pills */}
             <nav className="space-y-1">
               {[
-                { id: 'cursor', label: '灵感光标', icon: Sparkles, badge: !isLiveCursorEnabled ? '已禁用' : undefined, isOff: !isLiveCursorEnabled },
-                { id: 'background', label: '背景艺术', icon: Image, badge: !isBackgroundEnabled ? '已禁用' : undefined, isOff: !isBackgroundEnabled },
-                { id: 'typography', label: '版心排版', icon: Type, badge: (!isChineseTypographyEnabled && !isImmersionEnabled) ? '已禁用' : undefined, isOff: (!isChineseTypographyEnabled && !isImmersionEnabled) },
-                { id: 'themes', label: '主题外观', icon: Palette },
-                { id: 'plugins', label: '扩展插件', icon: Puzzle },
-                { id: 'keymap', label: '快捷键管理', icon: Keyboard },
+                { id: 'cursor', label: t('settings.tabs.cursor'), icon: Sparkles, badge: !isLiveCursorEnabled ? t('common.disabled') : undefined, isOff: !isLiveCursorEnabled },
+                { id: 'background', label: t('settings.tabs.background'), icon: Image, badge: !isBackgroundEnabled ? t('common.disabled') : undefined, isOff: !isBackgroundEnabled },
+                { id: 'typography', label: t('settings.tabs.typography'), icon: Type, badge: (!isChineseTypographyEnabled && !isImmersionEnabled) ? t('common.disabled') : undefined, isOff: (!isChineseTypographyEnabled && !isImmersionEnabled) },
+                { id: 'themes', label: t('settings.tabs.themes'), icon: Palette },
+                { id: 'plugins', label: t('settings.tabs.plugins'), icon: Puzzle },
+                { id: 'keymap', label: t('settings.tabs.keymap'), icon: Keyboard },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -856,6 +859,30 @@ return {
 
           {/* Footer Shortcuts & Version Info */}
           <div className="px-3 py-2.5 border-t border-white/5 space-y-2">
+            {/* Language Selection */}
+            <div className="flex items-center justify-between text-xs pb-1.5 border-b border-white/5">
+              <div className="flex items-center gap-1.5 opacity-60">
+                <Globe className="h-3.5 w-3.5" />
+                <span className="text-[11px]">{t('settings.language')}</span>
+              </div>
+              <select
+                value={language}
+                onChange={(e) => {
+                  const nextLang = e.target.value as 'zh' | 'en';
+                  setLanguage(nextLang);
+                  eventBus.emit('show-toast', {
+                    message: nextLang === 'en' ? t('commands.switchedToEnglish') : t('commands.switchedToChinese'),
+                    type: 'info',
+                  });
+                }}
+                className="text-[11px] bg-white/5 hover:bg-white/10 border border-white/10 rounded px-1.5 py-0.5 outline-none cursor-pointer transition-colors"
+                style={{ color: theme.colors.text }}
+              >
+                <option value="zh" style={{ backgroundColor: theme.colors.bgSecondary, color: theme.colors.text }}>简体中文</option>
+                <option value="en" style={{ backgroundColor: theme.colors.bgSecondary, color: theme.colors.text }}>English</option>
+              </select>
+            </div>
+
             <div className="flex items-center justify-between text-[10px] font-mono">
               <span className="opacity-50">Novelite v1.0.0</span>
               <button
@@ -864,16 +891,16 @@ return {
                 style={{ color: textAccentColor }}
                 title="检查 GitHub Releases 软件最新版本"
               >
-                <span>检查更新</span>
+                <span>{t('settings.checkUpdates')}</span>
               </button>
             </div>
             <div className="space-y-1 text-[9.5px] font-mono opacity-40">
               <div className="flex justify-between">
-                <span>关闭面板</span>
+                <span>{t('settings.closePanel')}</span>
                 <kbd className="px-1 py-0.2 rounded bg-white/10">Esc</kbd>
               </div>
               <div className="flex justify-between">
-                <span>命令中心</span>
+                <span>{t('settings.commandCenter')}</span>
                 <kbd className="px-1 py-0.2 rounded bg-white/10">Ctrl+P</kbd>
               </div>
             </div>
@@ -3048,8 +3075,8 @@ return {
                                          color: textAccentColor,
                                        }}
                                      >
-                                       {displayKey.mods.map((m, idx) => (
-                                         <kbd key={idx} className="font-semibold">
+                                       {displayKey.mods.map((m) => (
+                                         <kbd key={m} className="font-semibold">
                                            {m}
                                          </kbd>
                                        ))}
@@ -3100,8 +3127,8 @@ return {
                                        className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/40 border border-white/10 font-mono text-[11px] hover:bg-white/5 transition-all cursor-pointer group/btn"
                                        title="点击录制新按键"
                                      >
-                                       {displayKey.mods.map((m, idx) => (
-                                         <kbd key={idx} className="opacity-70 font-semibold text-neutral-300">
+                                       {displayKey.mods.map((m) => (
+                                         <kbd key={m} className="opacity-70 font-semibold text-neutral-300">
                                            {m}
                                          </kbd>
                                        ))}

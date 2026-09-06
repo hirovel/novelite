@@ -59,5 +59,5 @@ export class EventBus {
 
 export const eventBus = EventBus.getInstance();
 if (typeof window !== 'undefined') {
-  (window as any).__novelite_event_bus = eventBus;
+  (window as any)['__novelite_event_bus'] = eventBus;
 }

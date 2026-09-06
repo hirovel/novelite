@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { UploadCloud, CheckCircle2, AlertCircle, X, ArrowRight, BookOpen } from 'lucide-react';
 import { parseBulkNovelText } from '../../core/storage/SmartNovelParser';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
@@ -28,14 +28,16 @@ export const NovelImportModal: React.FC<Props> = ({ isOpen, onClose, theme }) =>
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setParsedData(null);
       setErrorMessage(null);
       setIsParsing(false);
       setIsDragging(false);
     }
-  }, [isOpen]);
+  }
 
   if (!isOpen) return null;
 
@@ -68,7 +70,7 @@ export const NovelImportModal: React.FC<Props> = ({ isOpen, onClose, theme }) =>
         }
       }
 
-      const defaultTitle = file.name.replace(/\.(txt|md)$/i, '').replace(/^[《\[【\s]*(.*?)[》\]】\s]*$/, '$1');
+      const defaultTitle = file.name.replace(/\.(txt|md)$/i, '').replace(/^[《[【\s]*(.*?)[》\]】\s]*$/, '$1');
       const parsed = parseBulkNovelText(text, defaultTitle);
 
       setParsedData({
@@ -298,7 +300,7 @@ export const NovelImportModal: React.FC<Props> = ({ isOpen, onClose, theme }) =>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                   {parsedData.volumes.flatMap((v) => v.chapters.map((c) => ({ volTitle: v.title, chap: c }))).slice(0, 4).map((item, idx) => (
                     <div
-                      key={idx}
+                      key={item.chap.id || `${item.chap.title}-${idx}`}
                       className="p-2 px-3 rounded-lg border border-white/5 bg-white/[0.02] text-xs flex items-center justify-between gap-2"
                     >
                       <div className="flex items-center gap-2 overflow-hidden flex-1">

@@ -6,9 +6,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const distDir = path.resolve(__dirname, '../dist');
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDirPath = path.dirname(currentFilePath);
+const distDir = path.resolve(currentDirPath, '../dist');
 
 if (!fs.existsSync(distDir)) {
   console.error('\n❌ 未找到 dist 生产构建产物，请先在项目根目录运行: npm run build\n');
@@ -61,7 +61,7 @@ function startServer(port = 5174) {
         'Cache-Control': ext === '.html' ? 'no-cache' : 'max-age=31536000, immutable',
       });
       res.end(content);
-    } catch (err) {
+    } catch {
       res.writeHead(500);
       res.end('Server Error');
     }

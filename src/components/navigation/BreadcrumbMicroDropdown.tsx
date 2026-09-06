@@ -22,30 +22,43 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
   const currentVol = project.volumes.find((v) => v.id === selectedVolId) || project.volumes[0];
   const chapters = currentVol?.chapters || [];
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       if (activeVol) setSelectedVolId(activeVol.id);
       const idx = activeVol?.chapters.findIndex((c) => c.id === activeChap?.id) ?? 0;
       setHighlightIdx(idx >= 0 ? idx : 0);
     }
-  }, [isOpen, activeVol?.id, activeChap?.id]);
+  }
+
+  const chaptersRef = useRef(chapters);
+  const highlightIdxRef = useRef(highlightIdx);
 
   useEffect(() => {
+    chaptersRef.current = chapters;
+    highlightIdxRef.current = highlightIdx;
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
+      const chaps = chaptersRef.current;
+      const curIdx = highlightIdxRef.current;
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setHighlightIdx((prev) => (prev + 1) % Math.max(1, chapters.length));
+        setHighlightIdx((prev) => (prev + 1) % Math.max(1, chaps.length));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setHighlightIdx((prev) => (prev - 1 + chapters.length) % Math.max(1, chapters.length));
+        setHighlightIdx((prev) => (prev - 1 + chaps.length) % Math.max(1, chaps.length));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (chapters[highlightIdx]) {
-          projectStore.setActiveChapter(chapters[highlightIdx].id);
+        if (chaps[curIdx]) {
+          projectStore.setActiveChapter(chaps[curIdx].id);
           onClose();
         }
       }
@@ -53,7 +66,7 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, chapters, highlightIdx, onClose]);
+  }, [isOpen, onClose, chaptersRef, highlightIdxRef]);
 
   if (!isOpen) return null;
 

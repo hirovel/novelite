@@ -26,6 +26,7 @@ import {
   Search,
   Check,
 } from 'lucide-react';
+import { useTranslation } from '../../core/i18n';
 
 interface Props {
   paneId?: 'primary' | 'secondary';
@@ -240,6 +241,7 @@ export const NovelEditor: React.FC<Props> = ({
 
   const typingTimerRef = useRef<any>(null);
   const saveDebounceTimerRef = useRef<any>(null);
+  const { t, language } = useTranslation();
 
   // 🌟 Secondary Pane Autonomous Chapter ID
   const [secondaryChapterId, setSecondaryChapterId] = useState<string | null>(() => {
@@ -257,8 +259,6 @@ export const NovelEditor: React.FC<Props> = ({
     }
     return active?.id || null;
   });
-
-  const effectiveChapterId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
 
   // 🌟 章节快速切换 Popover
   const [isChapterDropdownOpen, setIsChapterDropdownOpen] = useState<boolean>(false);
@@ -284,12 +284,97 @@ export const NovelEditor: React.FC<Props> = ({
     return unsub;
   }, []);
 
-  // Sync external boundChapterId into secondaryChapterId
+  const secondaryChapterIdRef = useRef(secondaryChapterId);
   useEffect(() => {
-    if (paneId === 'secondary' && boundChapterId && boundChapterId !== secondaryChapterId) {
+    secondaryChapterIdRef.current = secondaryChapterId;
+  }, [secondaryChapterId]);
+
+  const [prevBoundChapterId, setPrevBoundChapterId] = useState(boundChapterId);
+  if (paneId === 'secondary' && boundChapterId !== prevBoundChapterId) {
+    setPrevBoundChapterId(boundChapterId);
+    if (boundChapterId && boundChapterId !== secondaryChapterId) {
       setSecondaryChapterId(boundChapterId);
     }
-  }, [paneId, boundChapterId]);
+  }
+
+  const cursorConfigRef = useRef<any>({
+    enabled: isLiveCursorEnabled,
+    shape: cursorShape,
+    color: cursorColor,
+    themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
+    themeStreamColors: theme.cursorStream,
+    animationLength: cursorAnimationLength || 0.08,
+    trailSize: cursorTrailSize || 0.75,
+    vfxMode: (vfxMode as any) || 'pure',
+    blinkMode: blinkMode || 'smooth',
+    breatheCycle: breatheCycle || 1.2,
+    speedMode: (speedMode as any) || 'gentle',
+    physicsMode,
+    luminescence,
+    inlineSkew,
+    streamPreset: streamPreset as any,
+    streamHeadColor,
+    streamTailColor,
+    glow: true,
+  });
+  useEffect(() => {
+    cursorConfigRef.current = {
+      enabled: isLiveCursorEnabled,
+      shape: cursorShape,
+      color: cursorColor,
+      themeColor: theme.colors.cursor || theme.colors.accent || '#a78bfa',
+      themeStreamColors: theme.cursorStream,
+      animationLength: cursorAnimationLength || 0.08,
+      trailSize: cursorTrailSize || 0.75,
+      vfxMode: (vfxMode as any) || 'pure',
+      blinkMode: blinkMode || 'smooth',
+      breatheCycle: breatheCycle || 1.2,
+      speedMode: (speedMode as any) || 'gentle',
+      physicsMode,
+      luminescence,
+      inlineSkew,
+      streamPreset: streamPreset as any,
+      streamHeadColor,
+      streamTailColor,
+      glow: true,
+    };
+  }, [
+    isLiveCursorEnabled,
+    cursorShape,
+    cursorColor,
+    theme.colors.cursor,
+    theme.colors.accent,
+    theme.cursorStream,
+    cursorAnimationLength,
+    cursorTrailSize,
+    vfxMode,
+    blinkMode,
+    breatheCycle,
+    speedMode,
+    physicsMode,
+    luminescence,
+    inlineSkew,
+    streamPreset,
+    streamHeadColor,
+    streamTailColor,
+  ]);
+
+  const themeConfigRef = useRef<any>({
+    theme,
+    backgroundEffect,
+    backgroundIntensity,
+    lineHeight,
+    editorTextColor,
+  });
+  useEffect(() => {
+    themeConfigRef.current = {
+      theme,
+      backgroundEffect,
+      backgroundIntensity,
+      lineHeight,
+      editorTextColor,
+    };
+  }, [theme, backgroundEffect, backgroundIntensity, lineHeight, editorTextColor]);
 
   const handleUserActivity = useCallback(() => {
     if (containerRef.current?.classList.contains('is-typing')) {
@@ -307,9 +392,10 @@ export const NovelEditor: React.FC<Props> = ({
 
     if (paneId === 'secondary') {
       const project = projectStore.getProject();
-      if (project && effectiveChapterId) {
+      const initTargetId = secondaryChapterIdRef.current;
+      if (project && initTargetId) {
         for (const vol of project.volumes) {
-          const found = vol.chapters.find((c) => c.id === effectiveChapterId);
+          const found = vol.chapters.find((c) => c.id === initTargetId);
           if (found) {
             initialContent = found.content || '';
             initialTitle = found.title || '未命名章节';
@@ -347,7 +433,7 @@ export const NovelEditor: React.FC<Props> = ({
         if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
         saveDebounceTimerRef.current = setTimeout(() => {
           const newContent = update.state.doc.toString();
-          const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+          const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
           if (curTargetId) {
             projectStore.updateChapterContent(curTargetId, newContent);
             fileSystemStore.writeChapterDirectToDisk(curTargetId, newContent);
@@ -384,33 +470,14 @@ export const NovelEditor: React.FC<Props> = ({
         themeCompartmentRef.current.of(
           createEditorTheme(
             initialThemeRef.current,
-            backgroundEffect,
-            backgroundIntensity,
-            lineHeight,
-            editorTextColor
+            themeConfigRef.current.backgroundEffect,
+            themeConfigRef.current.backgroundIntensity,
+            themeConfigRef.current.lineHeight,
+            themeConfigRef.current.editorTextColor
           )
         ),
         cursorCompartmentRef.current.of(
-          createLiveCursorPluginExtension(() => ({
-            enabled: isLiveCursorEnabled,
-            shape: cursorShape,
-            color: cursorColor,
-            themeColor: initialThemeRef.current.colors.cursor || initialThemeRef.current.colors.accent || '#a78bfa',
-            themeStreamColors: initialThemeRef.current.cursorStream,
-            animationLength: cursorAnimationLength || 0.08,
-            trailSize: cursorTrailSize || 0.75,
-            vfxMode: (vfxMode as any) || 'pure',
-            blinkMode: blinkMode || 'smooth',
-            breatheCycle: breatheCycle || 1.2,
-            speedMode: (speedMode as any) || 'gentle',
-            physicsMode,
-            luminescence,
-            inlineSkew,
-            streamPreset: streamPreset as any,
-            streamHeadColor,
-            streamTailColor,
-            glow: true,
-          }))
+          createLiveCursorPluginExtension(() => cursorConfigRef.current)
         ),
         pluginsCompartmentRef.current.of(pluginExtensions),
         keymap.of([...defaultKeymap, ...historyKeymap]),
@@ -536,11 +603,11 @@ export const NovelEditor: React.FC<Props> = ({
             to: view.state.selection.main.to,
           };
         },
-        insertText: (t: string) => {
+        insertText: (textToInsert: string) => {
           const sel = view.state.selection.main;
           view.dispatch({
-            changes: { from: sel.from, to: sel.to, insert: t },
-            selection: { anchor: sel.from + t.length },
+            changes: { from: sel.from, to: sel.to, insert: textToInsert },
+            selection: { anchor: sel.from + textToInsert.length },
             scrollIntoView: true,
           });
         },
@@ -569,7 +636,7 @@ export const NovelEditor: React.FC<Props> = ({
           changes: { from: 0, to: view.state.doc.length, insert: formatted },
           scrollIntoView: true,
         });
-        const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+        const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
         if (curTargetId) {
           projectStore.updateChapterContent(curTargetId, formatted);
           fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
@@ -589,7 +656,7 @@ export const NovelEditor: React.FC<Props> = ({
           changes: { from: 0, to: view.state.doc.length, insert: formatted },
           scrollIntoView: true,
         });
-        const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+        const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
         if (curTargetId) {
           projectStore.updateChapterContent(curTargetId, formatted);
           fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
@@ -624,7 +691,7 @@ export const NovelEditor: React.FC<Props> = ({
           changes: { from: 0, to: view.state.doc.length, insert: formatted },
           scrollIntoView: true,
         });
-        const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+        const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
         if (curTargetId) {
           projectStore.updateChapterContent(curTargetId, formatted);
           fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
@@ -637,10 +704,10 @@ export const NovelEditor: React.FC<Props> = ({
 
     const unsubContentUpdated = eventBus.on('chapter-content-updated', (data: any) => {
       const targetChapId = data?.chapterId || data?.id;
-      const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+      const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
       if (targetChapId === curTargetId) {
         const text = data?.content ?? '';
-        setActiveChapterTitle(data?.title || activeChapterTitle);
+        setActiveChapterTitle((prev) => data?.title || prev);
         setCharCount(countWordsFast(text));
         if (view.state.doc.toString() !== text) {
           isUpdatingRef.current = true;
@@ -653,7 +720,7 @@ export const NovelEditor: React.FC<Props> = ({
     });
 
     const unsubSave = eventBus.on('save-current-chapter', () => {
-      const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+      const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
       if (curTargetId) {
         const text = view.state.doc.toString();
         projectStore.updateChapterContent(curTargetId, text);
@@ -709,10 +776,13 @@ export const NovelEditor: React.FC<Props> = ({
       const found = vol.chapters.find((c) => c.id === secondaryChapterId);
       if (found) {
         isUpdatingRef.current = true;
-        setActiveChapterTitle(found.title || '未命名章节');
+        const title = found.title || '未命名章节';
         const text = found.content || '';
         const wCount = countWordsFast(text);
-        setCharCount(wCount);
+        queueMicrotask(() => {
+          setActiveChapterTitle(title);
+          setCharCount(wCount);
+        });
         editorView.dispatch({
           changes: { from: 0, to: editorView.state.doc.length, insert: text },
           selection: { anchor: 0 },
@@ -885,7 +955,7 @@ export const NovelEditor: React.FC<Props> = ({
               onClick={() => setIsChapterDropdownOpen((prev) => !prev)}
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors hover:bg-white/10 text-left max-w-[240px] truncate group cursor-pointer"
               style={{ color: theme.colors.text }}
-              title="点击切换章节"
+              title={language === 'en' ? 'Click to switch chapter' : '点击切换章节'}
             >
               <span className="truncate font-serif text-[11.5px]">{activeChapterTitle}</span>
               <ChevronDown className="h-3 w-3 shrink-0 opacity-40 group-hover:opacity-80 ml-0.5" />
@@ -893,7 +963,7 @@ export const NovelEditor: React.FC<Props> = ({
 
             {/* Word Count */}
             <span className="opacity-40 text-[10.5px] font-mono shrink-0 ml-1">
-              {charCount} 字
+              {charCount} {t('common.words')}
             </span>
 
             {/* Chapter Selection Popover */}
@@ -910,7 +980,7 @@ export const NovelEditor: React.FC<Props> = ({
                   <Search className="h-3 w-3 opacity-40" />
                   <input
                     type="text"
-                    placeholder="搜索章节..."
+                    placeholder={t('nav.searchChapters')}
                     value={chapterSearchQuery}
                     onChange={(e) => setChapterSearchQuery(e.target.value)}
                     className="bg-transparent text-xs outline-none w-full placeholder:opacity-30"
@@ -922,7 +992,8 @@ export const NovelEditor: React.FC<Props> = ({
                 {/* Chapters List */}
                 <div className="flex-1 overflow-y-auto space-y-0.5 max-h-60 pr-0.5">
                   {filteredChapters.map(({ volTitle, chapter }) => {
-                    const isSelected = chapter.id === effectiveChapterId;
+                    const currentChapterId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
+                    const isSelected = chapter.id === currentChapterId;
                     return (
                       <button
                         key={chapter.id}

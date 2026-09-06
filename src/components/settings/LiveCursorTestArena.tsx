@@ -180,7 +180,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   useEffect(() => {
     engineRef.current.setFocused(true);
     updateCaret(true);
-  }, [updateCaret, text, cursorShape]);
+  }, [updateCaret]);
 
   // Single mount animation loop
   useEffect(() => {

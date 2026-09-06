@@ -84,7 +84,9 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
 
     if (!isOpen || !searchText) {
       view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
-      setMatchCount({ current: 0, total: 0 });
+      queueMicrotask(() => {
+        setMatchCount((prev) => (prev.current === 0 && prev.total === 0 ? prev : { current: 0, total: 0 }));
+      });
       return;
     }
 
@@ -114,10 +116,15 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
         item = cursor.next();
       }
 
-      setMatchCount({ current: cur || (total > 0 ? 1 : 0), total });
+      const nextVal = { current: cur || (total > 0 ? 1 : 0), total };
+      queueMicrotask(() => {
+        setMatchCount((prev) => (prev.current === nextVal.current && prev.total === nextVal.total ? prev : nextVal));
+      });
     } catch (err) {
       console.debug('[FloatingSearchHUD] Failed to calculate match cursor:', err);
-      setMatchCount({ current: 0, total: 0 });
+      queueMicrotask(() => {
+        setMatchCount((prev) => (prev.current === 0 && prev.total === 0 ? prev : { current: 0, total: 0 }));
+      });
     }
   }, [isOpen, searchText, replaceText, matchCase, matchWholeWord, view]);
 

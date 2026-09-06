@@ -7,6 +7,7 @@ import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
 import { KeyboardShortcutBadge } from '../common/KeyboardShortcutBadge';
+import { useTranslation } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
   const [shouldRender, setShouldRender] = useState(isOpen);
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { t, language, setLanguage } = useTranslation();
 
   useEffect(() => {
     let enterTimer: ReturnType<typeof setTimeout>;
@@ -63,6 +65,21 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
 
   // 0. Primary Navigation & Bookshelf Commands
   items.push(
+    {
+      id: 'cmd_switch_language',
+      type: 'command',
+      title: language === 'zh' ? '切换为英文界面 (Switch to English)' : 'Switch to Chinese (切换为简体中文)',
+      subtitle: 'Language / 界面语言',
+      action: () => {
+        const nextLang = language === 'zh' ? 'en' : 'zh';
+        setLanguage(nextLang);
+        eventBus.emit('show-toast', {
+          message: nextLang === 'en' ? t('commands.switchedToEnglish') : t('commands.switchedToChinese'),
+          type: 'info',
+        });
+        onClose();
+      },
+    },
     {
       id: 'cmd_cheatsheet',
       type: 'command',

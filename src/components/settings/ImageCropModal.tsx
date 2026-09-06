@@ -90,7 +90,7 @@ export const ImageCropModal: React.FC<Props> = ({
 
   // Measure stage dimensions
   useEffect(() => {
-    if (!stageRef.current) return;
+    if (!shouldRender || !stageRef.current) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;

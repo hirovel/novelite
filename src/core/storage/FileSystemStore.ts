@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 import type { NovelProject, Volume, Chapter } from './types';
 import { projectStore, countWordsFast } from './ProjectStore';
 import { eventBus } from '../events/EventBus';
@@ -311,7 +312,7 @@ export class FileSystemStore {
           return true;
         }
       }
-    } catch (err) {
+    } catch {
       // Handle permission error or file removed
     }
     return false;

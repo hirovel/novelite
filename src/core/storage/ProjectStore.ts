@@ -829,5 +829,5 @@ export class ProjectStore {
 
 export const projectStore = ProjectStore.getInstance();
 if (typeof window !== 'undefined') {
-  (window as any).__novelite_project_store = projectStore;
+  (window as any)['__novelite_project_store'] = projectStore;
 }

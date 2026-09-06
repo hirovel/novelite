@@ -32,6 +32,7 @@ import { UpdateModal } from './plugins/auto-updater/UpdateModal';
 import type { UpdateInfo } from './plugins/auto-updater/types';
 import { exportNovelService } from './core/storage/ExportNovelService';
 import { useGlobalKeymap } from './core/keymap/useGlobalKeymap';
+import { initI18n } from './core/i18n';
 
 export const App: React.FC = () => {
   const [themeId, setThemeId] = useState<string>(() => {
@@ -323,6 +324,9 @@ export const App: React.FC = () => {
 
     // Initialize previously installed community and custom JS plugins
     dynamicPluginLoader.init();
+
+    // Check startup language environment (auto-mute Chinese typography if en)
+    initI18n();
   }, []);
 
   const effectiveAccent = (uiAccentColor && uiAccentColor !== 'auto') ? uiAccentColor : theme.colors.accent;
@@ -359,7 +363,7 @@ export const App: React.FC = () => {
     root.setAttribute('data-theme', theme.id);
     root.setAttribute('data-theme-mode', theme.isDark ? 'dark' : 'light');
     root.style.colorScheme = theme.isDark ? 'dark' : 'light';
-  }, [theme, editorTextColor, effectiveAccent, effectiveDialogueColor, dialogueEnabled]);
+  }, [theme, editorTextColor, effectiveAccent, effectiveDialogueColor]);
 
   // Update cursor settings into plugin manager
   useEffect(() => {

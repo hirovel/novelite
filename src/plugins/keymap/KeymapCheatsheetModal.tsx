@@ -68,12 +68,19 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
     };
   }, []);
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setSearchQuery('');
       setRecordingId(null);
       setRecordedKey('');
       setConflictItem(null);
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
       setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
@@ -508,8 +515,8 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                                   title="点击录制并修改此快捷键"
                                   className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/40 border border-white/10 hover:border-cyan-400/60 transition-all cursor-pointer font-mono text-[11px] select-none hover:scale-105"
                                 >
-                                  {displayKey.mods.map((m, idx) => (
-                                    <kbd key={idx} className="opacity-70 font-semibold">
+                                  {displayKey.mods.map((m) => (
+                                    <kbd key={m} className="opacity-70 font-semibold">
                                       {m}
                                     </kbd>
                                   ))}

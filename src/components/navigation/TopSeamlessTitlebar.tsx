@@ -137,7 +137,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
   }, []);
 
   const handleToggleFullscreen = async () => {
-    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+    if (typeof window !== 'undefined' && (window as any)['__TAURI_INTERNALS__']) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().toggleMaximize();
@@ -156,7 +156,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
   };
 
   const handleMinimize = async () => {
-    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+    if (typeof window !== 'undefined' && (window as any)['__TAURI_INTERNALS__']) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().minimize();
@@ -169,7 +169,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
   };
 
   const handleClose = async () => {
-    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+    if (typeof window !== 'undefined' && (window as any)['__TAURI_INTERNALS__']) {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         await getCurrentWindow().close();

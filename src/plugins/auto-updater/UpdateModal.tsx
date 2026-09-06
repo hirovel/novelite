@@ -106,7 +106,7 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
               <div className="flex flex-wrap gap-1.5">
                 {updateInfo.assets.map((asset, idx) => (
                   <a
-                    key={idx}
+                    key={asset.url || `${asset.name}-${idx}`}
                     href={asset.url}
                     target="_blank"
                     rel="noreferrer"

@@ -43,8 +43,8 @@ export function parseBulkNovelText(fullText: string, defaultBookTitle = '导入�
   let chapContentLines: string[] = [];
 
   // Patterns for Volume & Chapter headings
-  const volRegex = /^\s*[【\[\(]?\s*(第[0-9一二三四五六七八九十百千万零]+卷|卷[0-9一二三四五六七八九十百千万零]+|Volume\s+[0-9]+|BOOK\s+[0-9]+)\s*[:：\s\-—_]*(.*?)\s*[】\]\)]?$/i;
-  const chapRegex = /^\s*[【\[\(]?\s*(第[0-9一二三四五六七八九十百千万零]+[章回节折篇]|Chapter\s+[0-9]+|[0-9]+[\.、]\s*第?[0-9一二三四五六七八九十百千万零]+[章回节折篇]?|序章|楔子|尾声|后记|番外\s*[0-9一二三四五六七八九十百千万零]*|外传\s*[0-9一二三四五六七八九十百千万零]*)\s*[:：\s\-—_]*(.*?)\s*[】\]\)]?$/i;
+  const volRegex = /^\s*[【[()]?\s*(第[0-9一二三四五六七八九十百千万零]+卷|卷[0-9一二三四五六七八九十百千万零]+|Volume\s+[0-9]+|BOOK\s+[0-9]+)\s*[:：\s\-—_]*(.*?)\s*[】\])]?$/i;
+  const chapRegex = /^\s*[【[()]?\s*(第[0-9一二三四五六七八九十百千万零]+[章回节折篇]|Chapter\s+[0-9]+|[0-9]+[.、]\s*第?[0-9一二三四五六七八九十百千万零]+[章回节折篇]?|序章|楔子|尾声|后记|番外\s*[0-9一二三四五六七八九十百千万零]*|外传\s*[0-9一二三四五六七八九十百千万零]*)\s*[:：\s\-—_]*(.*?)\s*[】\])]?$/i;
 
   const flushCurrentChapter = () => {
     if (currentChap) {

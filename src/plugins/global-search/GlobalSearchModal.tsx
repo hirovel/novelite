@@ -36,10 +36,23 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
 
   const project = projectStore.getProject();
 
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
+    }
+  }
+
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
+    setSelectedIndex(0);
+  }
+
+  useEffect(() => {
+    if (isOpen) {
       setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
@@ -123,10 +136,6 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
     return list;
   }, [project, query, caseSensitive, selectedVolId]);
 
-  // Keep selected index within bounds
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [results.length, query]);
 
   const handleSelect = (result: MatchResult, snippetIndex = 0) => {
     const snippet = result.snippets[snippetIndex] || result.snippets[0];
@@ -329,7 +338,7 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
                   <div className="pt-2 space-y-1.5">
                     {res.snippets.map((snip, sIdx) => (
                       <div
-                        key={sIdx}
+                        key={`${res.chapId}-${snip.index}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSelect(res, sIdx);
