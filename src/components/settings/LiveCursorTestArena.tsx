@@ -66,7 +66,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   streamTailColor = '#a78bfa',
   onChangeStreamTailColor,
 }) => {
-  const [text, setText] = useState<string>('这是一个测试文本！\n这也是！');
+  const [text, setText] = useState<string>('这是一段正文测试文本+——+！\n这也是测试文本！');
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
