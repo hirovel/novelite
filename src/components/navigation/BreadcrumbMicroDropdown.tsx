@@ -86,14 +86,18 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
                   setSelectedVolId(vol.id);
                   setHighlightIdx(0);
                 }}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all whitespace-nowrap cursor-pointer ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs transition-all whitespace-nowrap cursor-pointer border ${
                   isVolActive
-                    ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-400/40 shadow-xs'
-                    : 'opacity-50 hover:opacity-100 hover:bg-white/5 border border-transparent'
+                    ? 'font-semibold shadow-xs'
+                    : 'opacity-50 hover:opacity-100 hover:bg-white/5 border-transparent'
                 }`}
-                style={{ color: isVolActive ? undefined : theme.colors.text }}
+                style={{
+                  color: isVolActive ? (theme.colors.accent || theme.colors.text) : theme.colors.text,
+                  backgroundColor: isVolActive ? `${theme.colors.accent || '#38bdf8'}22` : undefined,
+                  borderColor: isVolActive ? `${theme.colors.accent || '#38bdf8'}55` : 'transparent',
+                }}
               >
-                <BookOpen className="h-3 w-3 opacity-60" />
+                <BookOpen className="h-3 w-3" style={{ color: isVolActive ? (theme.colors.accent || '#38bdf8') : undefined, opacity: isVolActive ? 1 : 0.6 }} />
                 <span>{vol.title}</span>
                 <span className="text-[9.5px] font-mono opacity-40">({vol.chapters.length})</span>
               </button>
@@ -115,28 +119,48 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
                   onClose();
                 }}
                 onMouseEnter={() => setHighlightIdx(idx)}
-                className={`flex items-center justify-between p-2.5 rounded-xl text-xs cursor-pointer transition-all ${
+                className={`flex items-center justify-between p-2.5 rounded-xl text-xs cursor-pointer transition-all border ${
                   isHighlighted
-                    ? 'bg-white/10 shadow-xs font-medium'
+                    ? 'shadow-xs font-medium'
+                    : isCurrentActive
+                    ? 'font-medium'
                     : 'opacity-70 hover:opacity-100'
                 }`}
                 style={{
-                  color: theme.colors.text,
-                  backgroundColor: isHighlighted ? `${theme.colors.accent}20` : undefined,
+                  color: isCurrentActive ? (theme.colors.accent || theme.colors.text) : theme.colors.text,
+                  backgroundColor: isHighlighted
+                    ? `${theme.colors.accent || '#38bdf8'}26`
+                    : isCurrentActive
+                    ? `${theme.colors.accent || '#38bdf8'}14`
+                    : undefined,
+                  borderColor: isHighlighted
+                    ? `${theme.colors.accent || '#38bdf8'}50`
+                    : isCurrentActive
+                    ? `${theme.colors.accent || '#38bdf8'}30`
+                    : 'transparent',
                 }}
               >
                 <div className="flex items-center gap-2 overflow-hidden flex-1 mr-2">
                   <div
-                    className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-                      isCurrentActive ? 'bg-cyan-400 shadow-sm shadow-cyan-400' : 'bg-white/20'
-                    }`}
+                    className="h-2 w-2 rounded-full shrink-0 transition-all"
+                    style={{
+                      backgroundColor: isCurrentActive ? (theme.colors.accent || '#38bdf8') : 'rgba(255, 255, 255, 0.2)',
+                      boxShadow: isCurrentActive ? `0 0 8px ${theme.colors.accentGlow || theme.colors.accent || '#38bdf8'}` : 'none',
+                    }}
                   />
-                  <span className="truncate">{chap.title}</span>
+                  <span className={`truncate ${isCurrentActive ? 'font-semibold tracking-wide' : ''}`}>
+                    {chap.title}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono opacity-40">
+                <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono opacity-50">
                   <span>{chap.wordCount || 0} 字</span>
-                  {isCurrentActive && <Check className="h-3.5 w-3.5 text-cyan-400" />}
+                  {isCurrentActive && (
+                    <Check
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: theme.colors.accent || '#38bdf8' }}
+                    />
+                  )}
                 </div>
               </div>
             );

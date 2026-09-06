@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
+  Check,
   ChevronDown,
   Palette,
   Columns,
@@ -15,6 +16,7 @@ import { fileSystemStore, type DiskSyncStatus } from '../../core/storage/FileSys
 import type { NovelProject } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
+import { THEMES } from '../../core/themes/themeDefinitions';
 import { UlyssesFlightDeck } from './UlyssesFlightDeck';
 import { BookshelfModal } from './BookshelfModal';
 import { BreadcrumbMicroDropdown } from './BreadcrumbMicroDropdown';
@@ -27,14 +29,6 @@ interface Props {
 }
 
 export type TitlebarBehavior = 'fade_out' | 'dim' | 'always_visible';
-
-const THEME_PRESETS = [
-  { id: 'obsidian-minimal', name: '黑曜极简 (Obsidian)', dot: '#8b5cf6' },
-  { id: 'cyber-noir', name: '极夜冷黑 (Pure Void)', dot: '#38bdf8' },
-  { id: 'paper-parchment', name: '羊皮纸墨 (Parchment)', dot: '#c95738' },
-  { id: 'e-ink-minimal', name: '电子水墨 (E-Ink)', dot: '#44403c' },
-  { id: 'tokyo-night', name: '暗夜深蓝 (Tokyo)', dot: '#7aa2f7' },
-];
 
 export const TopSeamlessTitlebar: React.FC<Props> = ({
   theme,
@@ -57,6 +51,30 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
   const [titlebarBehavior, setTitlebarBehavior] = useState<TitlebarBehavior>(() => {
     return (localStorage.getItem('novelite_titlebar_behavior') as TitlebarBehavior) || 'fade_out';
   });
+
+  const themePickerRef = useRef<HTMLDivElement | null>(null);
+  const themeList = useMemo(() => {
+    return Object.values(THEMES).map((t) => ({
+      id: t.id,
+      name: t.name,
+      nameZh: t.nameZh,
+      dot: t.colors.accent || t.colors.cursor,
+      isDark: t.isDark,
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (!showThemePicker) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) {
+        setShowThemePicker(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showThemePicker]);
 
   useEffect(() => {
     const handleUpdate = () => {
@@ -100,36 +118,34 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
       eventBus.on('chapter-content-updated', handleUpdate),
       eventBus.on('typing-state-changed', handleTypingState),
       eventBus.on('quick-search:open', handleToggleFlightDeck),
+      eventBus.on('scratchpad:open', () => setIsFlightDeckOpen(true)),
       eventBus.on('bookshelf:open', handleToggleBookshelf),
       eventBus.on('disk-sync-changed', handleDiskSyncChange),
       eventBus.on('titlebar-behavior-changed', handleBehaviorChanged),
+      eventBus.on('modal:close-all', () => {
+        setIsFlightDeckOpen(false);
+        setIsBookshelfOpen(false);
+        setIsMicroDropdownOpen(false);
+        setShowThemePicker(false);
+      }),
     ];
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'j' || e.key === 'J')) {
-        e.preventDefault();
-        setIsFlightDeckOpen((prev) => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B') && e.shiftKey) {
-        e.preventDefault();
-        setIsBookshelfOpen((prev) => !prev);
-      } else if ((e.ctrlKey || e.metaKey) && e.key === '[') {
-        e.preventDefault();
-        projectStore.navigateToPrevChapter();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === ']') {
-        e.preventDefault();
-        projectStore.navigateToNextChapter();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       unsubs.forEach((fn) => fn());
       window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
-  const handleToggleFullscreen = () => {
+  const handleToggleFullscreen = async () => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        await getCurrentWindow().toggleMaximize();
+        return;
+      } catch {
+        // Fallback to web fullscreen
+      }
+    }
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
       setIsFullscreen(true);
@@ -139,12 +155,30 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
     }
   };
 
-  const handleMinimize = () => {
-    eventBus.emit('show-toast', { message: 'Novelite 写作心流进行中 · 手稿已安全静默保存', type: 'info' });
+  const handleMinimize = async () => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        await getCurrentWindow().minimize();
+        return;
+      } catch {
+        // Fallback
+      }
+    }
+    eventBus.emit('show-toast', { message: '手稿已自动保存', type: 'info' });
   };
 
-  const handleClose = () => {
-    eventBus.emit('show-toast', { message: '手稿已全量实时持久化存储于本地', type: 'success' });
+  const handleClose = async () => {
+    if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
+      try {
+        const { getCurrentWindow } = await import('@tauri-apps/api/window');
+        await getCurrentWindow().close();
+        return;
+      } catch {
+        // Fallback
+      }
+    }
+    eventBus.emit('show-toast', { message: '手稿已保存至本地', type: 'success' });
   };
 
   const activeChap = projectStore.getActiveChapter();
@@ -168,7 +202,12 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
     <>
       {/* 🌟 0. Top Edge Proximity Glow Line */}
       {isNearTop && isTyping && (
-        <div className="fixed top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent z-40 animate-pulse pointer-events-none" />
+        <div
+          className="fixed top-0 left-0 right-0 h-[1.5px] z-40 animate-pulse pointer-events-none"
+          style={{
+            background: `linear-gradient(to right, transparent, ${theme.colors.accent || '#38bdf8'}99, transparent)`,
+          }}
+        />
       )}
 
       {/* 🌟 1. Seamless Masterpiece Overlay Titlebar (Zero boxy pills, pure typography elegance) */}
@@ -179,12 +218,12 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
         <div className="flex items-center gap-1 overflow-hidden flex-1 min-w-[140px] pointer-events-auto">
           <button
             onClick={() => setIsBookshelfOpen(true)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors cursor-pointer group text-xs font-medium opacity-70 hover:opacity-100 hover:bg-white/[0.06]"
-            title="点击切换作品书架 / 打开本地目录 (Ctrl+Shift+B)"
+            className="flex items-center gap-2 px-2 py-1 rounded-lg transition-colors cursor-pointer group text-xs font-medium opacity-75 hover:opacity-100 hover:bg-white/[0.06]"
+            title="打开作品书架 (Ctrl+Shift+B)"
             style={{ color: theme.colors.text }}
           >
             <span className="tracking-wide max-w-[180px] truncate font-medium">
-              {project.title || '长篇手稿'}
+              {project.title || '未命名作品'}
             </span>
             <ChevronDown className="h-3 w-3 opacity-30 group-hover:opacity-80 transition-opacity shrink-0" />
             {isDiskConnected && (
@@ -224,7 +263,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
               }}
               className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-white/[0.06] text-xs cursor-pointer transition-colors text-center"
               style={{ color: theme.colors.text }}
-              title="点击切换章节，右键或按 Ctrl+J 打开全景大纲台"
+              title="点击选择章节 (右键或按 Ctrl+J 打开大纲手稿台)"
             >
               <span className="opacity-50 group-hover:opacity-80 font-normal tracking-wide">
                 {activeVol?.title || '第一卷'}
@@ -260,7 +299,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
           <button
             onClick={() => eventBus.emit('split-view:toggle')}
             className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer"
-            title="切换对照分屏 (Alt+S)"
+            title="开启/关闭分屏 (Alt+S)"
             style={{ color: theme.colors.text }}
           >
             <Columns className="h-3.5 w-3.5" />
@@ -271,7 +310,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
             <button
               onClick={() => setShowThemePicker(!showThemePicker)}
               className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer"
-              title="切换全局主题风格"
+              title="切换主题风格"
               style={{ color: theme.colors.text }}
             >
               <Palette className="h-3.5 w-3.5" />
@@ -279,32 +318,41 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
 
             {showThemePicker && (
               <div
-                className="absolute right-0 top-8 z-60 w-44 rounded-xl border p-1 shadow-2xl backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-100"
+                ref={themePickerRef}
+                className="absolute right-0 top-8 z-60 w-60 max-h-[calc(100vh-60px)] sm:max-h-[360px] overflow-y-auto rounded-xl border p-1 shadow-2xl backdrop-blur-3xl animate-in fade-in zoom-in-95 duration-100 custom-scrollbar"
                 style={{
                   backgroundColor: `${theme.colors.bgSecondary}FE`,
                   borderColor: `${theme.colors.border}80`,
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="px-2 py-1 text-[9.5px] opacity-40 font-mono border-b border-white/5">
-                  视觉风格
+                <div className="px-2.5 py-1 text-[9.5px] opacity-40 font-mono border-b border-white/5">
+                  <span>视觉风格</span>
                 </div>
-                {THEME_PRESETS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => {
-                      setShowThemePicker(false);
-                      eventBus.emit('theme-changed', t.id);
-                    }}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                      theme.id === t.id ? 'bg-white/10 font-semibold' : 'hover:bg-white/5 opacity-70 hover:opacity-100'
-                    }`}
-                    style={{ color: theme.colors.text }}
-                  >
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.dot }} />
-                    <span className="truncate">{t.name}</span>
-                  </button>
-                ))}
+                <div className="py-0.5 space-y-0.5">
+                  {themeList.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        setShowThemePicker(false);
+                        eventBus.emit('theme-changed', t.id);
+                      }}
+                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
+                        theme.id === t.id ? 'bg-white/10 font-semibold' : 'hover:bg-white/5 opacity-70 hover:opacity-100'
+                      }`}
+                      style={{ color: theme.colors.text }}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: t.dot }} />
+                        <span className="font-medium text-xs shrink-0">{t.nameZh}</span>
+                        <span className="text-[10px] opacity-40 font-mono truncate">({t.name})</span>
+                      </div>
+                      {theme.id === t.id && (
+                        <Check className="h-3 w-3 shrink-0" style={{ color: theme.colors.accent || '#38bdf8' }} />
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

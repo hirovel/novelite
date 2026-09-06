@@ -1,8 +1,21 @@
 {
   "name": "novelite",
-  "private": true,
   "version": "1.0.0",
+  "description": "专为长篇小说创作打造的极简终端美学写作工作室",
+  "author": "hirovel",
+  "license": "MIT",
   "type": "module",
+  "bin": {
+    "novelite": "./bin/novelite.js"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hirovel/novelite.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

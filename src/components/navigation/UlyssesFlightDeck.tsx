@@ -8,6 +8,7 @@ import {
   Hash,
   X,
   Search,
+  FileText,
 } from 'lucide-react';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import type { NovelProject, Chapter } from '../../core/storage/types';
@@ -33,6 +34,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
   const [selectedVolId, setSelectedVolId] = useState<string>(() => {
     return projectStore.getProject().volumes[0]?.id || '';
   });
+  const [scratchpadText, setScratchpadText] = useState<string>(() => projectStore.getProject().scratchpad || '');
   const [activeChapterId, setActiveChapterId] = useState<string | null>(() => projectStore.getActiveChapter()?.id || null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -58,16 +60,27 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
     const handleUpdate = () => {
       const proj = projectStore.getProject();
       setProject({ ...proj });
+      setScratchpadText(proj.scratchpad || '');
       setActiveChapterId(projectStore.getActiveChapter()?.id || null);
       if (!selectedVolId && proj.volumes[0]) {
         setSelectedVolId(proj.volumes[0].id);
       }
     };
 
+    const handleScratchpadUpdate = (text: string) => {
+      setScratchpadText(text);
+    };
+
+    const handleScratchpadOpen = () => {
+      setSelectedVolId('__scratchpad__');
+    };
+
     const unsubs = [
       eventBus.on('project-tree-changed', handleUpdate),
       eventBus.on('active-chapter-changed', handleUpdate),
       eventBus.on('chapter-content-updated', handleUpdate),
+      eventBus.on('scratchpad-updated', handleScratchpadUpdate),
+      eventBus.on('scratchpad:open', handleScratchpadOpen),
     ];
 
     return () => unsubs.forEach((fn) => fn());
@@ -270,16 +283,20 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => {
-                if (activeVol) {
-                  setInlineNewChap({ volId: activeVol.id });
-                  setNewChapTitle(`第 ${activeVol.chapters.length + 1} 章`);
+                const targetVol = project.volumes.find((v) => v.id === selectedVolId) || project.volumes[0];
+                if (targetVol) {
+                  if (selectedVolId === '__scratchpad__') {
+                    setSelectedVolId(targetVol.id);
+                  }
+                  setInlineNewChap({ volId: targetVol.id });
+                  setNewChapTitle(`第 ${targetVol.chapters.length + 1} 章`);
                 }
               }}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium opacity-80 hover:opacity-100 hover:bg-white/10 transition-colors cursor-pointer"
               style={{ color: theme.colors.text }}
               title="新建章节"
             >
-              <Plus className="h-3.5 w-3.5 text-cyan-400" />
+              <Plus className="h-3.5 w-3.5" style={{ color: theme.colors.accent }} />
               <span>新章</span>
             </button>
 
@@ -293,9 +310,9 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
           </div>
         </div>
 
-        {/* 2. Dual-Column Body: Left Volumes, Right Ulysses Cards */}
+        {/* 2. Dual-Column Body: Left Volumes, Right Ulysses Cards / Scratchpad */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Column: Volumes */}
+          {/* Left Column: Volumes & Scratchpad */}
           <div
             className="w-48 border-r overflow-y-auto p-2 space-y-1 bg-black/10 shrink-0"
             style={{ borderColor: `${theme.colors.border}30` }}
@@ -312,12 +329,16 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                 <div
                   key={vol.id}
                   onClick={() => setSelectedVolId(vol.id)}
-                  className={`group flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all ${
+                  className={`group flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all border ${
                     isSelected
-                      ? 'bg-white/12 font-semibold shadow-xs'
-                      : 'opacity-60 hover:opacity-100 hover:bg-white/5'
+                      ? 'font-semibold shadow-xs'
+                      : 'border-transparent opacity-60 hover:opacity-100 hover:bg-white/5'
                   }`}
-                  style={{ color: isSelected ? theme.colors.text : theme.colors.textMuted }}
+                  style={{
+                    color: isSelected ? (theme.colors.accent || theme.colors.text) : theme.colors.textMuted,
+                    backgroundColor: isSelected ? `${theme.colors.accent || '#38bdf8'}18` : undefined,
+                    borderColor: isSelected ? `${theme.colors.accent || '#38bdf8'}40` : 'transparent',
+                  }}
                 >
                   <div className="truncate flex-1 pr-1">
                     <div>{vol.title}</div>
@@ -330,7 +351,13 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
             })}
 
             {inlineNewVol && (
-              <div className="p-2 rounded-xl border border-cyan-400/50 bg-cyan-500/10 mb-1">
+              <div
+                className="p-2 rounded-xl border mb-1"
+                style={{
+                  backgroundColor: `${theme.colors.accent || '#38bdf8'}15`,
+                  borderColor: `${theme.colors.accent || '#38bdf8'}50`,
+                }}
+              >
                 <input
                   ref={newVolInputRef}
                   type="text"
@@ -342,7 +369,8 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                     if (e.key === 'Enter') handleCreateVolumeSubmit();
                     if (e.key === 'Escape') setInlineNewVol(false);
                   }}
-                  className="w-full bg-black/40 border border-cyan-400/40 rounded px-2 py-0.5 text-xs text-white outline-none"
+                  className="w-full bg-black/40 rounded px-2 py-0.5 text-xs text-white outline-none border"
+                  style={{ borderColor: `${theme.colors.accent || '#38bdf8'}40` }}
                 />
               </div>
             )}
@@ -357,61 +385,137 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
             >
               + 新建分卷
             </button>
-          </div>
 
-          {/* Right Column: Ulysses Story Cards */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-black/5">
-            {inlineNewChap && (
-              <div className="p-2.5 rounded-xl border border-cyan-400/60 bg-cyan-500/10 space-y-1.5 animate-in fade-in duration-100">
-                <div className="text-xs font-semibold text-cyan-300">新建章节</div>
-                <input
-                  ref={newChapInputRef}
-                  type="text"
-                  value={newChapTitle}
-                  onChange={(e) => setNewChapTitle(e.target.value)}
-                  placeholder="输入章节名，按 Enter 确认..."
-                  onBlur={handleCreateChapterSubmit}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleCreateChapterSubmit();
-                    if (e.key === 'Escape') setInlineNewChap(null);
-                  }}
-                  className="w-full bg-black/40 border border-cyan-400/40 rounded-lg px-2.5 py-1 text-xs text-white outline-none"
-                />
+            {/* 设定与灵感备忘录 */}
+            <div className="pt-2.5 mt-2 border-t" style={{ borderColor: `${theme.colors.border}25` }}>
+              <div className="px-2 py-1 text-[10px] font-mono opacity-35">设定与随笔</div>
+              <div
+                onClick={() => setSelectedVolId('__scratchpad__')}
+                className={`group flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all border ${
+                  selectedVolId === '__scratchpad__'
+                    ? 'font-semibold shadow-xs'
+                    : 'border-transparent opacity-60 hover:opacity-100 hover:bg-white/5'
+                }`}
+                style={{
+                  color: selectedVolId === '__scratchpad__' ? (theme.colors.accent || theme.colors.text) : theme.colors.textMuted,
+                  backgroundColor: selectedVolId === '__scratchpad__' ? `${theme.colors.accent || '#38bdf8'}18` : undefined,
+                  borderColor: selectedVolId === '__scratchpad__' ? `${theme.colors.accent || '#38bdf8'}40` : 'transparent',
+                }}
+              >
+                <div className="truncate flex-1 pr-1 flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 shrink-0" style={{ color: selectedVolId === '__scratchpad__' ? theme.colors.accent : undefined }} />
+                  <span>灵感备忘录</span>
+                </div>
+                <span className="text-[9.5px] font-mono opacity-40 font-normal shrink-0">
+                  {scratchpadText.length} 字
+                </span>
               </div>
-            )}
-
-            {filteredChapters.length === 0 && !inlineNewChap ? (
-              <div className="py-16 text-center text-xs opacity-30 font-mono">该分卷暂无章节</div>
-            ) : (
-              filteredChapters.map((chap) => {
-                const isCur = chap.id === activeChapterId;
-                const wordCount = chap.wordCount || countWordsFast(chap.content || '');
-                const snippet = getFirstSentence(chap.content);
-
-                return (
-                  <div
-                    key={chap.id}
-                    onClick={() => handleSelectChapter(chap.id)}
-                    onContextMenu={(e) => handleContextMenu(e, chap, activeVol.id)}
-                    className={`group p-2.5 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                      isCur
-                        ? 'bg-white/12 border-white/20 shadow-md font-medium'
-                        : 'border-white/5 bg-white/[0.02] opacity-70 hover:opacity-100 hover:bg-white/[0.06]'
-                    }`}
-                    style={{ color: theme.colors.text }}
-                  >
-                    <div className="flex items-center justify-between pb-1">
-                      <span className="font-semibold text-xs truncate flex-1 mr-2">{chap.title}</span>
-                      <span className="text-[10px] font-mono opacity-40 shrink-0">{wordCount} 字</span>
-                    </div>
-                    <p className="text-[10.5px] opacity-45 line-clamp-1 leading-relaxed font-sans select-none">
-                      {snippet}
-                    </p>
-                  </div>
-                );
-              })
-            )}
+            </div>
           </div>
+
+          {/* Right Column: Scratchpad Memo or Ulysses Story Cards */}
+          {selectedVolId === '__scratchpad__' ? (
+            <div className="flex-1 flex flex-col p-3 overflow-hidden bg-black/5">
+              <div className="flex items-center justify-between pb-2 border-b mb-2" style={{ borderColor: `${theme.colors.border}25` }}>
+                <div className="flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5" style={{ color: theme.colors.accent }} />
+                  <span className="text-xs font-semibold" style={{ color: theme.colors.text }}>灵感备忘录 (全书设定与随笔)</span>
+                </div>
+                <span className="text-[10px] font-mono opacity-40">已自动同步至作品库</span>
+              </div>
+              <textarea
+                value={scratchpadText}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setScratchpadText(val);
+                  projectStore.updateScratchpad(val);
+                }}
+                placeholder="在此记录本书的核心伏笔、人物关系、世界观设定与灵感随笔..."
+                className="flex-1 w-full p-2.5 rounded-xl bg-black/20 text-xs leading-relaxed outline-none resize-none border font-sans"
+                style={{
+                  color: theme.colors.text,
+                  borderColor: `${theme.colors.border}30`,
+                }}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-black/5">
+              {inlineNewChap && (
+                <div
+                  className="p-2.5 rounded-xl border space-y-1.5 animate-in fade-in duration-100"
+                  style={{
+                    backgroundColor: `${theme.colors.accent || '#38bdf8'}15`,
+                    borderColor: `${theme.colors.accent || '#38bdf8'}50`,
+                  }}
+                >
+                  <div className="text-xs font-semibold" style={{ color: theme.colors.accent }}>新建章节</div>
+                  <input
+                    ref={newChapInputRef}
+                    type="text"
+                    value={newChapTitle}
+                    onChange={(e) => setNewChapTitle(e.target.value)}
+                    placeholder="输入章节名，按 Enter 确认..."
+                    onBlur={handleCreateChapterSubmit}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateChapterSubmit();
+                      if (e.key === 'Escape') setInlineNewChap(null);
+                    }}
+                    className="w-full bg-black/40 rounded-lg px-2.5 py-1 text-xs text-white outline-none border"
+                    style={{ borderColor: `${theme.colors.accent || '#38bdf8'}40` }}
+                  />
+                </div>
+              )}
+
+              {filteredChapters.length === 0 && !inlineNewChap ? (
+                <div className="py-16 text-center text-xs opacity-30 font-mono">该分卷暂无章节</div>
+              ) : (
+                filteredChapters.map((chap) => {
+                  const isCur = chap.id === activeChapterId;
+                  const wordCount = chap.wordCount || countWordsFast(chap.content || '');
+                  const snippet = getFirstSentence(chap.content);
+
+                  return (
+                    <div
+                      key={chap.id}
+                      onClick={() => handleSelectChapter(chap.id)}
+                      onContextMenu={(e) => handleContextMenu(e, chap, activeVol.id)}
+                      className={`group p-2.5 px-3 rounded-xl border text-xs cursor-pointer transition-all ${
+                        isCur
+                          ? 'font-medium shadow-md'
+                          : 'border-white/5 bg-white/[0.02] opacity-70 hover:opacity-100 hover:bg-white/[0.06]'
+                      }`}
+                      style={{
+                        color: isCur ? (theme.colors.accent || theme.colors.text) : theme.colors.text,
+                        backgroundColor: isCur ? `${theme.colors.accent || '#38bdf8'}15` : undefined,
+                        borderColor: isCur ? `${theme.colors.accent || '#38bdf8'}50` : undefined,
+                      }}
+                    >
+                      <div className="flex items-center justify-between pb-1">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2">
+                          {isCur && (
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{
+                                backgroundColor: theme.colors.accent || '#38bdf8',
+                                boxShadow: `0 0 8px ${theme.colors.accentGlow || theme.colors.accent || '#38bdf8'}`,
+                              }}
+                            />
+                          )}
+                          <span className={`font-semibold text-xs truncate ${isCur ? 'tracking-wide' : ''}`}>
+                            {chap.title}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono opacity-40 shrink-0">{wordCount} 字</span>
+                      </div>
+                      <p className="text-[10.5px] opacity-45 line-clamp-1 leading-relaxed font-sans select-none">
+                        {snippet}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>
 
         {/* 3. Footer */}
@@ -420,7 +524,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
           style={{ borderColor: `${theme.colors.border}30` }}
         >
           <span>{totalChapters} 章 · 全书 {totalWords.toLocaleString()} 字</span>
-          <span>按 ↑ ↓ 选章 · Enter 瞬移进入</span>
+          <span>按 ↑ ↓ 选章 · Enter 打开章节</span>
         </div>
 
         {/* 4. Context Menu */}
@@ -510,7 +614,8 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                   if (e.key === 'Enter') handleSaveRename('chap', editingId);
                   if (e.key === 'Escape') setEditingId(null);
                 }}
-                className="w-full bg-black/50 border border-cyan-400 rounded px-2.5 py-1 text-xs text-white outline-none"
+                className="w-full bg-black/50 rounded px-2.5 py-1 text-xs text-white outline-none border"
+                style={{ borderColor: `${theme.colors.accent || '#38bdf8'}80` }}
               />
               <div className="flex justify-end gap-1.5 text-xs">
                 <button
@@ -521,7 +626,8 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                 </button>
                 <button
                   onClick={() => handleSaveRename('chap', editingId)}
-                  className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+                  className="px-2.5 py-1 rounded-lg text-white font-medium cursor-pointer"
+                  style={{ backgroundColor: theme.colors.accent || '#38bdf8' }}
                 >
                   保存
                 </button>

@@ -236,7 +236,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
       {/* 🌟 1. Global Navigation Mode Demo Selector Pill */}
       <div className="absolute top-3 left-4 z-40 flex items-center gap-1.5 p-1 rounded-xl border bg-black/40 backdrop-blur-2xl shadow-xl border-white/10 text-xs select-none">
         <span className="text-[10px] font-mono opacity-40 px-1.5 flex items-center gap-1">
-          <Sparkles className="h-3 w-3 text-cyan-400" />
+          <Sparkles className="h-3 w-3" style={{ color: theme.colors.accent || '#38bdf8' }} />
           导航风格体验:
         </span>
         {(
@@ -250,11 +250,16 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           <button
             key={m.id}
             onClick={() => handleChangeNavMode(m.id)}
-            className={`px-2 py-1 rounded-lg text-xs transition-all cursor-pointer ${
+            className={`px-2 py-1 rounded-lg text-xs transition-all cursor-pointer border ${
               navMode === m.id
-                ? 'bg-cyan-500/20 text-cyan-300 font-semibold border border-cyan-500/30 shadow-xs'
-                : 'opacity-50 hover:opacity-100 hover:bg-white/5 border border-transparent'
+                ? 'font-semibold shadow-xs'
+                : 'opacity-50 hover:opacity-100 hover:bg-white/5 border-transparent'
             }`}
+            style={{
+              color: navMode === m.id ? (theme.colors.accent || theme.colors.text) : undefined,
+              backgroundColor: navMode === m.id ? `${theme.colors.accent || '#38bdf8'}20` : undefined,
+              borderColor: navMode === m.id ? `${theme.colors.accent || '#38bdf8'}40` : 'transparent',
+            }}
           >
             {m.label}
           </button>
@@ -275,9 +280,9 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           {/* Header */}
           <div className="pt-13 px-4 pb-2.5 flex items-center justify-between border-b border-white/5">
             <div className="flex items-center gap-2 overflow-hidden flex-1">
-              <BookOpen className="h-3.5 w-3.5 opacity-60 text-cyan-400" />
+              <BookOpen className="h-3.5 w-3.5 opacity-60" style={{ color: theme.colors.accent || '#38bdf8' }} />
               <h3 className="font-semibold text-xs truncate" style={{ color: theme.colors.text }}>
-                {project.title || '长篇手稿'}
+                {project.title || '未命名作品'}
               </h3>
             </div>
             <button
@@ -417,7 +422,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           {/* Header */}
           <div className="pt-13 px-4 pb-2.5 flex items-center justify-between border-b border-white/5">
             <h3 className="font-semibold text-xs tracking-wide opacity-80" style={{ color: theme.colors.text }}>
-              {project.title || '长篇手稿'}
+              {project.title || '未命名作品'}
             </h3>
             <div className="flex items-center gap-1">
               <button
@@ -497,7 +502,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-white/15 bg-black/40 hover:bg-black/60 backdrop-blur-2xl shadow-xl text-xs cursor-pointer transition-all hover:scale-105"
             style={{ color: theme.colors.text }}
           >
-            <BookOpen className="h-3.5 w-3.5 text-cyan-400 opacity-80" />
+            <BookOpen className="h-3.5 w-3.5 opacity-80" style={{ color: theme.colors.accent || '#38bdf8' }} />
             <span className="font-semibold text-xs tracking-wide">
               {activeVol?.title || '第一卷'} › {activeChap?.title || '第一章'}
             </span>
@@ -528,8 +533,9 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                       key={v.id}
                       onClick={() => setSelectedVolId(v.id)}
                       className={`p-1.5 rounded-lg cursor-pointer text-xs truncate ${
-                        selectedVolId === v.id ? 'bg-white/15 font-semibold text-cyan-300' : 'opacity-60 hover:bg-white/5'
+                        selectedVolId === v.id ? 'bg-white/15 font-semibold' : 'opacity-60 hover:bg-white/5'
                       }`}
+                      style={{ color: selectedVolId === v.id ? (theme.colors.accent || '#38bdf8') : undefined }}
                     >
                       {v.title} ({v.chapters.length})
                     </div>
@@ -543,8 +549,12 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                       key={c.id}
                       onClick={() => handleSelectChapter(c.id)}
                       className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer text-xs ${
-                        c.id === activeChapterId ? 'bg-cyan-500/20 text-cyan-300 font-semibold' : 'opacity-70 hover:bg-white/5'
+                        c.id === activeChapterId ? 'font-semibold' : 'opacity-70 hover:bg-white/5'
                       }`}
+                      style={{
+                        color: c.id === activeChapterId ? (theme.colors.accent || '#38bdf8') : undefined,
+                        backgroundColor: c.id === activeChapterId ? `${theme.colors.accent || '#38bdf8'}20` : undefined,
+                      }}
                     >
                       <span className="truncate flex-1">{c.title}</span>
                       <span className="text-[10px] font-mono opacity-40 ml-1">{c.wordCount}字</span>
@@ -571,7 +581,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           {/* Header */}
           <div className="pt-13 px-4 pb-2.5 flex items-center justify-between border-b border-white/5">
             <h3 className="font-semibold text-xs tracking-wide" style={{ color: theme.colors.text }}>
-              {project.title || '长篇手稿'}
+              {project.title || '未命名作品'}
             </h3>
             <button
               onClick={() => {

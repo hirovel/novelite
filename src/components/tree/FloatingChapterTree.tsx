@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -20,11 +20,13 @@ import {
   Folder,
   FolderOpen,
   Palette,
+  Check,
 } from 'lucide-react';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import type { NovelProject, Volume, Chapter } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
+import { THEMES } from '../../core/themes/themeDefinitions';
 
 interface Props {
   isOpen: boolean;
@@ -40,15 +42,6 @@ interface ContextMenuState {
   chapTitle: string;
 }
 
-// 🎨 Real Global Themes Available
-const THEME_PRESETS = [
-  { id: 'obsidian-minimal', name: '黑曜极简 (Obsidian)', dark: true, dot: '#8b5cf6' },
-  { id: 'cyber-noir', name: '极夜冷黑 (Pure Void)', dark: true, dot: '#38bdf8' },
-  { id: 'paper-parchment', name: '羊皮纸墨 (Parchment)', dark: false, dot: '#c95738' },
-  { id: 'e-ink-minimal', name: '电子水墨 (E-Ink)', dark: false, dot: '#44403c' },
-  { id: 'tokyo-night', name: '暗夜深蓝 (Tokyo)', dark: true, dot: '#7aa2f7' },
-];
-
 export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme }) => {
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -59,6 +52,29 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
 
   // Theme dropdown popup in tree
   const [showThemePicker, setShowThemePicker] = useState<boolean>(false);
+  const themePickerRef = useRef<HTMLDivElement | null>(null);
+  const themeList = useMemo(() => {
+    return Object.values(THEMES).map((t) => ({
+      id: t.id,
+      name: t.name,
+      nameZh: t.nameZh,
+      dot: t.colors.accent || t.colors.cursor,
+      isDark: t.isDark,
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (!showThemePicker) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (themePickerRef.current && !themePickerRef.current.contains(e.target as Node)) {
+        setShowThemePicker(false);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showThemePicker]);
 
   // Inline creation states
   const [inlineNewVol, setInlineNewVol] = useState<boolean>(false);
@@ -446,29 +462,38 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
               {/* Theme Dropdown */}
               {showThemePicker && (
                 <div
-                  className="absolute right-0 top-7 z-60 w-44 rounded-xl border p-1 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-100"
+                  ref={themePickerRef}
+                  className="absolute right-0 top-7 z-60 w-60 max-h-[360px] overflow-y-auto rounded-xl border p-1 shadow-2xl backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-100 custom-scrollbar"
                   style={{
                     backgroundColor: `${theme.colors.bgSecondary}FD`,
                     borderColor: `${theme.colors.border}80`,
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="px-2 py-1 text-[9.5px] opacity-40 font-mono border-b border-white/5">
-                    全局视觉风格
+                  <div className="px-2.5 py-1 text-[9.5px] opacity-40 font-mono border-b border-white/5">
+                    <span>全局视觉风格</span>
                   </div>
-                  {THEME_PRESETS.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => handleSwitchGlobalTheme(t.id)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
-                        theme.id === t.id ? 'bg-white/10 font-semibold' : 'hover:bg-white/5 opacity-70 hover:opacity-100'
-                      }`}
-                      style={{ color: theme.colors.text }}
-                    >
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.dot }} />
-                      <span className="truncate">{t.name}</span>
-                    </button>
-                  ))}
+                  <div className="py-0.5 space-y-0.5">
+                    {themeList.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => handleSwitchGlobalTheme(t.id)}
+                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left cursor-pointer ${
+                          theme.id === t.id ? 'bg-white/10 font-semibold' : 'hover:bg-white/5 opacity-70 hover:opacity-100'
+                        }`}
+                        style={{ color: theme.colors.text }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: t.dot }} />
+                          <span className="font-medium text-xs shrink-0">{t.nameZh}</span>
+                          <span className="text-[10px] opacity-40 font-mono truncate">({t.name})</span>
+                        </div>
+                        {theme.id === t.id && (
+                          <Check className="h-3 w-3 shrink-0" style={{ color: theme.colors.accent || '#38bdf8' }} />
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -477,8 +502,9 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
             <button
               onClick={handleTogglePin}
               className={`p-1 rounded-md transition-all cursor-pointer ${
-                isPinned ? 'text-cyan-400 font-semibold' : 'opacity-40 hover:opacity-100 hover:bg-white/10'
+                isPinned ? 'font-semibold' : 'opacity-40 hover:opacity-100 hover:bg-white/10'
               }`}
+              style={{ color: isPinned ? (theme.colors.accent || '#38bdf8') : undefined }}
               title={isPinned ? '取消固定' : '固定在左侧'}
             >
               {isPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
@@ -639,7 +665,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                       return (
                         <div key={chap.id} className="relative">
                           {isDropTop && (
-                            <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-cyan-400 z-10 rounded-full" />
+                            <div className="absolute -top-0.5 left-2 right-2 h-0.5 z-10 rounded-full" style={{ backgroundColor: theme.colors.accent || '#38bdf8' }} />
                           )}
 
                           <div
@@ -736,7 +762,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                           </div>
 
                           {isDropBottom && (
-                            <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-cyan-400 z-10 rounded-full" />
+                            <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 z-10 rounded-full" style={{ backgroundColor: theme.colors.accent || '#38bdf8' }} />
                           )}
                         </div>
                       );

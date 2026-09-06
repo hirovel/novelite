@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { LiveCursorEngine, type StreamPresetId } from '../../plugins/live-cursor/LiveCursorEngine';
 import type { Theme } from '../../core/themes/types';
-import { Sliders, Sparkles, Pipette, Layers, Activity, Palette, Sparkle } from 'lucide-react';
+import { Sliders, Pipette, Layers, Activity, Palette } from 'lucide-react';
 
 interface Props {
   theme: Theme;
@@ -700,7 +700,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
             {[
               { id: 'fluid', name: '流体', desc: '平滑流体拉伸' },
               { id: 'ribbon', name: '丝带', desc: '多节点弧形摆动' },
-              { id: 'quantum', name: '极速', desc: '高频阻尼，快速落位' },
+              { id: 'quantum', name: '敏捷', desc: '高阻尼快速落位' },
             ].map((pm) => {
               const isCur = physicsMode === pm.id;
               return (
@@ -732,9 +732,9 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           </label>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { id: 'gentle', name: '优雅连贯', desc: '柔和流线跟随' },
-              { id: 'balanced', name: '平衡敏捷', desc: '迅捷贴合手感' },
-              { id: 'snappy', name: '极速干脆', desc: '零拖沓利落' },
+              { id: 'gentle', name: '柔和', desc: '平缓跟随' },
+              { id: 'balanced', name: '均衡', desc: '自然跟随' },
+              { id: 'snappy', name: '敏捷', desc: '即时跟随' },
             ].map((sm) => {
               const isCur = speedMode === sm.id;
               return (
@@ -761,16 +761,11 @@ export const LiveCursorTestArena: React.FC<Props> = ({
 
         {/* 行内倾角切变开关 */}
         <div className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02]">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1 rounded-lg" style={{ backgroundColor: `${theme.colors.accent}15`, color: theme.colors.accent }}>
-              <Sparkle className="h-3.5 w-3.5" />
+          <div>
+            <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
+              行内倾角切变
             </div>
-            <div>
-              <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
-                行内倾角切变
-              </div>
-              <div className="text-[10px] opacity-50">打字时前倾，静止时回正</div>
-            </div>
+            <div className="text-[10px] opacity-50">打字时前倾，静止时回正</div>
           </div>
           <button
             onClick={() => onChangeInlineSkew?.(!inlineSkew)}
@@ -794,8 +789,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           borderColor: `${theme.colors.border}60`,
         }}
       >
-        <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
-          <Sparkles className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
+        <div className="font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
           <span>按键微光与静态呼吸</span>
         </div>
 

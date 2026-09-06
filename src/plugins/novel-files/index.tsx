@@ -2,13 +2,14 @@ import React from 'react';
 import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
 import { NovelTree } from '../../components/sidebar/NovelTree';
 import { WordCounterWidget } from '../immersion/WordCounterWidget';
+import { exportNovelService } from '../../core/storage/ExportNovelService';
 
 export const NovelFilesPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-novel-files',
     name: '小说分卷与章节大纲',
     version: '2.0.0',
-    description: '提供小说分卷创建、章节目录管理、实时字数统计与手稿全本导出。',
+    description: '提供小说分卷创建、章节目录管理、实时字数统计与全本 TXT 导出。',
     author: 'hirovel',
     icon: 'BookOpen',
     defaultEnabled: true,
@@ -25,7 +26,7 @@ export const NovelFilesPlugin: NovelitePlugin = {
     // 2. Command: View word count summary
     ctx.registerCommand({
       id: 'novel.stats-summary',
-      title: '查看全书字数与章节看板',
+      title: '查看全书字数与章节统计',
       category: '大纲管理',
       run: (c) => {
         const proj = c.getProjectData();
@@ -41,39 +42,16 @@ export const NovelFilesPlugin: NovelitePlugin = {
       },
     });
 
-    // 3. Command: Fast Export TXT
+    // 3. Command: Fast Export TXT (WYSIWYG)
     ctx.registerCommand({
       id: 'novel.export-txt',
-      title: '导出为纯文本手稿 (.txt)',
+      title: '导出为文本文件 (.txt)',
       category: '大纲管理',
       shortcut: 'Ctrl+Shift+E',
-      run: async (c) => {
+      run: (c) => {
         const proj = c.getProjectData();
         if (!proj) return;
-        let output = `${proj.title || '小说'}\n作者：${proj.author || '佚名'}\n\n====================================\n\n`;
-        proj.volumes?.forEach((vol: any) => {
-          output += `\n\n【${vol.title}】\n\n`;
-          vol.chapters?.forEach((chap: any) => {
-            output += `\n${chap.title}\n\n`;
-            const clean = (chap.content || '')
-              .replace(/^#+\s+.*$/gm, '')
-              .split('\n')
-              .map((line: string) => (line.trim() ? `　　${line.trim()}` : ''))
-              .join('\n');
-            output += clean + '\n\n';
-          });
-        });
-
-        const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${proj.title || '小说'}_全本.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        c.showToast('已成功导出纯文本手稿', 'success');
+        exportNovelService.exportProjectToTxt(proj);
       },
     });
   },

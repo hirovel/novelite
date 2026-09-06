@@ -1,10 +1,10 @@
 export type KeybindingCategory =
-  | 'editing'       // ✍️ 文本编辑与行操作
-  | 'navigation'    // 🚀 光标疾速巡航
-  | 'search'        // 🔍 查找、替换与检索
-  | 'split_view'    // 🪟 对等分屏与双写对照
-  | 'literary'      // 📖 排版、文学工具与导出
-  | 'system';       // 🎨 视口、心流与系统管理
+  | 'editing'       // 文本编辑与行操作
+  | 'navigation'    // 光标导航
+  | 'search'        // 查找与检索
+  | 'split_view'    // 分屏编辑
+  | 'literary'      // 排版与写作辅助
+  | 'system';       // 界面与系统设置
 
 export type KeybindingScope = 'global' | 'editor';
 

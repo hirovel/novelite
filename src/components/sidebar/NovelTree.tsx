@@ -12,8 +12,10 @@ import {
   FileText,
   Folder,
   FolderOpen,
+  FileDown,
 } from 'lucide-react';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
+import { exportNovelService } from '../../core/storage/ExportNovelService';
 import type { NovelProject, Volume } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
@@ -297,8 +299,8 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                         if (e.key === 'Escape') setEditingId(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className="bg-black/50 border border-cyan-400 rounded-lg px-2 py-0.5 text-xs font-semibold outline-none w-full"
-                      style={{ color: theme.colors.text }}
+                      className="bg-black/50 border rounded-lg px-2 py-0.5 text-xs font-semibold outline-none w-full"
+                      style={{ color: theme.colors.text, borderColor: theme.colors.accent || '#38bdf8' }}
                     />
                   ) : (
                     <span
@@ -322,14 +324,16 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                       setInlineNewChap({ volId: vol.id });
                     }}
                     title="新建章节"
-                    className="p-1 hover:text-cyan-400 hover:bg-white/10 rounded"
+                    className="p-1 hover:opacity-100 hover:bg-white/10 rounded opacity-60"
+                    style={{ color: theme.colors.accent || '#38bdf8' }}
                   >
                     <Plus className="h-3 w-3" />
                   </button>
                   <button
                     onClick={(e) => handleStartRename(e, vol.id, vol.title)}
                     title="重命名分卷"
-                    className="p-1 hover:text-cyan-400 hover:bg-white/10 rounded"
+                    className="p-1 hover:opacity-100 hover:bg-white/10 rounded opacity-60"
+                    style={{ color: theme.colors.accent || '#38bdf8' }}
                   >
                     <Edit3 className="h-3 w-3" />
                   </button>
@@ -359,7 +363,7 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                     return (
                       <div key={chap.id} className="relative">
                         {isDropTop && (
-                          <div className="absolute -top-0.5 left-2 right-2 h-0.5 bg-cyan-400 z-10 rounded-full" />
+                          <div className="absolute -top-0.5 left-2 right-2 h-0.5 z-10 rounded-full" style={{ backgroundColor: theme.colors.accent || '#38bdf8' }} />
                         )}
 
                         <div
@@ -404,8 +408,8 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                                   if (e.key === 'Escape') setEditingId(null);
                                 }}
                                 onClick={(e) => e.stopPropagation()}
-                                className="bg-black/50 border border-cyan-400 rounded px-1.5 py-0.5 text-xs outline-none w-full font-medium"
-                                style={{ color: theme.colors.text }}
+                                className="bg-black/50 border rounded px-1.5 py-0.5 text-xs outline-none w-full font-medium"
+                                style={{ color: theme.colors.text, borderColor: theme.colors.accent || '#38bdf8' }}
                               />
                             ) : (
                               <span
@@ -450,7 +454,7 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                         </div>
 
                         {isDropBottom && (
-                          <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 bg-cyan-400 z-10 rounded-full" />
+                          <div className="absolute -bottom-0.5 left-2 right-2 h-0.5 z-10 rounded-full" style={{ backgroundColor: theme.colors.accent || '#38bdf8' }} />
                         )}
                       </div>
                     );
@@ -514,6 +518,16 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
           style={{ color: theme.colors.text }}
         >
           + 新建分卷
+        </button>
+
+        <button
+          onClick={() => exportNovelService.exportProjectToTxt(projectStore.getProject())}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs opacity-60 hover:opacity-100 hover:bg-white/5 transition-all cursor-pointer"
+          style={{ color: theme.colors.text }}
+          title="导出全本 TXT (所见即所得，Ctrl+Shift+E)"
+        >
+          <FileDown className="h-3 w-3" />
+          <span>导出全本</span>
         </button>
       </div>
     </div>

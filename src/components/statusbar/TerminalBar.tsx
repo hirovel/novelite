@@ -116,9 +116,17 @@ export const TerminalBar: React.FC<Props> = ({
           className="flex items-center gap-1.5 cursor-pointer opacity-80 hover:opacity-100 transition-all truncate"
         >
           <span
-            className={`h-1.5 w-1.5 rounded-full shrink-0 ${
-              isSaved ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-amber-400 animate-pulse'
+            className={`h-1.5 w-1.5 rounded-full shrink-0 transition-all ${
+              !isSaved ? 'bg-amber-400 animate-pulse' : ''
             }`}
+            style={
+              isSaved
+                ? {
+                    backgroundColor: theme.colors.accent,
+                    boxShadow: `0 0 6px ${theme.colors.accent}99`,
+                  }
+                : undefined
+            }
           />
           <span className="truncate font-medium">{activeChapTitle}</span>
         </div>
@@ -181,7 +189,7 @@ export const TerminalBar: React.FC<Props> = ({
         {/* Zen Mode Button */}
         <button
           onClick={onToggleZenMode}
-          title="全屏模式 (F11 / Alt+Z)"
+          title="全屏模式 (F11)"
           className="p-1 rounded opacity-70 hover:opacity-100 transition-all cursor-pointer"
         >
           {isZenMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}

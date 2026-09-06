@@ -231,7 +231,7 @@ export class PluginManager {
           unregCmd = commandRegistry.register({
             id: `formatter.${formatter.id}`,
             title: `排版: ${formatter.title}`,
-            category: '排版沉浸',
+            category: '排版与写作',
             shortcut: formatter.shortcut,
             run: (c) => {
               const current = c.getEditorContent();
@@ -245,7 +245,7 @@ export class PluginManager {
           unbindKeymap = keymapRegistry.register({
             id: `formatter.${formatter.id}`,
             title: `排版: ${formatter.title}`,
-            description: `智能排版格式化 (${formatter.title})`,
+            description: `排版格式化 (${formatter.title})`,
             category: 'literary',
             scope: 'global',
             defaultKey: formatter.shortcut,

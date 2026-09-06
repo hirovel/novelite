@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, drawSelection } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import { fileSystemStore } from '../../core/storage/FileSystemStore';
@@ -124,6 +124,7 @@ function createEditorTheme(
       padding: '40px 48px 65vh 48px',
       caretColor: 'transparent !important',
       fontFeatureSettings: '"kern" 1, "liga" 1',
+      color: `${resolvedTextColor} !important`,
     },
     '.cm-cursor, .cm-cursor-primary, .cm-cursor-secondary, .cm-dropCursor': {
       display: 'none !important',
@@ -136,6 +137,7 @@ function createEditorTheme(
     '.cm-line': {
       boxSizing: 'border-box',
       width: '100%',
+      color: `${resolvedTextColor} !important`,
       contain: 'style layout',
       transition: 'opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.18s ease',
       ...(isRuled
@@ -146,6 +148,9 @@ function createEditorTheme(
             backgroundPosition: '0 0',
           }
         : {}),
+    },
+    '.cm-line span:not(.cm-dialogue-quote)': {
+      color: 'inherit !important',
     },
     // 🌟 稿纸/信纸模式对于大标题、分卷标题与特殊块的精准适配 (Clean Heading Alignment)
     '.cm-line.cm-line-h1': {
@@ -431,7 +436,7 @@ export const NovelEditor: React.FC<Props> = ({
     view.contentDOM.addEventListener('compositionend', handleCompEnd);
 
     // External chapter change listener for primary pane
-    const unsubSelect = eventBus.on('chapter-selected', (chapter: any) => {
+    const unsubSelect = eventBus.on('chapter-selected', (chapter: any, options?: { targetPos?: number; targetLength?: number; targetText?: string }) => {
       if (paneId !== 'primary') return;
       if (!chapter) return;
 
@@ -441,14 +446,64 @@ export const NovelEditor: React.FC<Props> = ({
       const wCount = countWordsFast(text);
       setCharCount(wCount);
 
+      const targetPos = options?.targetPos ?? -1;
+      const targetLength = options?.targetLength ?? 0;
+      let anchor = 0;
+      let head = 0;
+
+      if (targetPos >= 0 && targetPos <= text.length) {
+        anchor = targetPos;
+        head = Math.min(text.length, targetPos + targetLength);
+      }
+
       view.dispatch({
         changes: { from: 0, to: view.state.doc.length, insert: text },
-        selection: { anchor: 0 },
-        scrollIntoView: true,
+        selection: { anchor, head },
+        effects: targetPos >= 0 ? EditorView.scrollIntoView(anchor, { y: 'center' }) : undefined,
+        scrollIntoView: targetPos < 0,
       });
+
+      if (targetPos >= 0) {
+        setTimeout(() => {
+          view.focus();
+        }, 30);
+      }
 
       isUpdatingRef.current = false;
     });
+
+    // Match navigation listener (for global search jumps)
+    const unsubNavigateToMatch = eventBus.on(
+      'editor:navigate-to-match',
+      (data: { chapterId?: string; index?: number; length?: number; matchText?: string }) => {
+        if (paneId !== 'primary') return;
+        if (!data) return;
+
+        const docLength = view.state.doc.length;
+        let targetPos = typeof data.index === 'number' ? data.index : -1;
+        let targetLength = typeof data.length === 'number' ? data.length : 0;
+
+        // Fallback: If index is out of range or invalid, search matchText in doc
+        if ((targetPos < 0 || targetPos > docLength) && data.matchText) {
+          const fullText = view.state.doc.toString();
+          const found = fullText.indexOf(data.matchText);
+          if (found !== -1) {
+            targetPos = found;
+            targetLength = data.matchText.length;
+          }
+        }
+
+        if (targetPos >= 0 && targetPos <= docLength) {
+          const anchor = targetPos;
+          const head = Math.min(docLength, targetPos + targetLength);
+          view.dispatch({
+            selection: { anchor, head },
+            effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+          });
+          view.focus();
+        }
+      }
+    );
 
     // Cross-pane focus listener
     const unsubFocus = eventBus.on('split-view:focus-pane', (target: string) => {
@@ -525,7 +580,7 @@ export const NovelEditor: React.FC<Props> = ({
       }
     });
 
-    const unsubRemoveIndents = eventBus.on('editor-action:remove-indents', () => {
+    const handleRemoveIndents = () => {
       if (!view.hasFocus && paneId !== 'primary') return;
       const text = view.state.doc.toString();
       const { text: formatted, count, changed } = removeLeadingIndents(text);
@@ -542,6 +597,21 @@ export const NovelEditor: React.FC<Props> = ({
         eventBus.emit('show-toast', { message: `已清除本章 ${count} 处段落缩进，恢复顶格`, type: 'success' });
       } else {
         eventBus.emit('show-toast', { message: '本章段落已全部顶格', type: 'info' });
+      }
+    };
+
+    const unsubRemoveIndents = eventBus.on('editor-action:remove-indents', handleRemoveIndents);
+    const unsubCleanIndent = eventBus.on('editor-action:clean-indent', handleRemoveIndents);
+
+    const unsubUndo = eventBus.on('editor-action:undo', () => {
+      if (view.hasFocus || paneId === 'primary') {
+        undo(view);
+      }
+    });
+
+    const unsubRedo = eventBus.on('editor-action:redo', () => {
+      if (view.hasFocus || paneId === 'primary') {
+        redo(view);
       }
     });
 
@@ -568,12 +638,17 @@ export const NovelEditor: React.FC<Props> = ({
     const unsubContentUpdated = eventBus.on('chapter-content-updated', (data: any) => {
       const targetChapId = data?.chapterId || data?.id;
       const curTargetId = paneId === 'secondary' ? secondaryChapterId : projectStore.getActiveChapter()?.id;
-      if (targetChapId && targetChapId === curTargetId && typeof data?.content === 'string' && view.state.doc.toString() !== data.content) {
-        const curHead = Math.min(data.content.length, view.state.selection.main.head);
-        view.dispatch({
-          changes: { from: 0, to: view.state.doc.length, insert: data.content },
-          selection: { anchor: curHead },
-        });
+      if (targetChapId === curTargetId) {
+        const text = data?.content ?? '';
+        setActiveChapterTitle(data?.title || activeChapterTitle);
+        setCharCount(countWordsFast(text));
+        if (view.state.doc.toString() !== text) {
+          isUpdatingRef.current = true;
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: text },
+          });
+          isUpdatingRef.current = false;
+        }
       }
     });
 
@@ -607,10 +682,14 @@ export const NovelEditor: React.FC<Props> = ({
       view.contentDOM.removeEventListener('compositionstart', handleCompStart);
       view.contentDOM.removeEventListener('compositionend', handleCompEnd);
       unsubSelect();
+      unsubNavigateToMatch();
       unsubFocus();
       unsubSave();
+      unsubUndo();
+      unsubRedo();
       unsubFormatChinese();
       unsubRemoveIndents();
+      unsubCleanIndent();
       unsubCleanPunctuation();
       unsubContentUpdated();
       unsubTyping();
@@ -848,15 +927,25 @@ export const NovelEditor: React.FC<Props> = ({
                       <button
                         key={chapter.id}
                         onClick={() => handleSelectChapter(chapter.id)}
-                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
-                          isSelected ? 'bg-cyan-500/20 text-cyan-300 font-medium' : 'hover:bg-white/5'
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer border ${
+                          isSelected ? 'font-medium' : 'hover:bg-white/5 border-transparent'
                         }`}
+                        style={{
+                          color: isSelected ? (theme.colors.accent || theme.colors.text) : theme.colors.text,
+                          backgroundColor: isSelected ? `${theme.colors.accent || '#38bdf8'}20` : undefined,
+                          borderColor: isSelected ? `${theme.colors.accent || '#38bdf8'}40` : 'transparent',
+                        }}
                       >
                         <div className="flex flex-col min-w-0 pr-2">
                           <span className="truncate">{chapter.title}</span>
                           <span className="text-[10px] opacity-40 truncate">{volTitle}</span>
                         </div>
-                        {isSelected && <Check className="h-3 w-3 text-cyan-400 shrink-0" />}
+                        {isSelected && (
+                          <Check
+                            className="h-3 w-3 shrink-0"
+                            style={{ color: theme.colors.accent || '#38bdf8' }}
+                          />
+                        )}
                       </button>
                     );
                   })}

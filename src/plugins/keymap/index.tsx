@@ -16,8 +16,8 @@ export const KeymapPlugin: NovelitePlugin = {
     // 🌟 Register Command for Command Palette & Cheatsheet
     ctx.registerCommand({
       id: 'keymap:open-cheatsheet',
-      title: '快捷键全景速查与按键管理 (Hotkeys Cheatsheet)',
-      category: '系统与心流',
+      title: '快捷键速查与自定义',
+      category: '快捷键',
       shortcut: 'Ctrl+/',
       run: () => {
         eventBus.emit('keymap:open-cheatsheet');

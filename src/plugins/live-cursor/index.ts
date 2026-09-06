@@ -13,7 +13,7 @@ export const LiveCursorPlugin: NovelitePlugin = {
   init(ctx: PluginContext) {
     ctx.registerCommand({
       id: 'live-cursor.cycle-physics',
-      title: '切换光标物理动力学模式 (流体/丝带/极速)',
+      title: '切换光标动画模式 (流体/丝带/敏捷)',
       category: '光标',
       shortcut: 'Alt+P',
       run: (c: PluginContext) => {
@@ -21,14 +21,14 @@ export const LiveCursorPlugin: NovelitePlugin = {
         const names: Record<string, string> = {
           fluid: '流体',
           ribbon: '丝带',
-          quantum: '极速',
+          quantum: '敏捷',
         };
         const current = c.getSetting<'fluid' | 'ribbon' | 'quantum'>('physicsMode', 'fluid');
         const nextIdx = (modes.indexOf(current) + 1) % modes.length;
         const next = modes[nextIdx];
         c.setSetting('physicsMode', next);
         c.emit('live-cursor:physics-changed', next);
-        c.showToast(`动力学模式: ${names[next]}`);
+        c.showToast(`光标模式: ${names[next]}`);
       },
     });
 

@@ -57,8 +57,17 @@ export function useGlobalKeymap() {
         case 'nav:flight-deck':
           eventBus.emit('quick-search:open');
           break;
+        case 'nav:scratchpad':
+          eventBus.emit('scratchpad:open');
+          break;
         case 'nav:bookshelf':
           eventBus.emit('bookshelf:open');
+          break;
+        case 'nav:global-search':
+          eventBus.emit('global-search:open');
+          break;
+        case 'novel:import-txt':
+          eventBus.emit('novel-import:open');
           break;
         case 'nav:prev-chapter':
           projectStore.navigateToPrevChapter();
@@ -93,8 +102,7 @@ export function useGlobalKeymap() {
         case 'literary:format-chinese':
           eventBus.emit('editor-action:format-chinese');
           break;
-        case 'focus:toggle':
-        case 'literary:toggle-spotlight': {
+        case 'focus:toggle': {
           const ctx = pluginManager.getPluginContext('plugin-immersion');
           const current = ctx?.getSetting<boolean>('focusEnabled', false) ?? false;
           const next = !current;
@@ -141,26 +149,29 @@ export function useGlobalKeymap() {
           if (zoomCmd && ctx) zoomCmd.run(ctx);
           break;
         }
+        case 'view:toggle-sidebar':
+          eventBus.emit('sidebar:toggle');
+          break;
         case 'view:toggle-zen':
           eventBus.emit('zen-mode:toggle');
           break;
         case 'view:open-settings':
           eventBus.emit('settings:open');
           break;
+        case 'editor:undo':
         case 'editor:history-undo':
           eventBus.emit('editor-action:undo');
           break;
+        case 'editor:redo':
         case 'editor:history-redo':
           eventBus.emit('editor-action:redo');
           break;
         case 'editor:clean-indent':
-          eventBus.emit('editor-action:clean-indent');
+        case 'editor:remove-indents':
+          eventBus.emit('editor-action:remove-indents');
           break;
         case 'editor:clean-punctuation':
           eventBus.emit('editor-action:clean-punctuation');
-          break;
-        case 'editor:remove-indents':
-          eventBus.emit('editor-action:remove-indents');
           break;
         default:
           eventBus.emit(`keymap:trigger:${matched.id}`);

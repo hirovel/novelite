@@ -34,13 +34,13 @@ const CATEGORY_CONFIG: {
   label: string;
   icon: React.FC<{ className?: string }>;
 }[] = [
-  { id: 'all', label: '全部速查', icon: Sparkles },
-  { id: 'editing', label: '文本与行操作', icon: FileText },
-  { id: 'navigation', label: '光标疾速巡航', icon: Compass },
-  { id: 'search', label: '查找与导航', icon: Search },
-  { id: 'split_view', label: '分屏与对照', icon: Columns },
-  { id: 'literary', label: '文学与排版', icon: BookOpen },
-  { id: 'system', label: '视口与心流', icon: Sliders },
+  { id: 'all', label: '全部', icon: Sparkles },
+  { id: 'editing', label: '文本编辑', icon: FileText },
+  { id: 'navigation', label: '章节导航', icon: Compass },
+  { id: 'search', label: '查找与检索', icon: Search },
+  { id: 'split_view', label: '分屏编辑', icon: Columns },
+  { id: 'literary', label: '排版与写作', icon: BookOpen },
+  { id: 'system', label: '界面与系统', icon: Sliders },
 ];
 
 export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
@@ -206,8 +206,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
       case 'literary:format-chinese':
         eventBus.emit('editor-action:format-chinese');
         break;
-      case 'focus:toggle':
-      case 'literary:toggle-spotlight': {
+      case 'focus:toggle': {
         const ctx = pluginManager.getPluginContext('plugin-immersion');
         const current = ctx?.getSetting<boolean>('focusEnabled', false) ?? false;
         const next = !current;
@@ -242,11 +241,14 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
         if (exportCmd && ctx) exportCmd.run(ctx);
         break;
       }
+      case 'view:toggle-sidebar':
+        eventBus.emit('sidebar:toggle');
+        break;
       case 'view:toggle-zen':
         eventBus.emit('zen-mode:toggle');
         break;
       case 'view:open-settings':
-        eventBus.emit('settings-drawer:open');
+        eventBus.emit('settings:open');
         break;
       case 'search:toggle-hud':
         eventBus.emit('open-floating-search', { mode: 'search' });
@@ -260,8 +262,17 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
       case 'nav:flight-deck':
         eventBus.emit('quick-search:open');
         break;
+      case 'nav:scratchpad':
+        eventBus.emit('scratchpad:open');
+        break;
       case 'nav:bookshelf':
         eventBus.emit('bookshelf:open');
+        break;
+      case 'nav:global-search':
+        eventBus.emit('global-search:open');
+        break;
+      case 'novel:import-txt':
+        eventBus.emit('novel-import:open');
         break;
       case 'nav:prev-chapter':
         projectStore.navigateToPrevChapter();
@@ -269,6 +280,24 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
       case 'nav:next-chapter':
         projectStore.navigateToNextChapter();
         break;
+      case 'editor:undo':
+        eventBus.emit('editor-action:undo');
+        break;
+      case 'editor:redo':
+        eventBus.emit('editor-action:redo');
+        break;
+      case 'editor:zoom-in': {
+        const zoomCmd = commandRegistry.get('typography.font-increase');
+        const ctx = pluginManager.getPluginContext('plugin-chinese-typography');
+        if (zoomCmd && ctx) zoomCmd.run(ctx);
+        break;
+      }
+      case 'editor:zoom-out': {
+        const zoomCmd = commandRegistry.get('typography.font-decrease');
+        const ctx = pluginManager.getPluginContext('plugin-chinese-typography');
+        if (zoomCmd && ctx) zoomCmd.run(ctx);
+        break;
+      }
       default:
         eventBus.emit(`keymap:trigger:${item.id}`);
         break;
@@ -296,10 +325,10 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
             </div>
             <div>
               <h2 className="text-base font-semibold tracking-tight" style={{ color: theme.colors.text }}>
-                快捷键全景速查与管理中心
+                快捷键速查与自定义
               </h2>
               <p className="text-xs opacity-50 font-mono mt-0.5">
-                收录全量创作按键 · 支持点击即时运行 · 点击修改录制自定义按键
+                支持点击键位重新录制自定义 · 点击 ▶ 可直接执行功能
               </p>
             </div>
           </div>

@@ -36,22 +36,22 @@ export function cleanChinesePunctuation(text: string): FormatResult {
 
   // Step 3: Half-width punctuations surrounded by Chinese characters or line ends
   // Comma
-  text = text.replace(/([^\x00-\x7F]),/g, (_m, c) => { count++; return c + '，'; });
-  text = text.replace(/,([^\x00-\x7F])/g, (_m, c) => { count++; return '，' + c; });
+  text = text.replace(/([^\x20-\x7E]),/g, (_m, c) => { count++; return c + '，'; });
+  text = text.replace(/,([^\x20-\x7E])/g, (_m, c) => { count++; return '，' + c; });
 
   // Period (avoid decimals like 3.14)
-  text = text.replace(/([^\x00-\x7F])\./g, (_m, c) => { count++; return c + '。'; });
-  text = text.replace(/\.([^\x00-\x7F])/g, (_m, c) => { count++; return '。' + c; });
+  text = text.replace(/([^\x20-\x7E])\./g, (_m, c) => { count++; return c + '。'; });
+  text = text.replace(/\.([^\x20-\x7E])/g, (_m, c) => { count++; return '。' + c; });
 
   // Exclamation & Question
   text = text.replace(/!/g, () => { count++; return '！'; });
   text = text.replace(/\?/g, () => { count++; return '？'; });
 
   // Colon & Semicolon
-  text = text.replace(/([^\x00-\x7F]):/g, (_m, c) => { count++; return c + '：'; });
-  text = text.replace(/:([^\x00-\x7F])/g, (_m, c) => { count++; return '：' + c; });
-  text = text.replace(/([^\x00-\x7F]);/g, (_m, c) => { count++; return c + '；'; });
-  text = text.replace(/;([^\x00-\x7F])/g, (_m, c) => { count++; return '；' + c; });
+  text = text.replace(/([^\x20-\x7E]):/g, (_m, c) => { count++; return c + '：'; });
+  text = text.replace(/:([^\x20-\x7E])/g, (_m, c) => { count++; return '：' + c; });
+  text = text.replace(/([^\x20-\x7E]);/g, (_m, c) => { count++; return c + '；'; });
+  text = text.replace(/;([^\x20-\x7E])/g, (_m, c) => { count++; return '；' + c; });
 
   // Parentheses & Brackets & Angle brackets
   text = text.replace(/\(/g, () => { count++; return '（'; });

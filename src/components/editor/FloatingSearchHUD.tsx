@@ -68,11 +68,13 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
     const unsub1 = eventBus.on('open-floating-search', handleOpen);
     const unsub2 = eventBus.on('close-floating-search', handleClose);
     const unsub3 = eventBus.on('search-hud:toggle', handleOpen);
+    const unsub4 = eventBus.on('modal:close-all', handleClose);
 
     return () => {
       unsub1();
       unsub2();
       unsub3();
+      unsub4();
     };
   }, [view]);
 
@@ -113,7 +115,8 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
       }
 
       setMatchCount({ current: cur || (total > 0 ? 1 : 0), total });
-    } catch {
+    } catch (err) {
+      console.debug('[FloatingSearchHUD] Failed to calculate match cursor:', err);
       setMatchCount({ current: 0, total: 0 });
     }
   }, [isOpen, searchText, replaceText, matchCase, matchWholeWord, view]);
@@ -139,6 +142,7 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
       caseSensitive: matchCase,
       wholeWord: matchWholeWord,
     });
+
     try {
       const doc = view.state.doc;
       const cursor = query.getCursor(doc);
@@ -155,7 +159,10 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
         item = cursor.next();
       }
       setMatchCount({ current: cur || (total > 0 ? 1 : 0), total });
-    } catch {}
+    } catch (err) {
+      console.debug('[FloatingSearchHUD] Failed to update match cursor:', err);
+      setMatchCount({ current: 0, total: 0 });
+    }
   };
 
   const handleReplaceOne = () => {
@@ -199,7 +206,7 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
 
   return (
     <div
-      className="absolute top-4 right-6 z-40 flex flex-col rounded-xl border shadow-xl backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 duration-150"
+      className="absolute top-13 right-6 z-40 flex flex-col rounded-xl border shadow-xl backdrop-blur-2xl animate-in fade-in slide-in-from-top-2 duration-150"
       style={{
         backgroundColor: `${theme.colors.bgSecondary}FA`,
         borderColor: `${theme.colors.border}40`,
@@ -269,8 +276,12 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
         <button
           onClick={() => setMatchCase((v) => !v)}
           className={`p-1 rounded-lg transition-all ${
-            matchCase ? 'bg-cyan-500/20 text-cyan-400 font-semibold' : 'opacity-50 hover:opacity-100'
+            matchCase ? 'font-semibold' : 'opacity-50 hover:opacity-100'
           }`}
+          style={{
+            color: matchCase ? (theme.colors.accent || '#38bdf8') : undefined,
+            backgroundColor: matchCase ? `${theme.colors.accent || '#38bdf8'}20` : undefined,
+          }}
           title="区分大小写 (Match Case)"
         >
           <CaseSensitive className="h-3.5 w-3.5" />
@@ -279,8 +290,12 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
         <button
           onClick={() => setMatchWholeWord((v) => !v)}
           className={`p-1 rounded-lg transition-all ${
-            matchWholeWord ? 'bg-cyan-500/20 text-cyan-400 font-semibold' : 'opacity-50 hover:opacity-100'
+            matchWholeWord ? 'font-semibold' : 'opacity-50 hover:opacity-100'
           }`}
+          style={{
+            color: matchWholeWord ? (theme.colors.accent || '#38bdf8') : undefined,
+            backgroundColor: matchWholeWord ? `${theme.colors.accent || '#38bdf8'}20` : undefined,
+          }}
           title="全词匹配 (Whole Word)"
         >
           <WholeWord className="h-3.5 w-3.5" />
@@ -311,7 +326,7 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
             value={replaceText}
             onChange={(e) => setReplaceText(e.target.value)}
             placeholder="替换为..."
-            className="flex-1 rounded-xl px-2.5 py-1.5 text-xs outline-none border focus:border-cyan-500/50"
+            className="flex-1 rounded-xl px-2.5 py-1.5 text-xs outline-none border"
             style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}60`, color: theme.colors.text }}
           />
 
@@ -327,7 +342,12 @@ export const FloatingSearchHUD: React.FC<Props> = ({ view, theme }) => {
           <button
             onClick={handleReplaceAll}
             disabled={!searchText || matchCount.total === 0}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all disabled:opacity-30"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all disabled:opacity-30 cursor-pointer"
+            style={{
+              color: theme.colors.accent || '#38bdf8',
+              backgroundColor: `${theme.colors.accent || '#38bdf8'}20`,
+              borderColor: `${theme.colors.accent || '#38bdf8'}40`,
+            }}
             title="全篇批量替换"
           >
             <CheckCheck className="h-3 w-3" />

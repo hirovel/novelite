@@ -24,7 +24,6 @@ import {
   Trash,
   RefreshCw,
   Keyboard,
-  Replace,
   Columns,
   Edit2,
   AlertTriangle,
@@ -43,6 +42,7 @@ import type { BackgroundEffect } from '../editor/EditorBackground';
 import type { FocusScope } from '../../plugins/immersion/focusExtension';
 import { type DialogueColorPreset, DIALOGUE_COLOR_MAP } from '../../plugins/immersion/dialogueExtension';
 import { eventBus } from '../../core/events/EventBus';
+import { BrandIcon } from '../common/BrandIcon';
 import { keymapRegistry } from '../../core/keymap/KeymapRegistry';
 import type { KeybindingCategory, KeybindingItem } from '../../core/keymap/types';
 
@@ -446,34 +446,6 @@ return {
     return pluginManager.getPluginContext('plugin-immersion')?.getSetting<number>('focusDimOpacity', 0.28) ?? 0.28;
   });
 
-  // 🌟 Synchronize with live plugin settings whenever drawer opens or external settings change
-  useEffect(() => {
-    const syncFromPlugins = () => {
-      const immCtx = pluginManager.getPluginContext('plugin-immersion');
-      if (immCtx) {
-        setFocusEnabled(immCtx.getSetting<boolean>('focusEnabled', false));
-        setFocusScope(immCtx.getSetting<FocusScope>('focusScope', 'paragraph'));
-        setFocusDimOpacity(immCtx.getSetting<number>('focusDimOpacity', 0.28));
-        setDialogueEnabled(immCtx.getSetting<boolean>('dialogueEnabled', true));
-        setDialogueColorPreset(immCtx.getSetting<DialogueColorPreset>('dialogueColorPreset', 'theme'));
-        setDialogueHighlightThoughts(immCtx.getSetting<boolean>('dialogueHighlightThoughts', true));
-        setDialogueCustomColor(immCtx.getSetting<string>('dialogueCustomColor', '#c95738'));
-      }
-    };
-
-    if (isOpen) {
-      syncFromPlugins();
-    }
-
-    const unsubImmersion = eventBus.on('plugin-setting-changed:plugin-immersion', syncFromPlugins);
-    const unsubExt = eventBus.on('editor-extensions-changed', syncFromPlugins);
-
-    return () => {
-      unsubImmersion();
-      unsubExt();
-    };
-  }, [isOpen]);
-
   const handleToggleFocusMode = () => {
     const ctx = pluginManager.getPluginContext('plugin-immersion');
     const next = !focusEnabled;
@@ -520,6 +492,34 @@ return {
   const [dialogueCustomColor, setDialogueCustomColor] = useState<string>(() => {
     return pluginManager.getPluginContext('plugin-immersion')?.getSetting<string>('dialogueCustomColor', '#c95738') ?? '#c95738';
   });
+
+  // 🌟 Synchronize with live plugin settings whenever drawer opens or external settings change
+  useEffect(() => {
+    const syncFromPlugins = () => {
+      const immCtx = pluginManager.getPluginContext('plugin-immersion');
+      if (immCtx) {
+        setFocusEnabled(immCtx.getSetting<boolean>('focusEnabled', false));
+        setFocusScope(immCtx.getSetting<FocusScope>('focusScope', 'paragraph'));
+        setFocusDimOpacity(immCtx.getSetting<number>('focusDimOpacity', 0.28));
+        setDialogueEnabled(immCtx.getSetting<boolean>('dialogueEnabled', true));
+        setDialogueColorPreset(immCtx.getSetting<DialogueColorPreset>('dialogueColorPreset', 'theme'));
+        setDialogueHighlightThoughts(immCtx.getSetting<boolean>('dialogueHighlightThoughts', true));
+        setDialogueCustomColor(immCtx.getSetting<string>('dialogueCustomColor', '#c95738'));
+      }
+    };
+
+    if (isOpen) {
+      syncFromPlugins();
+    }
+
+    const unsubImmersion = eventBus.on('plugin-setting-changed:plugin-immersion', syncFromPlugins);
+    const unsubExt = eventBus.on('editor-extensions-changed', syncFromPlugins);
+
+    return () => {
+      unsubImmersion();
+      unsubExt();
+    };
+  }, [isOpen]);
 
   const handleToggleDialogue = () => {
     if (onToggleDialogueProp) {
@@ -739,7 +739,7 @@ return {
     },
     keymap: {
       title: '快捷键管理',
-      desc: '全景快捷键速查、自定义改键与按键冲突检测',
+      desc: '快捷键速查、自定义改键与按键冲突检测',
       onReset: () => {
         keymapRegistry.resetAll();
         eventBus.emit('show-toast', { message: '所有快捷键已恢复默认设置', type: 'success' });
@@ -777,29 +777,24 @@ return {
           <div className="space-y-4">
             {/* Logo / Header */}
             <div className="flex items-center gap-2.5 px-3 py-2">
-              <div
-                className="h-7 w-7 rounded-xl flex items-center justify-center shadow-md"
-                style={{ backgroundColor: theme.colors.accent, color: theme.colors.bg }}
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-              </div>
+              <BrandIcon size={24} className="shrink-0 drop-shadow-sm" />
               <div>
                 <h2 className="text-xs font-bold tracking-tight" style={{ color: theme.colors.text }}>
                   Novelite 设置
                 </h2>
-                <span className="text-[10px] opacity-40 font-mono">Preferences Hub</span>
+                <span className="text-[10px] opacity-40 font-mono">Preferences</span>
               </div>
             </div>
 
             {/* Navigation Tab Pills */}
             <nav className="space-y-1">
               {[
-                { id: 'cursor', label: '灵感光标', icon: Sparkles, badge: isLiveCursorEnabled ? 'GPU' : '已禁用', isOff: !isLiveCursorEnabled },
+                { id: 'cursor', label: '灵感光标', icon: Sparkles, badge: !isLiveCursorEnabled ? '已禁用' : undefined, isOff: !isLiveCursorEnabled },
                 { id: 'background', label: '背景艺术', icon: Image, badge: !isBackgroundEnabled ? '已禁用' : undefined, isOff: !isBackgroundEnabled },
                 { id: 'typography', label: '版心排版', icon: Type, badge: (!isChineseTypographyEnabled && !isImmersionEnabled) ? '已禁用' : undefined, isOff: (!isChineseTypographyEnabled && !isImmersionEnabled) },
-                { id: 'themes', label: '主题外观', icon: Palette, badge: '8套' },
+                { id: 'themes', label: '主题外观', icon: Palette },
                 { id: 'plugins', label: '扩展插件', icon: Puzzle },
-                { id: 'keymap', label: '快捷键管理', icon: Keyboard, badge: keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl+/') },
+                { id: 'keymap', label: '快捷键管理', icon: Keyboard },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -841,15 +836,28 @@ return {
             </nav>
           </div>
 
-          {/* Footer Shortcuts Info */}
-          <div className="px-3 py-2 border-t border-white/5 space-y-1 text-[10px] font-mono opacity-40">
-            <div className="flex justify-between">
-              <span>关闭面板</span>
-              <kbd className="px-1 py-0.2 rounded bg-white/10">Esc</kbd>
+          {/* Footer Shortcuts & Version Info */}
+          <div className="px-3 py-2.5 border-t border-white/5 space-y-2">
+            <div className="flex items-center justify-between text-[10px] font-mono">
+              <span className="opacity-50">Novelite v1.0.0</span>
+              <button
+                onClick={() => eventBus.emit('check-for-updates')}
+                className="hover:underline text-[10.5px] cursor-pointer hover:opacity-100 flex items-center gap-1 font-medium transition-opacity"
+                style={{ color: textAccentColor }}
+                title="检查 GitHub Releases 软件最新版本"
+              >
+                <span>检查更新</span>
+              </button>
             </div>
-            <div className="flex justify-between">
-              <span>命令中心</span>
-              <kbd className="px-1 py-0.2 rounded bg-white/10">Ctrl+P</kbd>
+            <div className="space-y-1 text-[9.5px] font-mono opacity-40">
+              <div className="flex justify-between">
+                <span>关闭面板</span>
+                <kbd className="px-1 py-0.2 rounded bg-white/10">Esc</kbd>
+              </div>
+              <div className="flex justify-between">
+                <span>命令中心</span>
+                <kbd className="px-1 py-0.2 rounded bg-white/10">Ctrl+P</kbd>
+              </div>
             </div>
           </div>
         </div>
@@ -1335,24 +1343,37 @@ return {
                   style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
                 >
                   <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: `${theme.colors.border}40` }}>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          正文字体颜色
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
+                        正文字体颜色
+                      </span>
+                      <div
+                        className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-mono"
+                        style={{
+                          backgroundColor: theme.colors.bgSecondary,
+                          borderColor: `${theme.colors.border}80`,
+                        }}
+                      >
+                        <span
+                          className="h-2.5 w-2.5 rounded-full border shadow-xs inline-block shrink-0"
+                          style={{
+                            backgroundColor: editorTextColor === 'auto' || !editorTextColor ? theme.colors.editorText : editorTextColor,
+                            borderColor: 'rgba(255,255,255,0.25)',
+                          }}
+                        />
+                        <span style={{ color: theme.colors.text }}>
+                          {editorTextColor === 'auto' || !editorTextColor ? theme.colors.editorText : editorTextColor}
                         </span>
                         <span
-                          className="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium"
+                          className="text-[9px] px-1 py-0.2 rounded font-sans"
                           style={{
-                            backgroundColor: editorTextColor === 'auto' || !editorTextColor ? `${theme.colors.accent}20` : 'rgba(255,255,255,0.06)',
-                            color: editorTextColor === 'auto' || !editorTextColor ? theme.colors.accent : theme.colors.textMuted,
+                            backgroundColor: editorTextColor === 'auto' || !editorTextColor ? `${accentColor}20` : 'rgba(255,255,255,0.06)',
+                            color: editorTextColor === 'auto' || !editorTextColor ? textAccentColor : theme.colors.textMuted,
                           }}
                         >
                           {editorTextColor === 'auto' || !editorTextColor ? '跟随主题' : '自定义'}
                         </span>
                       </div>
-                      <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        独立自定义手稿正文字体颜色，或一键恢复跟随当前主题预设
-                      </p>
                     </div>
 
                     {/* Reset to Follow Theme Button */}
@@ -1373,6 +1394,32 @@ return {
 
                   {/* Mode: Follow Theme Option + Presets + Custom Pipette */}
                   <div className="space-y-3">
+                    {/* 实时正文段落字色预览条 */}
+                    <div
+                      className="p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors"
+                      style={{
+                        backgroundColor: theme.colors.editorBg || theme.colors.bgSecondary,
+                        borderColor: `${theme.colors.border}60`,
+                      }}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <span className="text-[10px] opacity-50 shrink-0 font-mono">预览效果:</span>
+                        <span
+                          className="font-medium text-xs truncate"
+                          style={{
+                            color: editorTextColor === 'auto' || !editorTextColor
+                              ? theme.colors.editorText
+                              : editorTextColor,
+                          }}
+                        >
+                          江流天地外，山色有无中。笔落生风雨，诗成泣鬼神。
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono opacity-50 shrink-0">
+                        {editorTextColor === 'auto' || !editorTextColor ? theme.colors.editorText : editorTextColor}
+                      </span>
+                    </div>
+
                     {/* Follow Theme Default Card */}
                     <button
                       onClick={() => onChangeEditorTextColor?.('auto')}
@@ -1408,9 +1455,6 @@ return {
 
                     {/* Curated Reading Swatches */}
                     <div>
-                      <span className="text-[11px] opacity-75 block mb-2 font-medium" style={{ color: theme.colors.text }}>
-                        精选阅读字色预设
-                      </span>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {[
                           { id: '#ffffff', name: '纯白高光', desc: '纯净清晰' },
@@ -1512,7 +1556,7 @@ return {
                         </span>
                       </div>
                       <p className="text-[10px] opacity-60 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        自定义双引号（“……”）、直角引号（「……」）内小说人物对白的高亮色彩，浅色模式下自动适配高对比度
+                        设置双引号（“……”）与直角引号（『……』）内人物对白的高亮色彩
                       </p>
                     </div>
 
@@ -1548,12 +1592,12 @@ return {
                                 : (!theme.isDark ? (theme.id === 'paper-parchment' ? '#c95738' : '#292524') : accentColor),
                             }}
                           >
-                            “小二，来两斤熟牛肉，一角烧刀子。”
+                            “喵喵喵，汪汪汪”
                           </span>
                         </div>
                         <span className="text-[10px] font-mono opacity-50 shrink-0">
                           {dialogueColor === 'auto' || !dialogueColor
-                            ? (!theme.isDark ? (theme.id === 'paper-parchment' ? '#c95738 (纸墨朱砂)' : '#292524 (水墨玄黑)') : `${accentColor} (主题主色)`)
+                            ? (!theme.isDark ? (theme.id === 'paper-parchment' ? '#c95738' : '#292524') : `${accentColor}`)
                             : dialogueColor}
                         </span>
                       </div>
@@ -1584,10 +1628,10 @@ return {
                           />
                           <div>
                             <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
-                              跟随当前主题高对比自适应 ({theme.nameZh})
+                              跟随当前主题 ({theme.nameZh})
                             </div>
                             <span className="text-[10px] opacity-50 font-mono" style={{ color: theme.colors.textMuted }}>
-                              浅色模式自动选用深色水墨/朱砂红，暗黑模式选用主题强调色，绝不发虚看不清
+                              根据当前主题自动适配高对比对白字色
                             </span>
                           </div>
                         </div>
@@ -1596,21 +1640,21 @@ return {
                         )}
                       </button>
 
-                      {/* 8 大精选高对比文学对白预设 */}
+                      {/* 预设对白字色 */}
                       <div>
                         <span className="text-[11px] opacity-75 block mb-2 font-medium" style={{ color: theme.colors.text }}>
-                          精选高对比度对白字色
+                          预设对白字色
                         </span>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {[
-                            { id: '#c95738', name: '朱砂赤羽', desc: '雅致典籍' },
-                            { id: '#292524', name: '水墨玄石', desc: '浅色极清' },
-                            { id: '#d97706', name: '暖褐琥珀', desc: '温润橙金' },
-                            { id: '#0f766e', name: '青瓷墨绿', desc: '沉稳护眼' },
-                            { id: '#1d4ed8', name: '深海霁蓝', desc: '清雅深蓝' },
-                            { id: '#7c3aed', name: '紫藤微光', desc: '浪漫沉着' },
-                            { id: '#ffffff', name: '纯白高光', desc: '暗色高亮' },
-                            { id: '#475569', name: '玄青深灰', desc: '低调耐看' },
+                            { id: '#c95738', name: '朱红' },
+                            { id: '#292524', name: '玄黑' },
+                            { id: '#d97706', name: '琥珀' },
+                            { id: '#0f766e', name: '墨绿' },
+                            { id: '#1d4ed8', name: '霁蓝' },
+                            { id: '#7c3aed', name: '淡紫' },
+                            { id: '#ffffff', name: '纯白' },
+                            { id: '#d4b0b5', name: '莫兰迪粉' },
                           ].map((swatch) => {
                             const isCur = dialogueColor === swatch.id;
                             return (
@@ -1629,7 +1673,7 @@ return {
                                   style={{ backgroundColor: swatch.id, borderColor: 'rgba(128,128,128,0.3)' }}
                                 />
                                 <div className="min-w-0 flex-1">
-                                  <span className="text-[11px] block truncate" style={{ color: theme.colors.text }}>
+                                  <span className="text-[11px] block truncate font-medium" style={{ color: theme.colors.text }}>
                                     {swatch.name}
                                   </span>
                                 </div>
@@ -1652,32 +1696,30 @@ return {
                             className="h-6 w-6 rounded-lg border-0 cursor-pointer bg-transparent"
                           />
                           <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
-                            自定义对白颜色 (吸管取色)
+                            自定义对白颜色
                           </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={dialogueColor === 'auto' || !dialogueColor ? dialogueCustomColor : dialogueColor}
-                            onChange={(e) => handleChangeDialogueCustomColor(e.target.value)}
-                            placeholder="#c95738"
-                            className="w-20 px-2 py-0.5 rounded border text-[11px] font-mono outline-none text-center font-bold"
-                            style={{
-                              backgroundColor: theme.colors.bg,
-                              borderColor: theme.colors.border,
-                              color: textAccentColor,
-                            }}
-                          />
-                        </div>
+                        <input
+                          type="text"
+                          value={dialogueColor === 'auto' || !dialogueColor ? dialogueCustomColor : dialogueColor}
+                          onChange={(e) => handleChangeDialogueCustomColor(e.target.value)}
+                          placeholder="#c95738"
+                          className="w-20 px-2 py-0.5 rounded border text-[11px] font-mono outline-none text-center font-bold"
+                          style={{
+                            backgroundColor: theme.colors.bg,
+                            borderColor: theme.colors.border,
+                            color: textAccentColor,
+                          }}
+                        />
                       </div>
 
                       {/* 心理独白括号小开关 */}
                       <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: `${theme.colors.border}30` }}>
                         <div>
                           <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
-                            同时高亮心理独白 （……）
+                            高亮心理独白 （……）
                           </span>
-                          <p className="text-[9.5px] opacity-40">自动识别全角及半角括号内的角色内心独白并应用轻柔斜体</p>
+                          <p className="text-[9.5px] opacity-40">识别括号内的心理独白并应用斜体</p>
                         </div>
                         <button
                           onClick={handleToggleDialogueThoughts}
@@ -1748,9 +1790,8 @@ return {
                             color: textAccentColor,
                             borderColor: `${accentColor}40`,
                           }}
-                          title="为每一行正文开头统一加入两个格子（全角双空格），标题与分割线自动顶格"
+                          title="为当前章节每一行正文开头统一缩进两个全角空格，标题与分割线自动顶格"
                         >
-                          <Sparkles className="h-3.5 w-3.5 shrink-0" />
                           <span>一键缩进两格</span>
                         </button>
 
@@ -1758,7 +1799,7 @@ return {
                           onClick={handleRemoveChapterPhysicalIndent}
                           className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-all cursor-pointer shadow-xs"
                           style={{ color: theme.colors.text }}
-                          title="清除每一行开头的多余空格，全篇恢复顶格排版"
+                          title="清除当前章节每一行开头的多余空格，恢复顶格排版"
                         >
                           <span>一键恢复顶格</span>
                         </button>
@@ -1767,7 +1808,7 @@ return {
                           onClick={handleCleanChapterPunctuation}
                           className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-all cursor-pointer shadow-xs"
                           style={{ color: theme.colors.text }}
-                          title="将英文半角标点统一转为中文全角标点，智能修复成对引号与双破折号"
+                          title="将当前章节英文半角标点转为中文全角标点，修复成对引号与双破折号"
                         >
                           <span>一键修复标点</span>
                         </button>
@@ -1800,9 +1841,9 @@ return {
                   <div className="flex items-center justify-between pb-3 border-b border-white/5">
                     <div>
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        标点避头尾与对齐规范 (GB/T 15834)
+                        标点避头尾与对齐
                       </span>
-                      <p className="text-[10px] opacity-50">避免标点孤立行首，破折号/省略号连用不断开</p>
+                      <p className="text-[10px] opacity-50">避免标点出现在行首，破折号与省略号不断行</p>
                     </div>
                   </div>
 
@@ -1810,12 +1851,12 @@ return {
                     {/* Kinsoku Strictness */}
                     <div>
                       <label className="text-[11px] opacity-75 block mb-1.5 font-medium" style={{ color: theme.colors.text }}>
-                        避头尾断行级别
+                        避头尾级别
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         {[
-                          { id: 'strict', name: '国标严格 (推荐)', desc: '杜绝句逗冒叹孤立行首' },
-                          { id: 'native', name: '浏览器原生', desc: '系统默认折行' },
+                          { id: 'strict', name: '严格避头尾', desc: '标点不落行首' },
+                          { id: 'native', name: '系统默认', desc: '浏览器原生折行' },
                         ].map((k) => {
                           const isCur = (kinsokuStrictness || 'strict') === k.id;
                           return (
@@ -1850,8 +1891,8 @@ return {
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         {[
-                          { id: 'justify', name: '出版级两端对齐', desc: '版面方正齐整', icon: AlignJustify },
-                          { id: 'left', name: '自然居左对齐', desc: '现代无衬线阅读', icon: AlignLeft },
+                          { id: 'justify', name: '两端对齐', desc: '段落两侧整齐', icon: AlignJustify },
+                          { id: 'left', name: '居左对齐', desc: '传统左对齐', icon: AlignLeft },
                         ].map((a) => {
                           const isCur = (textAlignment || 'justify') === a.id;
                           const Icon = a.icon;
@@ -1888,9 +1929,9 @@ return {
                   <div className="flex items-center justify-between pt-2 border-t border-white/5">
                     <div>
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        标点半角挤压 (Halt Compression)
+                        标点间距挤压
                       </span>
-                      <p className="text-[10px] opacity-50">消除连续标点（如 <code>……”</code> 或 <code>，，</code>）过大的空白间隙</p>
+                      <p className="text-[10px] opacity-50">压缩连续标点间多余的空白</p>
                     </div>
                     <button
                       onClick={onTogglePunctuationHalt}
@@ -2067,9 +2108,9 @@ return {
 
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     {[
-                      { id: 'fade_out', label: '打字完全隐形 (推荐)', desc: '0% 视觉零打扰' },
-                      { id: 'dim', label: '打字轻微变淡', desc: '20% 微弱可见' },
-                      { id: 'always_visible', label: '始终常驻显示', desc: '100% 保持显示' },
+                      { id: 'fade_out', label: '打字时隐藏', desc: '输入时自动隐藏' },
+                      { id: 'dim', label: '打字时变淡', desc: '保持微弱可见' },
+                      { id: 'always_visible', label: '始终显示', desc: '常驻显示' },
                     ].map((opt) => {
                       const cur = (localStorage.getItem('novelite_titlebar_behavior') as any) || 'fade_out';
                       const isSelected = cur === opt.id;
@@ -2210,9 +2251,9 @@ return {
                         </label>
                         <div className="grid grid-cols-3 gap-2.5">
                           {[
-                            { id: 'gentle', name: '舒缓流体', desc: '柔和运镜平滑推移' },
-                            { id: 'balanced', name: '自然阻尼', desc: '平衡响应顺滑到位' },
-                            { id: 'snappy', name: '敏捷极速', desc: '高频紧跟快速响应' },
+                            { id: 'gentle', name: '舒缓', desc: '柔和渐进平滑移动' },
+                            { id: 'balanced', name: '标准', desc: '适中平滑跟随' },
+                            { id: 'snappy', name: '敏捷', desc: '快速响应' },
                           ].map((sp) => {
                             const isCur = (typewriterSpeed ?? 'balanced') === sp.id;
                             return (
@@ -2352,115 +2393,6 @@ return {
                   )}
                 </div>
 
-                {/* 🌟 敏捷编辑与快捷键工坊卡片 (Editor Toolkit Card) */}
-                <div
-                  className="space-y-4 rounded-2xl border p-5 transition-all"
-                  style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
-                >
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          敏捷编辑与小说排版工坊
-                        </span>
-                      </div>
-                      <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        包含极简悬浮查找与替换 (Ctrl+F/H)、段落顺移、多光标编辑与一键排版规范化清洗
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          onClose();
-                          setTimeout(() => {
-                            eventBus.emit('open-floating-search', { mode: 'search' });
-                          }, 150);
-                        }}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs bg-white/5 hover:bg-white/10 border border-white/10 transition-all opacity-80 hover:opacity-100 cursor-pointer"
-                        style={{ color: theme.colors.text }}
-                      >
-                        <Search className="h-3 w-3" />
-                        <span>查找 ({keymapRegistry.getFormattedKey('search:toggle-hud', 'Ctrl+F')})</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          onClose();
-                          setTimeout(() => {
-                            eventBus.emit('open-floating-search', { mode: 'replace' });
-                          }, 150);
-                        }}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs border transition-all font-semibold cursor-pointer"
-                        style={{
-                          backgroundColor: `${accentColor}20`,
-                          color: textAccentColor,
-                          borderColor: `${accentColor}40`,
-                        }}
-                      >
-                        <Replace className="h-3 w-3" />
-                        <span>批量替换 ({keymapRegistry.getFormattedKey('search:replace-hud', 'Ctrl+H')})</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-3 border-t border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
-                        中文小说快捷键速查与键位绑定
-                      </span>
-                      <button
-                        onClick={() => setActiveTab('keymap')}
-                        className="text-[10px] font-mono flex items-center gap-1 transition-colors cursor-pointer"
-                        style={{ color: textAccentColor }}
-                      >
-                        <span>管理所有快捷键</span>
-                        <ChevronRight className="h-2.5 w-2.5" />
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                      {[
-                        { id: 'search:toggle-hud', name: '查找文本', desc: '顶部极简悬浮搜索 HUD', defaultFallback: 'Ctrl + F' },
-                        { id: 'search:replace-hud', name: '查找与替换', desc: '全篇/单处批量替换改名', defaultFallback: 'Ctrl + H' },
-                        { id: 'editor:move-line-up', name: '整段/整行上移', desc: '无损调换段落与对白先后顺序', defaultFallback: 'Alt + ↑' },
-                        { id: 'editor:move-line-down', name: '整段/整行下移', desc: '无损下移当前段落', defaultFallback: 'Alt + ↓' },
-                        { id: 'editor:insert-paragraph-below', name: '在下方新建自然段', desc: '光标无需移动至句末', defaultFallback: 'Ctrl + Enter' },
-                        { id: 'editor:delete-line', name: '删除当前整段', desc: '一键删废话自动吸合', defaultFallback: 'Ctrl + Shift + K' },
-                        { id: 'editor:select-next-occurrence', name: '多光标选词同步改', desc: '连续按选中下一个同名词', defaultFallback: 'Ctrl + D' },
-                        { id: 'literary:format-chinese', name: '一键中文排版清洗', desc: '去首行死空格/折叠空行/修标点', defaultFallback: 'Ctrl + Shift + L' },
-                        { id: 'editor:toggle-h1', name: '设为章回标题', desc: '行首添加/切换 # 一级标题', defaultFallback: 'Ctrl + 1' },
-                        { id: 'editor:toggle-h2', name: '设为分卷小节', desc: '行首添加/切换 ## 二级标题', defaultFallback: 'Ctrl + 2' },
-                        { id: 'editor:toggle-h0', name: '清除标题恢复正文', desc: '清除行首 # 恢复普通段落', defaultFallback: 'Ctrl + 0' },
-                      ].map((item, idx) => {
-                        const currentKey = keymapRegistry.getFormattedKey(item.id, item.defaultFallback);
-                        return (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between p-2 rounded-xl border border-white/5 bg-black/20"
-                          >
-                            <div>
-                              <span className="font-medium" style={{ color: theme.colors.text }}>
-                                {item.name}
-                              </span>
-                              <p className="text-[9px] opacity-40">{item.desc}</p>
-                            </div>
-                            <kbd
-                              className="px-2 py-0.5 rounded-lg text-[10px] font-mono border font-semibold shadow-xs"
-                              style={{
-                                backgroundColor: theme.colors.bgSecondary,
-                                borderColor: `${theme.colors.accent}40`,
-                                color: theme.colors.accent || '#38bdf8',
-                              }}
-                            >
-                              {currentKey}
-                            </kbd>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
                 </div>
               </div>
             )}
@@ -2568,7 +2500,6 @@ return {
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4" style={{ color: textAccentColor }} />
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
                           界面交互强调色
                         </span>
@@ -2580,11 +2511,11 @@ return {
                             border: `1px solid ${accentColor}35`,
                           }}
                         >
-                          {uiAccentColor === 'auto' ? '跟随当前主题' : '自定义调色'}
+                          {uiAccentColor === 'auto' ? '跟随主题' : '自定义'}
                         </span>
                       </div>
-                      <p className="text-[10px] opacity-60 leading-relaxed" style={{ color: theme.colors.textMuted }}>
-                        统一控制设置抽屉、切换标签、状态栏高亮、选框与滑块的强调色彩，避免浅色或深色下色彩失调
+                      <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
+                        自定义按钮、滑块与状态指示灯的色彩
                       </p>
                     </div>
 
@@ -2603,14 +2534,14 @@ return {
                     {/* 8 大精选强调色芯片 */}
                     <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
                       {[
-                        { name: '水墨玄石', hex: '#292524', desc: '高对比深墨' },
-                        { name: '朱砂赤羽', hex: '#c95738', desc: '纸墨典雅红' },
-                        { name: '极光青蓝', hex: '#0284c7', desc: '沉稳霁蓝' },
-                        { name: '曜石幻紫', hex: '#8b5cf6', desc: '极光幻夜紫' },
-                        { name: '翡翠森绿', hex: '#059669', desc: '清新护眼绿' },
-                        { name: '暖褐琥珀', hex: '#d97706', desc: '温暖琥珀橙' },
-                        { name: '玫瑰绯红', hex: '#e11d48', desc: '浓郁绯红' },
-                        { name: '深海群青', hex: '#2563eb', desc: '经典皇家蓝' },
+                        { name: '玄黑', hex: '#292524' },
+                        { name: '朱红', hex: '#c95738' },
+                        { name: '青蓝', hex: '#0284c7' },
+                        { name: '苍紫', hex: '#8b5cf6' },
+                        { name: '翠绿', hex: '#059669' },
+                        { name: '琥珀', hex: '#d97706' },
+                        { name: '绯红', hex: '#e11d48' },
+                        { name: '群青', hex: '#2563eb' },
                       ].map((c) => {
                         const isCur = uiAccentColor === c.hex;
                         return (
@@ -2643,9 +2574,8 @@ return {
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
-                          原生拾色器与色号输入
+                          自定义强调色
                         </span>
-                        <span className="text-[9.5px] opacity-40 font-mono">（实时全局无感生效）</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <input
@@ -2942,11 +2872,11 @@ return {
                     <div className="flex items-center gap-2">
                       <Keyboard className="h-4 w-4" style={{ color: textAccentColor }} />
                       <h4 className="text-xs font-semibold" style={{ color: theme.colors.text }}>
-                        全景交互式快捷键速查 HUD
+                        快捷键速查面板
                       </h4>
                     </div>
                     <p className="text-[11px] opacity-55" style={{ color: theme.colors.textMuted }}>
-                      支持随时在写作或分屏时按下 <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd>（或 <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>F1</kbd>）呼出全屏悬浮面板
+                      随时按下 <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd> 即可打开快捷键速查面板
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -2956,10 +2886,10 @@ return {
                         eventBus.emit('show-toast', { message: '所有快捷键已恢复默认设置', type: 'success' });
                       }}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs opacity-60 hover:opacity-100 hover:bg-white/5 border border-white/10 transition-all cursor-pointer text-neutral-400 hover:text-neutral-200"
-                      title="重置所有按键为出厂默认"
+                      title="恢复所有快捷键为默认设置"
                     >
                       <RotateCcw className="h-3 w-3" />
-                      <span>恢复所有默认</span>
+                      <span>恢复默认</span>
                     </button>
                     <button
                       onClick={() => {
@@ -3008,13 +2938,13 @@ return {
                   {/* Category Pills */}
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                     {[
-                      { id: 'all', label: '全部快捷键', icon: Sparkles },
-                      { id: 'editing', label: '文本与行操作', icon: FileText },
-                      { id: 'navigation', label: '光标疾速巡航', icon: Compass },
-                      { id: 'search', label: '查找与导航', icon: Search },
-                      { id: 'split_view', label: '分屏与对照', icon: Columns },
-                      { id: 'literary', label: '文学与排版', icon: BookOpen },
-                      { id: 'system', label: '视口与心流', icon: SlidersHorizontal },
+                      { id: 'all', label: '全部', icon: Sparkles },
+                      { id: 'editing', label: '文本编辑', icon: FileText },
+                      { id: 'navigation', label: '光标导航', icon: Compass },
+                      { id: 'search', label: '查找与检索', icon: Search },
+                      { id: 'split_view', label: '分屏编辑', icon: Columns },
+                      { id: 'literary', label: '排版与写作', icon: BookOpen },
+                      { id: 'system', label: '界面与系统', icon: SlidersHorizontal },
                     ].map((cat) => {
                       const Icon = cat.icon;
                       const isCur = keymapCategory === cat.id;

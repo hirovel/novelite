@@ -23,11 +23,21 @@ import { LiveCursorPlugin } from './plugins/live-cursor';
 import { SplitViewPlugin } from './plugins/split-view';
 import { KeymapPlugin } from './plugins/keymap';
 import { KeymapCheatsheetModal } from './plugins/keymap/KeymapCheatsheetModal';
+import { GlobalSearchPlugin } from './plugins/global-search';
+import { GlobalSearchModal } from './plugins/global-search/GlobalSearchModal';
+import { NovelImportPlugin } from './plugins/novel-import';
+import { NovelImportModal } from './plugins/novel-import/NovelImportModal';
+import { AutoUpdaterPlugin } from './plugins/auto-updater';
+import { UpdateModal } from './plugins/auto-updater/UpdateModal';
+import type { UpdateInfo } from './plugins/auto-updater/types';
+import { exportNovelService } from './core/storage/ExportNovelService';
 import { useGlobalKeymap } from './core/keymap/useGlobalKeymap';
 
 export const App: React.FC = () => {
   const [themeId, setThemeId] = useState<string>(() => {
-    return localStorage.getItem('novelite_theme_id') || DEFAULT_THEME_ID;
+    const saved = localStorage.getItem('novelite_theme_id');
+    if (saved === 'matrix-term' || saved === 'morandi-night') return 'default-dark';
+    return saved || DEFAULT_THEME_ID;
   });
   const theme: Theme = THEMES[themeId] || THEMES[DEFAULT_THEME_ID];
 
@@ -278,6 +288,10 @@ export const App: React.FC = () => {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isCheatsheetOpen, setIsCheatsheetOpen] = useState<boolean>(false);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState<boolean>(false);
+  const [isNovelImportOpen, setIsNovelImportOpen] = useState<boolean>(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [isTyping, setIsTyping] = useState<boolean>(false);
 
   // 🌟 Global Unified Keymap Capture Engine
@@ -303,6 +317,9 @@ export const App: React.FC = () => {
     pluginManager.registerPlugin(LiveCursorPlugin);
     pluginManager.registerPlugin(SplitViewPlugin);
     pluginManager.registerPlugin(KeymapPlugin);
+    pluginManager.registerPlugin(GlobalSearchPlugin);
+    pluginManager.registerPlugin(NovelImportPlugin);
+    pluginManager.registerPlugin(AutoUpdaterPlugin);
 
     // Initialize previously installed community and custom JS plugins
     dynamicPluginLoader.init();
@@ -567,10 +584,38 @@ export const App: React.FC = () => {
       setIsSettingsOpen(true);
     });
 
+    const unsubGlobalSearch = eventBus.on('global-search:open', () => {
+      setIsGlobalSearchOpen(true);
+    });
+
+    const unsubNovelImport = eventBus.on('novel-import:open', () => {
+      setIsNovelImportOpen(true);
+    });
+
+    const unsubNovelExport = eventBus.on('novel:export-txt', () => {
+      exportNovelService.exportProjectToTxt(projectStore.getProject());
+    });
+
+    const unsubUpdateModal = eventBus.on('open-update-modal', (info: any) => {
+      setUpdateInfo(info);
+      setIsUpdateModalOpen(true);
+    });
+
+    const unsubSidebar = eventBus.on('sidebar:toggle', () => {
+      setIsSidebarOpen((prev) => {
+        const next = !prev;
+        localStorage.setItem('novelite_sidebar_open', String(next));
+        return next;
+      });
+    });
+
     const unsubCloseAll = eventBus.on('modal:close-all', () => {
       setIsCheatsheetOpen(false);
       setIsCommandPaletteOpen(false);
       setIsSettingsOpen(false);
+      setIsGlobalSearchOpen(false);
+      setIsNovelImportOpen(false);
+      setIsUpdateModalOpen(false);
     });
 
     return () => {
@@ -580,6 +625,11 @@ export const App: React.FC = () => {
       unsubCmdPalette();
       unsubZen();
       unsubSettings();
+      unsubGlobalSearch();
+      unsubNovelImport();
+      unsubNovelExport();
+      unsubUpdateModal();
+      unsubSidebar();
       unsubCloseAll();
     };
   }, [handleSwapPanes]);
@@ -1022,35 +1072,46 @@ export const App: React.FC = () => {
             color: theme.colors.textMuted,
           }}
         >
-          {/* Status Orb with pulse ring */}
-          <div className="relative flex items-center justify-center">
-            <span
-              title={hudStats.isSaving ? '正在保存...' : '本地实时保存状态'}
-              className={`h-2 w-2 rounded-full shrink-0 ${
-                hudStats.isSaving
-                  ? 'bg-amber-400 animate-pulse'
-                  : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
-              }`}
-            />
+          {/* Status Jewel Light (Saving vs Saved, Adaptive to Theme Accent) */}
+          <div
+            title={hudStats.isSaving ? '正在自动保存落盘...' : '已安全实时保存'}
+            className="relative flex items-center justify-center cursor-default shrink-0"
+          >
+            {hudStats.isSaving ? (
+              <span className="relative flex h-2.5 w-2.5 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.9)]" />
+              </span>
+            ) : (
+              <span className="relative flex h-2.5 w-2.5 items-center justify-center">
+                <span
+                  className="absolute inline-flex h-full w-full rounded-full opacity-25"
+                  style={{ backgroundColor: effectiveAccent }}
+                />
+                <span
+                  className="relative inline-flex rounded-full h-2 w-2 transition-all duration-500"
+                  style={{
+                    backgroundColor: effectiveAccent,
+                    boxShadow: `0 0 7px ${effectiveAccent}bb`,
+                  }}
+                />
+              </span>
+            )}
           </div>
 
           {/* Word Count */}
-          <div className="flex items-center gap-1 font-semibold tracking-tight" style={{ color: theme.colors.text }}>
-            <span>{hudStats.wordCount.toLocaleString()} 字</span>
-          </div>
-
-          <span className="opacity-25 select-none">|</span>
-
-          {/* Reading Time */}
-          <span className="opacity-60 text-[10.5px]">
-            约 {Math.max(1, Math.ceil(hudStats.wordCount / 350))} 分钟
+          <span
+            className="font-semibold tracking-tight"
+            style={{ color: theme.colors.text }}
+          >
+            {hudStats.wordCount.toLocaleString()} 字
           </span>
 
           <span className="opacity-25 select-none">|</span>
 
           {/* Active Chapter Title */}
           <span
-            className="opacity-85 max-w-[140px] truncate text-[11px] font-medium"
+            className="opacity-80 max-w-[140px] truncate text-[11px] font-medium"
             title={hudStats.title}
             style={{ color: theme.colors.text }}
           >
@@ -1205,6 +1266,28 @@ export const App: React.FC = () => {
       <KeymapCheatsheetModal
         isOpen={isCheatsheetOpen}
         onClose={() => setIsCheatsheetOpen(false)}
+        theme={theme}
+      />
+
+      {/* 🔍 Global Full-Text Search Modal */}
+      <GlobalSearchModal
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+        theme={theme}
+      />
+
+      {/* 📥 Novel Manuscript Import Modal */}
+      <NovelImportModal
+        isOpen={isNovelImportOpen}
+        onClose={() => setIsNovelImportOpen(false)}
+        theme={theme}
+      />
+
+      {/* 🚀 Software Auto-Update Modal */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        updateInfo={updateInfo}
         theme={theme}
       />
 

@@ -8,7 +8,6 @@ export class CommandRegistry {
   private aliases: Map<string, string> = new Map([
     ['focus:toggle', 'focus.toggle'],
     ['focus:toggle-scope', 'focus.cycle-scope'],
-    ['literary:toggle-spotlight', 'focus.toggle'],
     ['literary:toggle-dialogue', 'dialogue.toggle'],
     ['split:toggle', 'split-view.toggle'],
     ['split:focus-toggle', 'split-view.focus-toggle'],
@@ -20,6 +19,8 @@ export class CommandRegistry {
     ['editor:zoom-in', 'typography.font-increase'],
     ['editor:zoom-out', 'typography.font-decrease'],
     ['background:cycle-effect', 'background.cycle-effect'],
+    ['nav:global-search', 'global-search:open'],
+    ['novel:import-txt', 'novel.import-txt'],
   ]);
 
   private constructor() {}

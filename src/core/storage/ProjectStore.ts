@@ -15,8 +15,13 @@ export function countWordsFast(text: string): number {
   for (let i = 0; i < len; i++) {
     const code = text.charCodeAt(i);
 
-    // CJK Unified Ideographs (0x4E00 - 0x9FA5) + CJK Extension A (0x3400 - 0x4DBF)
-    if ((code >= 0x4e00 && code <= 0x9fa5) || (code >= 0x3400 && code <= 0x4dbf)) {
+    // CJK Unified Ideographs (0x4E00 - 0x9FFF) + Extension A (0x3400 - 0x4DBF) + '〇' (0x3007) + Compatibility (0xF900 - 0xFAFF)
+    if (
+      (code >= 0x4e00 && code <= 0x9fff) ||
+      (code >= 0x3400 && code <= 0x4dbf) ||
+      code === 0x3007 ||
+      (code >= 0xf900 && code <= 0xfaff)
+    ) {
       count++;
       inWord = false;
     } else if (
@@ -63,6 +68,24 @@ export class ProjectStore {
     return ProjectStore.instance;
   }
 
+  private safeStorageSet(key: string, value: string): boolean {
+    try {
+      localStorage.setItem(key, value);
+      return true;
+    } catch (e: any) {
+      if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+        console.warn(`[ProjectStore] LocalStorage quota exceeded while writing "${key}".`);
+        eventBus.emit('show-toast', {
+          message: '本地浏览器存储配额已满，请及时备份或连接本地磁盘保存！',
+          type: 'warning',
+        });
+      } else {
+        console.error(`[ProjectStore] Failed to write to localStorage key "${key}":`, e);
+      }
+      return false;
+    }
+  }
+
   private loadLibrary(): Record<string, NovelProject> {
     const saved = localStorage.getItem('novelite_library_map');
     if (saved) {
@@ -83,28 +106,34 @@ export class ProjectStore {
         const parsed = JSON.parse(legacy);
         if (parsed && parsed.id) {
           const map = { [parsed.id]: parsed };
-          localStorage.setItem('novelite_library_map', JSON.stringify(map));
+          this.safeStorageSet('novelite_library_map', JSON.stringify(map));
           return map;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Failed to parse legacy novelite_project_data:', e);
+      }
     }
 
     const defaultMap = { [SAMPLE_PROJECT.id]: SAMPLE_PROJECT };
-    localStorage.setItem('novelite_library_map', JSON.stringify(defaultMap));
+    this.safeStorageSet('novelite_library_map', JSON.stringify(defaultMap));
     return defaultMap;
   }
 
   public save(): void {
     this.project.updatedAt = Date.now();
     this.library[this.project.id] = this.project;
-    localStorage.setItem('novelite_library_map', JSON.stringify(this.library));
-    localStorage.setItem('novelite_project_data', JSON.stringify(this.project));
-    localStorage.setItem('novelite_active_project_id', this.project.id);
+    this.safeStorageSet('novelite_library_map', JSON.stringify(this.library));
+    this.safeStorageSet('novelite_project_data', JSON.stringify(this.project));
+    this.safeStorageSet('novelite_active_project_id', this.project.id);
     eventBus.emit('project-saved', this.project);
   }
 
   public getProject(): NovelProject {
     return this.project;
+  }
+
+  public getProjectById(id: string): NovelProject | null {
+    return this.library[id] || (this.project?.id === id ? this.project : null);
   }
 
   public getLibrary(): { id: string; title: string; author: string; wordCount: number; chapterCount: number; updatedAt: number }[] {
@@ -131,20 +160,20 @@ export class ProjectStore {
   public createProject(title: string, author = '佚名'): NovelProject {
     const newProj: NovelProject = {
       id: `proj_${Date.now()}`,
-      title: title.trim() || '新建小说作品',
+      title: title.trim() || '未命名作品',
       author: author.trim() || '佚名',
       targetWordCount: 100000,
       volumes: [
         {
           id: `vol_${Date.now()}_1`,
-          title: '第一卷：初入江湖',
+          title: '第一卷',
           isExpanded: true,
           chapters: [
             {
               id: `chap_${Date.now()}_1`,
-              title: '第一章：初启征程',
-              content: '# 第一章：初启征程\n\n新篇开启，落笔生花。',
-              wordCount: 12,
+              title: '第一章',
+              content: '# 第一章\n\n开始写作。',
+              wordCount: 8,
               updatedAt: Date.now(),
             },
           ],
@@ -162,6 +191,53 @@ export class ProjectStore {
     this.save();
     eventBus.emit('project-tree-changed', this.project);
     eventBus.emit('active-chapter-changed', newProj.activeChapterId);
+    const activeChap = this.getActiveChapter();
+    if (activeChap) {
+      eventBus.emit('chapter-selected', activeChap);
+    }
+    return newProj;
+  }
+
+  public importProject(title: string, author: string, volumes: Volume[]): NovelProject {
+    const defaultVol: Volume = {
+      id: `vol_${Date.now()}_1`,
+      title: '第一卷',
+      isExpanded: true,
+      chapters: [
+        {
+          id: `chap_${Date.now()}_1`,
+          title: '第一章',
+          content: '# 第一章\n\n开始写作。',
+          wordCount: 8,
+          updatedAt: Date.now(),
+        },
+      ],
+    };
+
+    const validVolumes = volumes && volumes.length > 0 ? volumes : [defaultVol];
+    const firstChapId = validVolumes[0]?.chapters[0]?.id || null;
+
+    const newProj: NovelProject = {
+      id: `proj_${Date.now()}`,
+      title: title.trim() || '导入作品',
+      author: author.trim() || '佚名',
+      targetWordCount: 100000,
+      volumes: validVolumes,
+      activeChapterId: firstChapId,
+      scratchpad: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    this.library[newProj.id] = newProj;
+    this.project = newProj;
+    this.save();
+    eventBus.emit('project-tree-changed', this.project);
+    eventBus.emit('active-chapter-changed', newProj.activeChapterId);
+    const activeChap = this.getActiveChapter();
+    if (activeChap) {
+      eventBus.emit('chapter-selected', activeChap);
+    }
     return newProj;
   }
 
@@ -170,7 +246,11 @@ export class ProjectStore {
     this.project = this.library[projectId];
     this.save();
     eventBus.emit('project-tree-changed', this.project);
-    eventBus.emit('active-chapter-changed', this.getActiveChapter()?.id || null);
+    const activeChap = this.getActiveChapter();
+    eventBus.emit('active-chapter-changed', activeChap?.id || null);
+    if (activeChap) {
+      eventBus.emit('chapter-selected', activeChap);
+    }
     return true;
   }
 
@@ -186,7 +266,11 @@ export class ProjectStore {
     }
     this.save();
     eventBus.emit('project-tree-changed', this.project);
-    eventBus.emit('active-chapter-changed', this.getActiveChapter()?.id || null);
+    const activeChap = this.getActiveChapter();
+    eventBus.emit('active-chapter-changed', activeChap?.id || null);
+    if (activeChap) {
+      eventBus.emit('chapter-selected', activeChap);
+    }
     return true;
   }
 
@@ -300,6 +384,7 @@ export class ProjectStore {
     };
     this.project.volumes.push(newVol);
     this.save();
+    eventBus.emit('volume-created', { volume: newVol });
     eventBus.emit('project-tree-changed', this.project);
     return newVol;
   }
@@ -319,8 +404,10 @@ export class ProjectStore {
     vol.isExpanded = true;
     this.project.activeChapterId = newChap.id;
     this.save();
+    eventBus.emit('chapter-created', { volumeId, chapter: newChap });
     eventBus.emit('project-tree-changed', this.project);
     eventBus.emit('active-chapter-changed', newChap.id);
+    eventBus.emit('chapter-selected', newChap);
     return newChap;
   }
 
@@ -329,6 +416,7 @@ export class ProjectStore {
     if (vol) {
       vol.title = newTitle;
       this.save();
+      eventBus.emit('volume-renamed', { volumeId, newTitle });
       eventBus.emit('project-tree-changed', this.project);
     }
   }
@@ -338,30 +426,64 @@ export class ProjectStore {
     if (chap) {
       chap.title = newTitle;
       this.save();
+      eventBus.emit('chapter-renamed', { chapterId, newTitle });
       eventBus.emit('project-tree-changed', this.project);
     }
   }
 
   public deleteVolume(volumeId: string): void {
+    eventBus.emit('volume-deleted', { volumeId });
     this.project.volumes = this.project.volumes.filter((v) => v.id !== volumeId);
+    if (this.project.volumes.length === 0 || this.project.volumes.every((v) => v.chapters.length === 0)) {
+      if (this.project.volumes.length === 0) {
+        this.addVolume('第一卷');
+      }
+      const firstVol = this.project.volumes[0];
+      const newChap = this.addChapter(firstVol.id, '第一章');
+      this.setActiveChapter(newChap.id);
+      return;
+    }
     if (!this.getActiveChapter()) {
-      this.project.activeChapterId = this.project.volumes[0]?.chapters[0]?.id || null;
+      const nextId = this.project.volumes[0]?.chapters[0]?.id;
+      if (nextId) {
+        this.setActiveChapter(nextId);
+        return;
+      }
     }
     this.save();
     eventBus.emit('project-tree-changed', this.project);
     eventBus.emit('active-chapter-changed', this.project.activeChapterId);
+    const activeChap = this.getActiveChapter();
+    if (activeChap) {
+      eventBus.emit('chapter-selected', activeChap);
+    }
   }
 
   public deleteChapter(chapterId: string): void {
+    eventBus.emit('chapter-deleted', { chapterId });
     for (const vol of this.project.volumes) {
       vol.chapters = vol.chapters.filter((c) => c.id !== chapterId);
     }
+    if (this.project.volumes.every((v) => v.chapters.length === 0)) {
+      const firstVol = this.project.volumes[0] || this.addVolume('第一卷');
+      const newChap = this.addChapter(firstVol.id, '第一章');
+      this.setActiveChapter(newChap.id);
+      return;
+    }
     if (this.project.activeChapterId === chapterId) {
-      this.project.activeChapterId = this.project.volumes[0]?.chapters[0]?.id || null;
+      const nextId = this.project.volumes.find((v) => v.chapters.length > 0)?.chapters[0]?.id;
+      if (nextId) {
+        this.setActiveChapter(nextId);
+        return;
+      }
     }
     this.save();
     eventBus.emit('project-tree-changed', this.project);
     eventBus.emit('active-chapter-changed', this.project.activeChapterId);
+    const activeChap = this.getActiveChapter();
+    if (activeChap) {
+      eventBus.emit('chapter-selected', activeChap);
+    }
   }
 
   public moveChapter(volumeId: string, chapterId: string, direction: 'up' | 'down'): boolean {
@@ -403,8 +525,10 @@ export class ProjectStore {
     vol.isExpanded = true;
     this.project.activeChapterId = newChap.id;
     this.save();
+    eventBus.emit('chapter-created', { volumeId, chapter: newChap });
     eventBus.emit('project-tree-changed', this.project);
     eventBus.emit('active-chapter-changed', newChap.id);
+    eventBus.emit('chapter-selected', newChap);
     return newChap;
   }
 
@@ -423,8 +547,10 @@ export class ProjectStore {
         vol.chapters.splice(idx + 1, 0, copy);
         this.project.activeChapterId = copy.id;
         this.save();
+        eventBus.emit('chapter-created', { volumeId: vol.id, chapter: copy });
         eventBus.emit('project-tree-changed', this.project);
         eventBus.emit('active-chapter-changed', copy.id);
+        eventBus.emit('chapter-selected', copy);
         return copy;
       }
     }
@@ -584,12 +710,26 @@ export class ProjectStore {
         break;
       }
     }
+    if (this.project.volumes.every((v) => v.chapters.length === 0)) {
+      const firstVol = this.project.volumes[0] || this.addVolume('第一卷');
+      const newChap = this.addChapter(firstVol.id, '第一章');
+      this.setActiveChapter(newChap.id);
+      return;
+    }
     if (this.project.activeChapterId === chapterId) {
-      this.project.activeChapterId = this.project.volumes[0]?.chapters[0]?.id || null;
+      const nextId = this.project.volumes.find((v) => v.chapters.length > 0)?.chapters[0]?.id;
+      if (nextId) {
+        this.setActiveChapter(nextId);
+        return;
+      }
     }
     this.save();
     eventBus.emit('project-tree-changed', this.project);
     eventBus.emit('active-chapter-changed', this.project.activeChapterId);
+    const activeChap = this.getActiveChapter();
+    if (activeChap) {
+      eventBus.emit('chapter-selected', activeChap);
+    }
   }
 
   public restoreChapter(chapterId: string, targetVolumeId?: string): boolean {
@@ -607,6 +747,7 @@ export class ProjectStore {
       this.save();
       eventBus.emit('project-tree-changed', this.project);
       eventBus.emit('active-chapter-changed', chap.id);
+      eventBus.emit('chapter-selected', chap);
       return true;
     }
     return false;
@@ -687,3 +828,6 @@ export class ProjectStore {
 }
 
 export const projectStore = ProjectStore.getInstance();
+if (typeof window !== 'undefined') {
+  (window as any).__novelite_project_store = projectStore;
+}

@@ -14,7 +14,7 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
     id: 'plugin-chinese-typography',
     name: '中文排版',
     version: '3.0.0',
-    description: '专业中文长篇小说排版工具箱：智能标点修复、实体段首全角缩进、成对符号辅助。',
+    description: '中文长篇小说排版工具：标点修复、段首全角缩进、成对符号辅助。',
     author: 'hirovel',
     icon: 'Type',
     defaultEnabled: true,
@@ -23,7 +23,7 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
     // 1. One-click Novel Paragraphs Formatter (Alt+Shift+F)
     ctx.registerCommand({
       id: 'typography.format-paragraphs',
-      title: '一键小说规范排版 (2 全角空格缩进 / 整理空行)',
+      title: '规范小说排版 (缩进 2 全角空格 / 整理空行)',
       category: '排版工具',
       shortcut: 'Alt+Shift+F',
       run: (c) => {
@@ -31,9 +31,9 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
         const { text, count, changed } = formatNovelParagraphs(current, '2em');
         if (changed) {
           c.setEditorContent(text);
-          c.showToast(`✅ 已规范全书排版，格式化 ${count} 处段落`, 'success');
+          c.showToast(`已规范本章排版，格式化 ${count} 处段落`, 'success');
         } else {
-          c.showToast('ℹ️ 全文段落已具备规范的段首缩进与行间距', 'info');
+          c.showToast('本章段落已具备规范的段首缩进与行间距', 'info');
         }
       },
     });
@@ -41,7 +41,7 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
     // 2. Smart Punctuation Fixer (Alt+Shift+P)
     ctx.registerCommand({
       id: 'typography.clean-punctuation',
-      title: '智能修复中文标点 (统一转全角 / 引号配对 / 破折号)',
+      title: '修复中文标点 (统一转全角 / 引号配对 / 破折号)',
       category: '排版工具',
       shortcut: 'Alt+Shift+P',
       run: (c) => {
@@ -49,9 +49,9 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
         const { text, count, changed } = cleanChinesePunctuation(current);
         if (changed) {
           c.setEditorContent(text);
-          c.showToast(`✅ 已智能修复 ${count} 处中文标点与引号配对`, 'success');
+          c.showToast(`已修复 ${count} 处中文标点与引号配对`, 'success');
         } else {
-          c.showToast('ℹ️ 全文标点已规范，未发现需修复的标点', 'info');
+          c.showToast('本章标点已规范，未发现需修复的标点', 'info');
         }
       },
     });
@@ -59,16 +59,16 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
     // 3. Remove Leading Indents
     ctx.registerCommand({
       id: 'typography.remove-indents',
-      title: '清除全篇段首缩进 (恢复纯净顶格)',
+      title: '清除本章段首缩进 (恢复顶格)',
       category: '排版工具',
       run: (c) => {
         const current = c.getEditorContent();
         const { text, count, changed } = removeLeadingIndents(current);
         if (changed) {
           c.setEditorContent(text);
-          c.showToast(`✅ 已清除 ${count} 处段首缩进，恢复顶格`, 'success');
+          c.showToast(`已清除 ${count} 处段首缩进，恢复顶格`, 'success');
         } else {
-          c.showToast('ℹ️ 全文已处于顶格状态', 'info');
+          c.showToast('本章已处于顶格状态', 'info');
         }
       },
     });
@@ -83,9 +83,9 @@ export const ChineseTypographyPlugin: NovelitePlugin = {
         const { text, count, changed } = addPanguSpacing(current);
         if (changed) {
           c.setEditorContent(text);
-          c.showToast(`✅ 已规范中英文间隔，调整 ${count} 处空隙`, 'success');
+          c.showToast(`已规范中英文间隔，调整 ${count} 处空隙`, 'success');
         } else {
-          c.showToast('ℹ️ 中英文间隔已符合标准', 'info');
+          c.showToast('中英文间隔已符合标准', 'info');
         }
       },
     });
