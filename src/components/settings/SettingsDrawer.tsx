@@ -1330,33 +1330,6 @@ return {
                       );
                     })}
                   </div>
-
-                  {/* 🌟 实时正文字体预览条 */}
-                  <div
-                    className="mt-3.5 p-3 rounded-xl border flex items-center justify-between gap-3 transition-colors"
-                    style={{
-                      backgroundColor: theme.colors.editorBg || theme.colors.bgSecondary,
-                      borderColor: `${theme.colors.border}60`,
-                    }}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className="text-[10px] opacity-50 shrink-0 font-mono">字体预览:</span>
-                      <span
-                        className="font-medium text-xs truncate tracking-wide"
-                        style={{
-                          fontFamily: currentFontFamily,
-                          color: editorTextColor === 'auto' || !editorTextColor
-                            ? theme.colors.editorText
-                            : editorTextColor,
-                        }}
-                      >
-                        这是一段正文测试文本+——+！
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-mono opacity-40 shrink-0">
-                      {fontPreset === 'custom' && customFontName ? customFontName : fontPreset}
-                    </span>
-                  </div>
                 </div>
 
                 {fontPreset === 'custom' && (
