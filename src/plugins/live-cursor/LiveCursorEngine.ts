@@ -308,20 +308,22 @@ export class LiveCursorEngine {
     // 0ms Feedforward Velocity Injection
     const deltaX = x - this.leadX.val;
     const deltaY = y - this.leadY.val;
+    const spineDeltaX = x - this.spineNodes[0].x.val;
+    const spineDeltaY = y - this.spineNodes[0].y.val;
     if (jumpDist > 0.5 && jumpDist < 48) {
       const vX = Math.max(-650, Math.min(650, deltaX * 24));
       const vY = Math.max(-650, Math.min(650, deltaY * 24));
       this.leadX.vel += vX;
       this.leadY.vel += vY;
-      this.spineNodes[0].x.vel += vX;
-      this.spineNodes[0].y.vel += vY;
+      this.spineNodes[0].x.vel += Math.max(-650, Math.min(650, spineDeltaX * 24));
+      this.spineNodes[0].y.vel += Math.max(-650, Math.min(650, spineDeltaY * 24));
     } else if (jumpDist >= 48) {
       const vX = Math.max(-1800, Math.min(1800, deltaX * 16));
       const vY = Math.max(-1800, Math.min(1800, deltaY * 16));
       this.leadX.vel += vX;
       this.leadY.vel += vY;
-      this.spineNodes[0].x.vel += vX;
-      this.spineNodes[0].y.vel += vY;
+      this.spineNodes[0].x.vel += Math.max(-1800, Math.min(1800, spineDeltaX * 16));
+      this.spineNodes[0].y.vel += Math.max(-1800, Math.min(1800, spineDeltaY * 16));
     }
 
     const lineJump = Math.abs(y - prevY) > h * 0.6;
@@ -542,8 +544,8 @@ export class LiveCursorEngine {
       for (let i = 0; i < 4; i++) {
         const n = this.spineNodes[i];
         if (
-          Math.abs(n.x.target - n.x.val) > 0.05 ||
-          Math.abs(n.y.target - n.y.val) > 0.05 ||
+          Math.abs(this.targetX - n.x.val) > 0.05 ||
+          Math.abs(this.targetY - n.y.val) > 0.05 ||
           Math.abs(n.x.vel) > 0.06 ||
           Math.abs(n.y.vel) > 0.06
         ) {
@@ -601,7 +603,34 @@ export class LiveCursorEngine {
     }
 
     const isBlock = config.shape === 'block';
-    const flightDist = Math.hypot(this.leadX.val - this.trailX.val, this.leadY.val - this.trailY.val);
+
+    let headW = this.leadW.val;
+    let headH = this.leadH.val;
+    let headX = this.leadX.val;
+    let headY = this.leadY.val;
+    let tailX = this.trailX.val;
+    let tailY = this.trailY.val;
+    let flightDist = 0;
+
+    if (mode === 'ribbon') {
+      headW = this.spineNodes[0].w.val;
+      headH = this.spineNodes[0].h.val;
+      headX = this.spineNodes[0].x.val;
+      headY = this.spineNodes[0].y.val;
+      tailX = this.spineNodes[3].x.val;
+      tailY = this.spineNodes[3].y.val;
+
+      for (let i = 1; i < 4; i++) {
+        const d = Math.hypot(
+          this.spineNodes[i].x.val - this.spineNodes[0].x.val,
+          this.spineNodes[i].y.val - this.spineNodes[0].y.val
+        );
+        if (d > flightDist) flightDist = d;
+      }
+    } else {
+      flightDist = Math.hypot(this.leadX.val - this.trailX.val, this.leadY.val - this.trailY.val);
+    }
+
     const motionT = Math.min(1.0, flightDist / 20.0);
 
     // Dynamic Alpha Boost: In motion, block boosts to 0.76 for energetic clarity; at rest relaxes to 0.52 for text legibility
@@ -697,28 +726,15 @@ export class LiveCursorEngine {
     ctx.globalAlpha = this.renderedAlpha;
 
     let hull: Point2D[];
-    let headW = this.leadW.val;
-    let headH = this.leadH.val;
-    let headX = this.leadX.val;
-    let headY = this.leadY.val;
-    let tailX = this.trailX.val;
-    let tailY = this.trailY.val;
 
     if (mode === 'ribbon') {
-      headW = this.spineNodes[0].w.val;
-      headH = this.spineNodes[0].h.val;
-      headX = this.spineNodes[0].x.val;
-      headY = this.spineNodes[0].y.val;
-      tailX = this.spineNodes[3].x.val;
-      tailY = this.spineNodes[3].y.val;
-
       for (let i = 0; i < 4; i++) {
         const n = this.spineNodes[i];
         const nx1 = n.x.val;
         const ny1 = n.y.val;
         const nx2 = nx1 + n.w.val;
         const ny2 = ny1 + n.h.val;
-        const skew = i === 3 ? Math.max(-10, Math.min(10, this.spineNodes[0].y.vel * 0.010)) : 0;
+        const skew = i === 3 ? Math.max(-10, Math.min(10, this.spineNodes[3].y.vel * 0.010)) : 0;
 
         STATIC_POINTS[i * 4 + 0].x = nx1 - skew; STATIC_POINTS[i * 4 + 0].y = ny1;
         STATIC_POINTS[i * 4 + 1].x = nx2 - skew; STATIC_POINTS[i * 4 + 1].y = ny1;
