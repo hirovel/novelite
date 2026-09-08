@@ -3,6 +3,7 @@ import { BookOpen, Check } from 'lucide-react';
 import { projectStore } from '../../core/storage/ProjectStore';
 import type { NovelProject } from '../../core/storage/types';
 import type { Theme } from '../../core/themes/types';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const project: NovelProject = projectStore.getProject();
   const activeChap = projectStore.getActiveChapter();
   const activeVol = project.volumes.find((v) => v.chapters.some((c) => c.id === activeChap?.id)) || project.volumes[0];
@@ -167,7 +170,7 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono opacity-50">
-                  <span>{chap.wordCount || 0} 字</span>
+                  <span>{chap.wordCount || 0} {isEn ? 'words' : '字'}</span>
                   {isCurrentActive && (
                     <Check
                       className="h-3.5 w-3.5 shrink-0"
@@ -180,7 +183,9 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
           })}
 
           {chapters.length === 0 && (
-            <div className="py-8 text-center text-xs opacity-40">此分卷暂无章节</div>
+            <div className="py-8 text-center text-xs opacity-40">
+              {isEn ? 'No chapters in this volume' : '此分卷暂无章节'}
+            </div>
           )}
         </div>
 
@@ -189,8 +194,8 @@ export const BreadcrumbMicroDropdown: React.FC<Props> = ({ isOpen, onClose, them
           className="p-2 px-4 border-t flex items-center justify-between text-[10px] font-mono opacity-50 shrink-0"
           style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}40`, color: theme.colors.textMuted }}
         >
-          <span>按 ↑ ↓ 选择 · Enter 瞬切</span>
-          <span>按 Esc 退出</span>
+          <span>{isEn ? '↑ ↓ Select · Enter to jump' : '按 ↑ ↓ 选择 · Enter 瞬切'}</span>
+          <span>{isEn ? 'Esc to close' : '按 Esc 退出'}</span>
         </div>
       </div>
     </div>

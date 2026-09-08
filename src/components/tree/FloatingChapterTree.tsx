@@ -27,6 +27,8 @@ import type { NovelProject, Volume, Chapter } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
 import { THEMES } from '../../core/themes/themeDefinitions';
+import { safeStorageSet } from '../../core/storage/safeStorage';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -43,6 +45,8 @@ interface ContextMenuState {
 }
 
 export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isPinned, setIsPinned] = useState<boolean>(() => {
@@ -181,7 +185,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
   const handleTogglePin = () => {
     const next = !isPinned;
     setIsPinned(next);
-    localStorage.setItem('novelite_tree_pinned', String(next));
+    safeStorageSet('novelite_tree_pinned', String(next));
   };
 
   const handleSelectChapter = (chapId: string) => {
@@ -205,12 +209,16 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
 
   const handleAutoNumber = () => {
     const count = projectStore.autoNumberChapters();
-    eventBus.emit('show-toast', { message: `已规范全书 ${count} 章节序号`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Renumbered ${count} chapters` : `已规范全书 ${count} 章节序号`,
+      type: 'success',
+    });
   };
 
   // Inline New Volume Submit
   const handleCreateVolumeSubmit = () => {
-    const title = newVolTitle.trim() || `第 ${project.volumes.length + 1} 卷`;
+    const defaultTitle = isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`;
+    const title = newVolTitle.trim() || defaultTitle;
     projectStore.addVolume(title);
     setNewVolTitle('');
     setInlineNewVol(false);
@@ -221,7 +229,8 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
     if (!inlineNewChap) return;
     const vol = project.volumes.find((v) => v.id === inlineNewChap.volId);
     const count = (vol?.chapters.length || 0) + 1;
-    const title = newChapTitle.trim() || `第 ${count} 章`;
+    const defaultTitle = isEn ? `Chapter ${count}` : `第 ${count} 章`;
+    const title = newChapTitle.trim() || defaultTitle;
 
     const newChap = projectStore.insertChapter(inlineNewChap.volId, title, inlineNewChap.index);
     setActiveChapterId(newChap.id);
@@ -253,7 +262,10 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
     setContextMenu(null);
     const copy = projectStore.duplicateChapter(chapId);
     if (copy) {
-      eventBus.emit('show-toast', { message: `已创建副本《${copy.title}》`, type: 'success' });
+      eventBus.emit('show-toast', {
+        message: isEn ? `Created copy "${copy.title}"` : `已创建副本《${copy.title}》`,
+        type: 'success',
+      });
     }
   };
 
@@ -262,18 +274,27 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
     e.stopPropagation();
     setContextMenu(null);
     projectStore.deleteChapter(chapId);
-    eventBus.emit('show-toast', { message: `已删除《${chapTitle}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted "${chapTitle}"` : `已删除《${chapTitle}》`,
+      type: 'info',
+    });
   };
 
   // Delete Volume
   const handleDeleteVolume = (e: React.MouseEvent, volId: string, volTitle: string) => {
     e.stopPropagation();
     if (project.volumes.length <= 1) {
-      eventBus.emit('show-toast', { message: '至少需保留一个分卷', type: 'warning' });
+      eventBus.emit('show-toast', {
+        message: isEn ? 'At least one volume must be kept' : '至少需保留一个分卷',
+        type: 'warning',
+      });
       return;
     }
     projectStore.deleteVolume(volId);
-    eventBus.emit('show-toast', { message: `已删除分卷《${volTitle}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted volume "${volTitle}"` : `已删除分卷《${volTitle}》`,
+      type: 'info',
+    });
   };
 
   // Export Chapter (TXT / MD)
@@ -298,7 +319,10 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    eventBus.emit('show-toast', { message: `已导出《${chap.title}.${format}》`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Exported "${chap.title}.${format}"` : `已导出《${chap.title}.${format}》`,
+      type: 'success',
+    });
   };
 
   // Drag and Drop Handlers
@@ -419,7 +443,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
         >
           <div className="flex items-center gap-2 overflow-hidden">
             <h3 className="font-semibold text-xs truncate tracking-wide" style={{ color: theme.colors.text }}>
-              {project.title || '长篇小说大纲'}
+              {project.title || (isEn ? 'Novel Manuscript Outline' : '长篇小说大纲')}
             </h3>
           </div>
 
@@ -435,10 +459,10 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                     volumes: prev.volumes.map((v, idx) => (idx === 0 ? { ...v, isExpanded: true } : v)),
                   }));
                   setInlineNewChap({ volId: targetVol.id });
-                  setNewChapTitle(`第 ${(targetVol.chapters.length || 0) + 1} 章`);
+                  setNewChapTitle(isEn ? `Chapter ${(targetVol.chapters.length || 0) + 1}` : `第 ${(targetVol.chapters.length || 0) + 1} 章`);
                 }}
                 className="p-1 rounded-md opacity-50 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
-                title="新建章节 (Ctrl+N)"
+                title={isEn ? "New Chapter (Ctrl+N)" : "新建章节 (Ctrl+N)"}
                 style={{ color: theme.colors.text }}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -453,7 +477,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                   setShowThemePicker(!showThemePicker);
                 }}
                 className="p-1 rounded-md opacity-50 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
-                title="切换全局主题风格"
+                title={isEn ? "Switch Global Theme" : "切换全局主题风格"}
                 style={{ color: theme.colors.text }}
               >
                 <Palette className="h-3.5 w-3.5" />
@@ -471,7 +495,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="px-2.5 py-1 text-[9.5px] opacity-40 font-mono border-b border-white/5">
-                    <span>全局视觉风格</span>
+                    <span>{isEn ? "Global Visual Themes" : "全局视觉风格"}</span>
                   </div>
                   <div className="py-0.5 space-y-0.5">
                     {themeList.map((t) => (
@@ -505,7 +529,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                 isPinned ? 'font-semibold' : 'opacity-40 hover:opacity-100 hover:bg-white/10'
               }`}
               style={{ color: isPinned ? (theme.colors.accent || '#38bdf8') : undefined }}
-              title={isPinned ? '取消固定' : '固定在左侧'}
+              title={isPinned ? (isEn ? 'Unpin' : '取消固定') : (isEn ? 'Pin to Left' : '固定在左侧')}
             >
               {isPinned ? <Pin className="h-3.5 w-3.5" /> : <PinOff className="h-3.5 w-3.5" />}
             </button>
@@ -515,7 +539,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
               onClick={onClose}
               className="p-1 rounded-md opacity-40 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
               style={{ color: theme.colors.text }}
-              title="关闭 (Esc)"
+              title={isEn ? "Close (Esc)" : "关闭 (Esc)"}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -533,7 +557,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索章节..."
+              placeholder={isEn ? "Search chapters..." : "搜索章节..."}
               className="w-full bg-transparent text-xs outline-none placeholder:opacity-30 font-sans"
               style={{ color: theme.colors.text }}
             />
@@ -612,7 +636,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                     )}
 
                     <span className="text-[9.5px] font-mono opacity-30 shrink-0">
-                      ({vol.chapters.length} · {volWordCount.toLocaleString()}字)
+                      ({vol.chapters.length} · {volWordCount.toLocaleString()} {isEn ? 'words' : '字'})
                     </span>
                   </div>
 
@@ -623,14 +647,14 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                         e.stopPropagation();
                         setInlineNewChap({ volId: vol.id });
                       }}
-                      title="在此卷新建章节"
+                      title={isEn ? "Add Chapter to this Volume" : "在此卷新建章节"}
                       className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                     >
                       <Plus className="h-3 w-3" />
                     </button>
                     <button
                       onClick={(e) => handleStartRename(e, vol.id, vol.title)}
-                      title="重命名 (F2)"
+                      title={isEn ? "Rename (F2)" : "重命名 (F2)"}
                       className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                     >
                       <Edit3 className="h-3 w-3" />
@@ -638,7 +662,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                     {project.volumes.length > 1 && (
                       <button
                         onClick={(e) => handleDeleteVolume(e, vol.id, vol.title)}
-                        title="删除分卷"
+                        title={isEn ? "Delete Volume" : "删除分卷"}
                         className="p-1 opacity-50 hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 rounded"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -651,7 +675,9 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                 {vol.isExpanded && (
                   <div className="pl-4 space-y-0.5 mt-0.5 border-l border-white/[0.04] ml-2">
                     {visibleChapters.length === 0 && !inlineNewChap && (
-                      <div className="py-2 text-center text-[9.5px] opacity-30 font-mono">空分卷</div>
+                      <div className="py-2 text-center text-[9.5px] opacity-30 font-mono">
+                        {isEn ? 'Empty volume' : '空分卷'}
+                      </div>
                     )}
 
                     {visibleChapters.map((chap) => {
@@ -728,14 +754,14 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                             {/* Word Count & Action Capsule */}
                             <div className="flex items-center gap-1 shrink-0 ml-1">
                               <span className="text-[9.5px] font-mono opacity-30 group-hover:opacity-0 transition-opacity">
-                                {wordCount.toLocaleString()} 字
+                                {wordCount.toLocaleString()} {isEn ? 'words' : '字'}
                               </span>
 
                               {/* Hover Quick Actions */}
                               <div className="hidden group-hover:flex items-center gap-0.5">
                                 <button
                                   onClick={(e) => handleStartRename(e, chap.id, chap.title)}
-                                  title="重命名 (F2)"
+                                  title={isEn ? "Rename (F2)" : "重命名 (F2)"}
                                   className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                                 >
                                   <Edit3 className="h-2.5 w-2.5" />
@@ -745,14 +771,14 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                                     e.stopPropagation();
                                     handleDuplicateChapter(chap.id);
                                   }}
-                                  title="创建副本"
+                                  title={isEn ? "Duplicate" : "创建副本"}
                                   className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                                 >
                                   <Copy className="h-2.5 w-2.5" />
                                 </button>
                                 <button
                                   onClick={(e) => handleContextMenu(e, chap, vol.id)}
-                                  title="更多操作"
+                                  title={isEn ? "More Options" : "更多操作"}
                                   className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                                 >
                                   <MoreVertical className="h-2.5 w-2.5" />
@@ -777,7 +803,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                           type="text"
                           value={newChapTitle}
                           onChange={(e) => setNewChapTitle(e.target.value)}
-                          placeholder="输入章节名，敲回车..."
+                          placeholder={isEn ? "Enter chapter title, press Enter..." : "输入章节名，敲回车..."}
                           onBlur={handleCreateChapterSubmit}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleCreateChapterSubmit();
@@ -802,7 +828,7 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                 type="text"
                 value={newVolTitle}
                 onChange={(e) => setNewVolTitle(e.target.value)}
-                placeholder="输入分卷名，敲回车..."
+                placeholder={isEn ? "Enter volume title, press Enter..." : "输入分卷名，敲回车..."}
                 onBlur={handleCreateVolumeSubmit}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreateVolumeSubmit();
@@ -821,18 +847,18 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
           style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}30`, color: theme.colors.textMuted }}
         >
           <span className="text-[10px] font-mono opacity-40">
-            {project.volumes.length} 卷 · {totalChapters} 章 · {totalWords.toLocaleString()} 字
+            {project.volumes.length} {isEn ? 'Vols' : '卷'} · {totalChapters} {isEn ? 'Chs' : '章'} · {totalWords.toLocaleString()} {isEn ? 'words' : '字'}
           </span>
 
           <button
             onClick={() => {
               setInlineNewVol(true);
-              setNewVolTitle(`第 ${project.volumes.length + 1} 卷`);
+              setNewVolTitle(isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`);
             }}
             className="px-2 py-0.5 rounded-lg text-xs opacity-60 hover:opacity-100 hover:bg-white/5 transition-all cursor-pointer"
             style={{ color: theme.colors.text }}
           >
-            + 新建分卷
+            + {isEn ? 'New Volume' : '新建分卷'}
           </button>
         </div>
 
@@ -849,25 +875,25 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-2 py-1 text-[9.5px] font-mono opacity-40 border-b border-white/5 truncate">
-              《{contextMenu.chapTitle}》
+              {isEn ? `"${contextMenu.chapTitle}"` : `《${contextMenu.chapTitle}》`}
             </div>
 
             <button
               onClick={() => handleStartRename(null as any, contextMenu.chapId, contextMenu.chapTitle)}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <Edit3 className="h-3 w-3 opacity-50" />
-              <span>重命名 (F2)</span>
+              <span>{isEn ? 'Rename (F2)' : '重命名 (F2)'}</span>
             </button>
 
             <button
               onClick={() => handleDuplicateChapter(contextMenu.chapId)}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <Copy className="h-3 w-3 opacity-50" />
-              <span>创建副本</span>
+              <span>{isEn ? 'Duplicate' : '创建副本'}</span>
             </button>
 
             <button
@@ -878,11 +904,11 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                 setInlineNewChap({ volId: contextMenu.volId, index: idx });
                 setNewChapTitle('');
               }}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <ArrowUpToLine className="h-3 w-3 opacity-50" />
-              <span>在上方插入</span>
+              <span>{isEn ? 'Insert Above' : '在上方插入'}</span>
             </button>
 
             <button
@@ -893,20 +919,20 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                 setInlineNewChap({ volId: contextMenu.volId, index: idx });
                 setNewChapTitle('');
               }}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <ArrowDownToLine className="h-3 w-3 opacity-50" />
-              <span>在下方插入</span>
+              <span>{isEn ? 'Insert Below' : '在下方插入'}</span>
             </button>
 
             <button
               onClick={handleAutoNumber}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <Hash className="h-3 w-3 opacity-50" />
-              <span>全书规范重编号</span>
+              <span>{isEn ? 'Renumber Chapters' : '全书规范重编号'}</span>
             </button>
 
             {/* Export & Delete */}
@@ -916,19 +942,19 @@ export const FloatingChapterTree: React.FC<Props> = ({ isOpen, onClose, theme })
                   const chap = projectStore.findChapter(contextMenu.chapId);
                   if (chap) handleExportChapter(chap, 'txt');
                 }}
-                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
                 style={{ color: theme.colors.text }}
               >
                 <Download className="h-3 w-3 opacity-50" />
-                <span>导出 TXT</span>
+                <span>{isEn ? 'Export to TXT' : '导出 TXT'}</span>
               </button>
 
               <button
                 onClick={(e) => handleDeleteChapter(e, contextMenu.chapId, contextMenu.chapTitle)}
-                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors text-left cursor-pointer"
               >
                 <Trash2 className="h-3 w-3" />
-                <span>删除章节</span>
+                <span>{isEn ? 'Delete Chapter' : '删除章节'}</span>
               </button>
             </div>
           </div>

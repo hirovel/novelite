@@ -1,96 +1,62 @@
 import type { NovelProject } from './types';
 
 export const SAMPLE_PROJECT: NovelProject = {
-  id: 'proj_sample_01',
-  title: '云渊剑引',
-  author: '墨客',
-  targetWordCount: 200000,
-  scratchpad: '【备忘录】\n- 主角佩剑：承影（无形之刃）\n- 青云宗三大戒律：不得私斗、不得结党、不得入禁崖\n- 伏笔：第1章老乞丐给的断玉，在第15章开启洞府钥匙',
+  id: 'proj_default_zh',
+  title: '新作品',
+  author: '作者',
+  targetWordCount: 100000,
+  scratchpad: '',
   createdAt: Date.now(),
   updatedAt: Date.now(),
   activeChapterId: 'chap_01',
   volumes: [
     {
       id: 'vol_01',
-      title: '第一卷：潜龙出渊',
+      title: '第一卷',
       isExpanded: true,
       chapters: [
         {
           id: 'chap_01',
-          title: '第一章：风起客栈',
-          synopsis: '夜雨中少年独坐客栈，遇神秘盲眼剑客。',
+          title: '第一章',
+          synopsis: '',
           updatedAt: Date.now(),
-          wordCount: 520,
-          content: `# 第一章：风起客栈
-
-　　更深夜静，暴雨如注。
-
-　　客栈的雕花木窗被狂风吹得咯吱作响。苏沐白独坐角落，桌上一盏油灯在穿堂风中摇曳不定，映照出他少年清秀却略显冷峻的面庞。
-
-　　他端起温热的粗瓷茶碗，轻轻抿了一口，目光落在窗外漆黑的夜色中。
-
-　　“小二，来两斤熟牛肉，一角烧刀子。”
-
-　　客栈破旧的棉布门帘忽然被掀开，伴随着冷冽的雨气，一道清瘦的身影踏入堂内。那人头戴斗笠，身披蓑衣，腰间斜插着一柄用粗布缠绕的长剑。最引人注目的是，他的双眼蒙着一块黑色的绢布。
-
-　　盲眼剑客。
-
-　　苏沐白握着茶碗的手指微微一顿，体内的内息悄然流转。在这偏僻的古道驿站，深夜出现的盲人剑客绝非等闲之辈。
-
-　　“客官，您请这边坐！”店小二忙不迭地迎上去，眼神中难掩一丝敬畏与惧意。
-
-　　那盲剑客没有回答，只是静静地走到离苏沐白不远的一张空桌前坐下。长剑轻放在桌面上，发出一声沉闷的金属鸣响。
-
-　　夜更深了，雨势却丝毫没有减弱的迹象……`,
-        },
-        {
-          id: 'chap_02',
-          title: '第二章：残月孤影',
-          synopsis: '盲剑客拔剑，雨夜激斗。',
-          updatedAt: Date.now(),
-          wordCount: 430,
-          content: `# 第二章：残月孤影
-
-　　油灯的火苗猛地跳动了一下，突然熄灭。
-
-　　整个客栈大堂瞬间陷入了一片死寂与黑暗之中，唯有窗外偶尔划过的惨白闪电，将屋内众人的影子拉得忽长忽短。
-
-　　“既然来了，何必藏头露尾。”
-
-　　盲眼剑客平静的声音在黑暗中响起，低沉而清晰，仿佛直接在每个人的耳边回荡。
-
-　　屋顶上方骤然传来瓦片碎裂的脆响！
-
-　　三道黑影如鬼魅般自破损的屋顶倒挂而下，手中淬毒的短刃直刺盲剑客的咽喉与心脉。招式狠辣，配合严密，显然是久经训练的死士杀手。
-
-　　苏沐白身形未动，右手却已按在了身旁的包裹之上。
-
-　　就在电光火石之间，一道耀眼的银芒在黑暗中暴起——`,
-        },
-      ],
-    },
-    {
-      id: 'vol_02',
-      title: '第二卷：剑宗论道',
-      isExpanded: true,
-      chapters: [
-        {
-          id: 'chap_03',
-          title: '第三章：问剑青云',
-          synopsis: '初入青云宗，问剑崖前悟剑意。',
-          updatedAt: Date.now(),
-          wordCount: 310,
-          content: `# 第三章：问剑青云
-
-　　青云山巍峨耸立，直插云霄。
-
-　　苏沐白站在问剑崖前，山风猎猎，拂动他的衣角。崖壁上密密麻麻刻满了历代剑道先贤留下的剑痕，有的如狂风暴雨，有的若细水长流。
-
-　　“能在此处领悟出一招半式，便算你通过了入门考核。”引路执事负手而立，神情淡漠。
-
-　　苏沐白闭上双眼，不再用肉眼去看那些繁杂的痕迹，而是放空心神，以神念去感应石壁间残留的剑意……`,
+          wordCount: 0,
+          content: '# 第一章\n\n　　',
         },
       ],
     },
   ],
 };
+
+export const SAMPLE_PROJECT_EN: NovelProject = {
+  id: 'proj_default_en',
+  title: 'Untitled Novel',
+  author: 'Author',
+  targetWordCount: 100000,
+  scratchpad: '',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  activeChapterId: 'chap_01_en',
+  volumes: [
+    {
+      id: 'vol_01_en',
+      title: 'Volume 1',
+      isExpanded: true,
+      chapters: [
+        {
+          id: 'chap_01_en',
+          title: 'Chapter 1',
+          synopsis: '',
+          updatedAt: Date.now(),
+          wordCount: 0,
+          content: '# Chapter 1\n\n',
+        },
+      ],
+    },
+  ],
+};
+
+export function getSampleProject(isEn: boolean = false): NovelProject {
+  const base = isEn ? SAMPLE_PROJECT_EN : SAMPLE_PROJECT;
+  return JSON.parse(JSON.stringify(base));
+}

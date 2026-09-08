@@ -3,6 +3,7 @@ import { Search, X, BookOpen, ChevronRight, FileText, CornerDownLeft, Filter } f
 import { projectStore } from '../../core/storage/ProjectStore';
 import type { Theme } from '../../core/themes/types';
 import { eventBus } from '../../core/events/EventBus';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -26,6 +27,8 @@ interface MatchResult {
 }
 
 export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [query, setQuery] = useState('');
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [selectedVolId, setSelectedVolId] = useState<string>('all');
@@ -53,10 +56,11 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
       }, 50);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
@@ -86,7 +90,7 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
         if (compareTitle.includes(searchTarget)) {
           matchCount++;
           snippets.push({
-            before: '章节标题：',
+            before: isEn ? 'Chapter title: ' : '章节标题：',
             match: title,
             after: '',
             index: 0,
@@ -134,7 +138,7 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
     });
 
     return list;
-  }, [project, query, caseSensitive, selectedVolId]);
+  }, [project, query, caseSensitive, selectedVolId, isEn]);
 
 
   const handleSelect = (result: MatchResult, snippetIndex = 0) => {
@@ -157,7 +161,7 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
     });
 
     eventBus.emit('show-toast', {
-      message: `已定位至《${result.chapTitle}》匹配处`,
+      message: isEn ? `Navigated to "${result.chapTitle}" match` : `已定位至《${result.chapTitle}》匹配处`,
       type: 'info',
     });
     onClose();
@@ -210,14 +214,14 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="全书全文检索（输入角色名、伏笔、地名或关键词）..."
+            placeholder={isEn ? 'Full-text manuscript search (names, lore, keywords)...' : '全书全文检索（输入角色名、伏笔、地名或关键词）...'}
             className="flex-1 bg-transparent text-xs sm:text-sm outline-none placeholder:opacity-40 font-sans"
             style={{ color: theme.colors.text }}
           />
           {query && (
             <button
               onClick={() => setQuery('')}
-              className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity"
+              className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -232,7 +236,9 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
               className="bg-transparent text-[11px] outline-none opacity-70 hover:opacity-100 cursor-pointer font-sans"
               style={{ color: theme.colors.text }}
             >
-              <option value="all" className="bg-neutral-900 text-white">全部卷</option>
+              <option value="all" className="bg-neutral-900 text-white">
+                {isEn ? 'All Volumes' : '全部卷'}
+              </option>
               {project.volumes.map((v) => (
                 <option key={v.id} value={v.id} className="bg-neutral-900 text-white">
                   {v.title}
@@ -244,18 +250,19 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
           {/* Case Sensitive Toggle */}
           <button
             onClick={() => setCaseSensitive(!caseSensitive)}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors shrink-0 ${
+            className={`px-1.5 py-0.5 rounded text-[10px] font-mono transition-colors shrink-0 cursor-pointer ${
               caseSensitive ? 'bg-white/20 font-semibold' : 'opacity-40 hover:opacity-100 hover:bg-white/5'
             }`}
             style={{ color: theme.colors.text }}
-            title="区分大小写"
+            title={isEn ? 'Match Case' : '区分大小写'}
           >
             Aa
           </button>
 
           <button
             onClick={onClose}
-            className="p-1 rounded opacity-40 hover:opacity-100 hover:bg-white/10 transition-colors ml-1"
+            className="p-1 rounded opacity-40 hover:opacity-100 hover:bg-white/10 transition-colors ml-1 cursor-pointer"
+            title={isEn ? 'Close (Esc)' : '关闭 (Esc)'}
           >
             <X className="h-4 w-4" />
           </button>
@@ -268,9 +275,11 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
             style={{ borderColor: `${theme.colors.border}20` }}
           >
             <span>
-              匹配到 {results.length} 个章节 · 共 {totalMatches} 处命中
+              {isEn
+                ? `Matched ${results.length} chapters · ${totalMatches} hits`
+                : `匹配到 ${results.length} 个章节 · 共 ${totalMatches} 处命中`}
             </span>
-            <span>按 ↑ ↓ 选章 · Enter 跳转</span>
+            <span>{isEn ? 'Use ↑ ↓ to navigate · Enter to jump' : '按 ↑ ↓ 选章 · Enter 跳转'}</span>
           </div>
         )}
 
@@ -282,14 +291,22 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
           {!query.trim() ? (
             <div className="py-14 text-center space-y-2 opacity-40">
               <Search className="h-8 w-8 mx-auto stroke-1" />
-              <p className="text-xs">输入任意词汇，即时检索全书所有分卷与章节正文</p>
-              <p className="text-[10.5px] font-mono">支持快捷键 Ctrl + Shift + F 随时打开</p>
+              <p className="text-xs">
+                {isEn ? 'Enter any query to search all volumes and chapters' : '输入任意词汇，即时检索全书所有分卷与章节正文'}
+              </p>
+              <p className="text-[10.5px] font-mono">
+                {isEn ? 'Shortcut: Ctrl + Shift + F' : '支持快捷键 Ctrl + Shift + F 随时打开'}
+              </p>
             </div>
           ) : results.length === 0 ? (
             <div className="py-14 text-center space-y-1.5 opacity-40">
               <FileText className="h-8 w-8 mx-auto stroke-1" />
-              <p className="text-xs">未找到包含「{query}」的章节正文</p>
-              <p className="text-[10px] font-mono">请尝试缩短关键词或检查分卷过滤设置</p>
+              <p className="text-xs">
+                {isEn ? `No chapters found containing "${query}"` : `未找到包含「${query}」的章节正文`}
+              </p>
+              <p className="text-[10px] font-mono">
+                {isEn ? 'Try shorter keywords or check volume filters' : '请尝试缩短关键词或检查分卷过滤设置'}
+              </p>
             </div>
           ) : (
             results.map((res, rIdx) => {
@@ -321,7 +338,7 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 text-[10px] font-mono opacity-50">
-                      <span>{res.wordCount.toLocaleString()} 字</span>
+                      <span>{isEn ? `${res.wordCount.toLocaleString()} words` : `${res.wordCount.toLocaleString()} 字`}</span>
                       <span
                         className="px-1.5 py-0.2 rounded font-semibold"
                         style={{
@@ -329,7 +346,7 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
                           color: theme.colors.accent || '#38bdf8',
                         }}
                       >
-                        {res.matchCount} 处匹配
+                        {isEn ? `${res.matchCount} matches` : `${res.matchCount} 处匹配`}
                       </span>
                     </div>
                   </div>
@@ -364,7 +381,9 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
                     ))}
                     {res.matchCount > res.snippets.length && (
                       <div className="text-[9.5px] font-mono opacity-40 px-1">
-                        还有 {res.matchCount - res.snippets.length} 处匹配未展开，点击进入章节查阅...
+                        {isEn
+                          ? `${res.matchCount - res.snippets.length} more matches, click chapter to view...`
+                          : `还有 ${res.matchCount - res.snippets.length} 处匹配未展开，点击进入章节查阅...`}
                       </div>
                     )}
                   </div>
@@ -379,8 +398,8 @@ export const GlobalSearchModal: React.FC<Props> = ({ isOpen, onClose, theme }) =
           className="p-2 px-4 border-t flex items-center justify-between text-[10px] font-mono opacity-40 bg-black/15 shrink-0"
           style={{ borderColor: `${theme.colors.border}30` }}
         >
-          <span>全书实时检索 · 内存极速索引</span>
-          <span>Esc 退出</span>
+          <span>{isEn ? 'Real-time full-text search · Instant memory index' : '全书实时检索 · 内存极速索引'}</span>
+          <span>{isEn ? 'Esc to exit' : 'Esc 退出'}</span>
         </div>
       </div>
     </div>

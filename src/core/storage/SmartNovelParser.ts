@@ -1,33 +1,42 @@
 import type { Volume, Chapter } from './types';
 import { countWordsFast } from './ProjectStore';
 
+function getIsEn(): boolean {
+  return typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
+}
+
 /**
  * 🚀 High-speed Chinese / English Novel Text Parser.
  * Automatically recognizes Volumes (卷), Chapters (章/回/节/Chapter), and builds a structured tree.
  */
-export function parseBulkNovelText(fullText: string, defaultBookTitle = '导入长篇小说'): {
+export function parseBulkNovelText(fullText: string, defaultBookTitle?: string): {
   title: string;
   author: string;
   volumes: Volume[];
 } {
-  let detectedTitle = defaultBookTitle;
-  let detectedAuthor = '佚名';
+  const isEn = getIsEn();
+  let detectedTitle = defaultBookTitle || (isEn ? 'Imported Novel' : '导入长篇小说');
+  let detectedAuthor = isEn ? 'Anonymous' : '佚名';
 
   if (!fullText || !fullText.trim()) {
+    const defaultVolTitle = isEn ? 'Volume 1' : '第一卷';
+    const defaultChapTitle = isEn ? 'Chapter 1' : '第一章';
+    const defaultContent = isEn ? '# Chapter 1\n\nStart writing here.' : '# 第一章\n\n开始写作。';
+
     return {
       title: detectedTitle,
       author: detectedAuthor,
       volumes: [
         {
           id: `vol_${Date.now()}`,
-          title: '第一卷',
+          title: defaultVolTitle,
           isExpanded: true,
           chapters: [
             {
               id: `chap_${Date.now()}`,
-              title: '第一章',
-              content: '# 第一章\n\n开始写作。',
-              wordCount: 4,
+              title: defaultChapTitle,
+              content: defaultContent,
+              wordCount: countWordsFast(defaultContent),
               updatedAt: Date.now(),
             },
           ],
@@ -42,9 +51,9 @@ export function parseBulkNovelText(fullText: string, defaultBookTitle = '导入�
   let currentChap: Chapter | null = null;
   let chapContentLines: string[] = [];
 
-  // Patterns for Volume & Chapter headings
-  const volRegex = /^\s*[【[()]?\s*(第[0-9一二三四五六七八九十百千万零]+卷|卷[0-9一二三四五六七八九十百千万零]+|Volume\s+[0-9]+|BOOK\s+[0-9]+)\s*[:：\s\-—_]*(.*?)\s*[】\])]?$/i;
-  const chapRegex = /^\s*[【[()]?\s*(第[0-9一二三四五六七八九十百千万零]+[章回节折篇]|Chapter\s+[0-9]+|[0-9]+[.、]\s*第?[0-9一二三四五六七八九十百千万零]+[章回节折篇]?|序章|楔子|尾声|后记|番外\s*[0-9一二三四五六七八九十百千万零]*|外传\s*[0-9一二三四五六七八九十百千万零]*)\s*[:：\s\-—_]*(.*?)\s*[】\])]?$/i;
+  // Patterns for Volume & Chapter headings (Supporting Chinese & International/English standards)
+  const volRegex = /^\s*[【[()]?\s*(第[0-9一二三四五六七八九十百千万零]+卷|卷[0-9一二三四五六七八九十百千万零]+|(?:Volume|Book|Part|Act)\s+(?:[0-9]+|[IVXLCDM]+))\s*[:：\s\-—_]*(.*?)\s*[】\])]?$/i;
+  const chapRegex = /^\s*[【[()]?\s*(第[0-9一二三四五六七八九十百千万零]+[章回节折篇]|Chapter\s+(?:[0-9]+|[IVXLCDM]+|[A-Za-z]+)|[0-9]+[.、]\s*第?[0-9一二三四五六七八九十百千万零]+[章回节折篇]?|序章|楔子|尾声|后记|番外\s*[0-9一二三四五六七八九十百千万零]*|外传\s*[0-9一二三四五六七八九十百千万零]*|Prologue|Epilogue|Interlude)\s*[:：\s\-—_]*(.*?)\s*[】\])]?$/i;
 
   const flushCurrentChapter = () => {
     if (currentChap) {
@@ -64,7 +73,7 @@ export function parseBulkNovelText(fullText: string, defaultBookTitle = '导入�
       if (!currentVol) {
         currentVol = {
           id: `vol_${Date.now()}_0`,
-          title: '第一卷',
+          title: isEn ? 'Volume 1' : '第一卷',
           isExpanded: true,
           chapters: [],
         };
@@ -154,7 +163,7 @@ export function parseBulkNovelText(fullText: string, defaultBookTitle = '导入�
       // Intro or prologue before first chapter
       currentChap = {
         id: `chap_${Date.now()}_prologue`,
-        title: '序章 / 前言',
+        title: isEn ? 'Prologue / Preface' : '序章 / 前言',
         content: '',
         wordCount: 0,
         updatedAt: Date.now(),
@@ -169,12 +178,12 @@ export function parseBulkNovelText(fullText: string, defaultBookTitle = '导入�
     // Single chapter fallback
     volumes.push({
       id: `vol_${Date.now()}_fallback`,
-      title: '第一卷',
+      title: isEn ? 'Volume 1' : '第一卷',
       isExpanded: true,
       chapters: [
         {
           id: `chap_${Date.now()}_fallback`,
-          title: '第一章',
+          title: isEn ? 'Chapter 1' : '第一章',
           content: fullText,
           wordCount: countWordsFast(fullText),
           updatedAt: Date.now(),

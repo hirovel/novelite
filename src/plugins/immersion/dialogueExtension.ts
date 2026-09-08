@@ -3,15 +3,15 @@ import { MatchDecorator, ViewPlugin, Decoration, type DecorationSet, EditorView,
 
 export type DialogueColorPreset = 'theme' | 'cinnabar' | 'ink' | 'amber' | 'emerald' | 'azure' | 'violet' | 'white' | 'custom';
 
-export const DIALOGUE_COLOR_MAP: Record<Exclude<DialogueColorPreset, 'custom'>, { name: string; hex: string }> = {
-  theme: { name: '跟随主题', hex: 'var(--theme-accent, #c95738)' },
-  cinnabar: { name: '朱砂赤羽', hex: '#c95738' },
-  ink: { name: '水墨玄石', hex: '#292524' },
-  amber: { name: '暖褐琥珀', hex: '#d97706' },
-  emerald: { name: '青瓷墨绿', hex: '#0f766e' },
-  azure: { name: '深海霁蓝', hex: '#1d4ed8' },
-  violet: { name: '紫藤微光', hex: '#7c3aed' },
-  white: { name: '纯白高光', hex: '#ffffff' },
+export const DIALOGUE_COLOR_MAP: Record<Exclude<DialogueColorPreset, 'custom'>, { name: string; nameEn: string; hex: string }> = {
+  theme: { name: '跟随主题', nameEn: 'Follow Theme', hex: 'var(--theme-accent, #c95738)' },
+  cinnabar: { name: '朱砂赤羽', nameEn: 'Vermilion Feather', hex: '#c95738' },
+  ink: { name: '水墨玄石', nameEn: 'Ink Stone', hex: '#292524' },
+  amber: { name: '暖褐琥珀', nameEn: 'Warm Amber', hex: '#d97706' },
+  emerald: { name: '青瓷墨绿', nameEn: 'Celadon Emerald', hex: '#0f766e' },
+  azure: { name: '深海霁蓝', nameEn: 'Deep Azure', hex: '#1d4ed8' },
+  violet: { name: '紫藤微光', nameEn: 'Wisteria Violet', hex: '#7c3aed' },
+  white: { name: '纯白高光', nameEn: 'Pure White', hex: '#ffffff' },
 };
 
 export interface DialogueHighlighterConfig {

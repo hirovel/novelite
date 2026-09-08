@@ -1,6 +1,11 @@
 import type { NovelProject, Volume, Chapter, ChapterSnapshot } from './types';
-import { SAMPLE_PROJECT } from './sampleNovel';
+import { getSampleProject } from './sampleNovel';
 import { eventBus } from '../events/EventBus';
+import { safeStorageSet } from './safeStorage';
+
+function getIsEn(): boolean {
+  return typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
+}
 
 /**
  * 🚀 High-performance single-pass word counting without regex heap allocations.
@@ -55,9 +60,9 @@ export class ProjectStore {
       this.project = this.library[activeId];
     } else {
       const firstId = Object.keys(this.library)[0];
-      this.project = firstId ? this.library[firstId] : SAMPLE_PROJECT;
+      this.project = firstId ? this.library[firstId] : getSampleProject(getIsEn());
       this.library[this.project.id] = this.project;
-      localStorage.setItem('novelite_active_project_id', this.project.id);
+      this.safeStorageSet('novelite_active_project_id', this.project.id);
     }
   }
 
@@ -69,21 +74,7 @@ export class ProjectStore {
   }
 
   private safeStorageSet(key: string, value: string): boolean {
-    try {
-      localStorage.setItem(key, value);
-      return true;
-    } catch (e: any) {
-      if (e?.name === 'QuotaExceededError' || e?.code === 22) {
-        console.warn(`[ProjectStore] LocalStorage quota exceeded while writing "${key}".`);
-        eventBus.emit('show-toast', {
-          message: '本地浏览器存储配额已满，请及时备份或连接本地磁盘保存！',
-          type: 'warning',
-        });
-      } else {
-        console.error(`[ProjectStore] Failed to write to localStorage key "${key}":`, e);
-      }
-      return false;
-    }
+    return safeStorageSet(key, value);
   }
 
   private loadLibrary(): Record<string, NovelProject> {
@@ -114,7 +105,8 @@ export class ProjectStore {
       }
     }
 
-    const defaultMap = { [SAMPLE_PROJECT.id]: SAMPLE_PROJECT };
+    const defaultProject = getSampleProject(getIsEn());
+    const defaultMap = { [defaultProject.id]: defaultProject };
     this.safeStorageSet('novelite_library_map', JSON.stringify(defaultMap));
     return defaultMap;
   }
@@ -146,10 +138,11 @@ export class ProjectStore {
           totalChapters += 1;
         });
       });
+      const isEn = getIsEn();
       return {
         id: proj.id,
-        title: proj.title || '无标题小说',
-        author: proj.author || '佚名',
+        title: proj.title || (isEn ? 'Untitled Novel' : '无标题小说'),
+        author: proj.author || (isEn ? 'Anonymous' : '佚名'),
         wordCount: totalWords,
         chapterCount: totalChapters,
         updatedAt: proj.updatedAt || Date.now(),
@@ -157,23 +150,30 @@ export class ProjectStore {
     }).sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  public createProject(title: string, author = '佚名'): NovelProject {
+  public createProject(title: string, author?: string): NovelProject {
+    const isEn = getIsEn();
+    const finalTitle = title.trim() || (isEn ? 'Untitled Novel' : '未命名作品');
+    const finalAuthor = (author && author.trim()) || (isEn ? 'Anonymous' : '佚名');
+    const defaultVolTitle = isEn ? 'Volume 1' : '第一卷';
+    const defaultChapTitle = isEn ? 'Chapter 1' : '第一章';
+    const defaultContent = isEn ? '# Chapter 1\n\nStart writing here.' : '# 第一章\n\n开始写作。';
+
     const newProj: NovelProject = {
       id: `proj_${Date.now()}`,
-      title: title.trim() || '未命名作品',
-      author: author.trim() || '佚名',
+      title: finalTitle,
+      author: finalAuthor,
       targetWordCount: 100000,
       volumes: [
         {
           id: `vol_${Date.now()}_1`,
-          title: '第一卷',
+          title: defaultVolTitle,
           isExpanded: true,
           chapters: [
             {
               id: `chap_${Date.now()}_1`,
-              title: '第一章',
-              content: '# 第一章\n\n开始写作。',
-              wordCount: 8,
+              title: defaultChapTitle,
+              content: defaultContent,
+              wordCount: countWordsFast(defaultContent),
               updatedAt: Date.now(),
             },
           ],
@@ -199,16 +199,21 @@ export class ProjectStore {
   }
 
   public importProject(title: string, author: string, volumes: Volume[]): NovelProject {
+    const isEn = getIsEn();
+    const defaultVolTitle = isEn ? 'Volume 1' : '第一卷';
+    const defaultChapTitle = isEn ? 'Chapter 1' : '第一章';
+    const defaultContent = isEn ? '# Chapter 1\n\nStart writing here.' : '# 第一章\n\n开始写作。';
+
     const defaultVol: Volume = {
       id: `vol_${Date.now()}_1`,
-      title: '第一卷',
+      title: defaultVolTitle,
       isExpanded: true,
       chapters: [
         {
           id: `chap_${Date.now()}_1`,
-          title: '第一章',
-          content: '# 第一章\n\n开始写作。',
-          wordCount: 8,
+          title: defaultChapTitle,
+          content: defaultContent,
+          wordCount: countWordsFast(defaultContent),
           updatedAt: Date.now(),
         },
       ],
@@ -219,8 +224,8 @@ export class ProjectStore {
 
     const newProj: NovelProject = {
       id: `proj_${Date.now()}`,
-      title: title.trim() || '导入作品',
-      author: author.trim() || '佚名',
+      title: title.trim() || (isEn ? 'Imported Project' : '导入作品'),
+      author: (author && author.trim()) || (isEn ? 'Anonymous' : '佚名'),
       targetWordCount: 100000,
       volumes: validVolumes,
       activeChapterId: firstChapId,
@@ -276,9 +281,11 @@ export class ProjectStore {
 
   public renameProject(projectId: string, newTitle: string): boolean {
     if (this.library[projectId]) {
-      this.library[projectId].title = newTitle.trim() || '未命名作品';
+      const isEn = getIsEn();
+      const titleVal = newTitle.trim() || (isEn ? 'Untitled Novel' : '未命名作品');
+      this.library[projectId].title = titleVal;
       if (this.project.id === projectId) {
-        this.project.title = newTitle.trim() || '未命名作品';
+        this.project.title = titleVal;
       }
       this.save();
       eventBus.emit('project-tree-changed', this.project);
@@ -304,7 +311,11 @@ export class ProjectStore {
     if (curIdx !== -1 && curIdx < flat.length - 1) {
       const nextChap = flat[curIdx + 1].chapter;
       this.setActiveChapter(nextChap.id);
-      eventBus.emit('show-toast', { message: `已切换至《${nextChap.title}》`, type: 'info' });
+      const isEn = getIsEn();
+      eventBus.emit('show-toast', {
+        message: isEn ? `Switched to "${nextChap.title}"` : `已切换至《${nextChap.title}》`,
+        type: 'info',
+      });
       return true;
     }
     return false;
@@ -317,7 +328,11 @@ export class ProjectStore {
     if (curIdx > 0) {
       const prevChap = flat[curIdx - 1].chapter;
       this.setActiveChapter(prevChap.id);
-      eventBus.emit('show-toast', { message: `已切换至《${prevChap.title}》`, type: 'info' });
+      const isEn = getIsEn();
+      eventBus.emit('show-toast', {
+        message: isEn ? `Switched to "${prevChap.title}"` : `已切换至《${prevChap.title}》`,
+        type: 'info',
+      });
       return true;
     }
     return false;
@@ -375,10 +390,12 @@ export class ProjectStore {
     });
   }
 
-  public addVolume(title = '新建分卷'): Volume {
+  public addVolume(title?: string): Volume {
+    const isEn = getIsEn();
+    const finalTitle = (title && title.trim()) || (isEn ? 'New Volume' : '新建分卷');
     const newVol: Volume = {
       id: `vol_${Date.now()}`,
-      title,
+      title: finalTitle,
       isExpanded: true,
       chapters: [],
     };
@@ -389,14 +406,17 @@ export class ProjectStore {
     return newVol;
   }
 
-  public addChapter(volumeId: string, title = '新建章节'): Chapter {
+  public addChapter(volumeId: string, title?: string): Chapter {
     const vol = this.project.volumes.find((v) => v.id === volumeId);
     if (!vol) throw new Error('Volume not found');
 
+    const isEn = getIsEn();
+    const finalTitle = (title && title.trim()) || (isEn ? 'New Chapter' : '新建章节');
+
     const newChap: Chapter = {
       id: `chap_${Date.now()}`,
-      title,
-      content: `# ${title}\n\n`,
+      title: finalTitle,
+      content: `# ${finalTitle}\n\n`,
       wordCount: 0,
       updatedAt: Date.now(),
     };
@@ -434,12 +454,13 @@ export class ProjectStore {
   public deleteVolume(volumeId: string): void {
     eventBus.emit('volume-deleted', { volumeId });
     this.project.volumes = this.project.volumes.filter((v) => v.id !== volumeId);
+    const isEn = getIsEn();
     if (this.project.volumes.length === 0 || this.project.volumes.every((v) => v.chapters.length === 0)) {
       if (this.project.volumes.length === 0) {
-        this.addVolume('第一卷');
+        this.addVolume(isEn ? 'Volume 1' : '第一卷');
       }
       const firstVol = this.project.volumes[0];
-      const newChap = this.addChapter(firstVol.id, '第一章');
+      const newChap = this.addChapter(firstVol.id, isEn ? 'Chapter 1' : '第一章');
       this.setActiveChapter(newChap.id);
       return;
     }
@@ -464,9 +485,10 @@ export class ProjectStore {
     for (const vol of this.project.volumes) {
       vol.chapters = vol.chapters.filter((c) => c.id !== chapterId);
     }
+    const isEn = getIsEn();
     if (this.project.volumes.every((v) => v.chapters.length === 0)) {
-      const firstVol = this.project.volumes[0] || this.addVolume('第一卷');
-      const newChap = this.addChapter(firstVol.id, '第一章');
+      const firstVol = this.project.volumes[0] || this.addVolume(isEn ? 'Volume 1' : '第一卷');
+      const newChap = this.addChapter(firstVol.id, isEn ? 'Chapter 1' : '第一章');
       this.setActiveChapter(newChap.id);
       return;
     }
@@ -504,14 +526,17 @@ export class ProjectStore {
     return true;
   }
 
-  public insertChapter(volumeId: string, title = '新建章节', index?: number): Chapter {
+  public insertChapter(volumeId: string, title?: string, index?: number): Chapter {
     const vol = this.project.volumes.find((v) => v.id === volumeId);
     if (!vol) throw new Error('Volume not found');
 
+    const isEn = getIsEn();
+    const finalTitle = (title && title.trim()) || (isEn ? 'New Chapter' : '新建章节');
+
     const newChap: Chapter = {
       id: `chap_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      title,
-      content: `# ${title}\n\n`,
+      title: finalTitle,
+      content: `# ${finalTitle}\n\n`,
       wordCount: 0,
       updatedAt: Date.now(),
     };
@@ -537,9 +562,11 @@ export class ProjectStore {
       const idx = vol.chapters.findIndex((c) => c.id === chapterId);
       if (idx !== -1) {
         const orig = vol.chapters[idx];
+        const isEn = getIsEn();
+        const copySuffix = isEn ? 'Copy' : '副本';
         const copy: Chapter = {
           id: `chap_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-          title: `${orig.title} (副本)`,
+          title: `${orig.title} (${copySuffix})`,
           content: orig.content,
           wordCount: orig.wordCount,
           updatedAt: Date.now(),
@@ -681,16 +708,21 @@ export class ProjectStore {
       return String(n);
     };
 
+    const isEn = getIsEn();
     for (const vol of this.project.volumes) {
       for (const chap of vol.chapters) {
         count++;
-        const numStr = toChineseNumber(count);
         // Strip previous "第X章" or "Chapter X" prefix
         const pureTitle = chap.title
           .replace(/^第[零一二三四五六七八九十百千万\d]+章[\s:：]*/i, '')
           .replace(/^Chapter\s*\d+[\s:：]*/i, '')
           .trim();
-        chap.title = pureTitle ? `第${numStr}章：${pureTitle}` : `第${numStr}章`;
+        if (isEn) {
+          chap.title = pureTitle ? `Chapter ${count}: ${pureTitle}` : `Chapter ${count}`;
+        } else {
+          const numStr = toChineseNumber(count);
+          chap.title = pureTitle ? `第${numStr}章：${pureTitle}` : `第${numStr}章`;
+        }
       }
     }
 
@@ -710,9 +742,10 @@ export class ProjectStore {
         break;
       }
     }
+    const isEn = getIsEn();
     if (this.project.volumes.every((v) => v.chapters.length === 0)) {
-      const firstVol = this.project.volumes[0] || this.addVolume('第一卷');
-      const newChap = this.addChapter(firstVol.id, '第一章');
+      const firstVol = this.project.volumes[0] || this.addVolume(isEn ? 'Volume 1' : '第一卷');
+      const newChap = this.addChapter(firstVol.id, isEn ? 'Chapter 1' : '第一章');
       this.setActiveChapter(newChap.id);
       return;
     }
@@ -753,11 +786,14 @@ export class ProjectStore {
     return false;
   }
 
-  public createSnapshot(chapterId: string, summary = '手动快照'): ChapterSnapshot | null {
+  public createSnapshot(chapterId: string, summary?: string): ChapterSnapshot | null {
     const chap = this.findChapter(chapterId);
     if (!chap) return null;
 
     if (!chap.snapshots) chap.snapshots = [];
+
+    const isEn = getIsEn();
+    const finalSummary = (summary && summary.trim()) || (isEn ? 'Manual Snapshot' : '手动快照');
 
     const snapshot: ChapterSnapshot = {
       id: `snap_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -765,7 +801,7 @@ export class ProjectStore {
       title: chap.title,
       content: chap.content,
       wordCount: chap.wordCount,
-      summary,
+      summary: finalSummary,
     };
 
     chap.snapshots.unshift(snapshot);
@@ -791,7 +827,8 @@ export class ProjectStore {
     if (!snap) return false;
 
     // First create a snapshot of current state before restoring
-    this.createSnapshot(chapterId, '回滚前自动备份');
+    const isEn = getIsEn();
+    this.createSnapshot(chapterId, isEn ? 'Automatic backup before rollback' : '回滚前自动备份');
 
     chap.content = snap.content;
     chap.wordCount = snap.wordCount;

@@ -32,9 +32,17 @@ import { UpdateModal } from './plugins/auto-updater/UpdateModal';
 import type { UpdateInfo } from './plugins/auto-updater/types';
 import { exportNovelService } from './core/storage/ExportNovelService';
 import { useGlobalKeymap } from './core/keymap/useGlobalKeymap';
-import { initI18n } from './core/i18n';
+import { initI18n, useI18n } from './core/i18n';
+import { safeStorageSet, safeStorageRemove } from './core/storage/safeStorage';
 
 export const App: React.FC = () => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
+  const languageRef = useRef(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
   const [themeId, setThemeId] = useState<string>(() => {
     const saved = localStorage.getItem('novelite_theme_id');
     if (saved === 'matrix-term' || saved === 'morandi-night') return 'default-dark';
@@ -106,8 +114,12 @@ export const App: React.FC = () => {
     return localStorage.getItem('novelite_custom_image_raw') || null;
   });
   const [cropParams, setCropParams] = useState<CropParams | null>(() => {
-    const saved = localStorage.getItem('novelite_crop_params');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('novelite_crop_params');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
   const [customImageBlur, setCustomImageBlur] = useState<number>(() => {
     return Number(localStorage.getItem('novelite_custom_image_blur')) || 6;
@@ -213,14 +225,19 @@ export const App: React.FC = () => {
   const handleToggleSplitDirection = () => {
     const next = splitDirection === 'vertical' ? 'horizontal' : 'vertical';
     setSplitDirection(next);
-    localStorage.setItem('novelite_split_direction', next);
-    eventBus.emit('show-toast', { message: next === 'horizontal' ? '已切换为上下水平分栏' : '已切换为左右垂直分栏', type: 'info' });
+    safeStorageSet('novelite_split_direction', next);
+    eventBus.emit('show-toast', {
+      message: languageRef.current === 'en'
+        ? (next === 'horizontal' ? 'Switched to horizontal split' : 'Switched to vertical split')
+        : (next === 'horizontal' ? '已切换为上下水平分栏' : '已切换为左右垂直分栏'),
+      type: 'info',
+    });
   };
 
   const handleSplitRatioChange = (ratio: number) => {
     const clamped = Math.max(0.2, Math.min(0.8, ratio));
     setSplitRatio(clamped);
-    localStorage.setItem('novelite_split_ratio', String(clamped));
+    safeStorageSet('novelite_split_ratio', String(clamped));
   };
 
   const handleSplitterPointerDown = (e: React.PointerEvent) => {
@@ -280,9 +297,12 @@ export const App: React.FC = () => {
     const oldSecId = secId;
 
     setSecondaryChapterId(oldPrimaryId);
-    localStorage.setItem('novelite_split_secondary_chapter', oldPrimaryId);
+    safeStorageSet('novelite_split_secondary_chapter', oldPrimaryId);
     projectStore.setActiveChapter(oldSecId);
-    eventBus.emit('show-toast', { message: '左右/上下分屏章节已对调', type: 'info' });
+    eventBus.emit('show-toast', {
+      message: languageRef.current === 'en' ? 'Swapped split pane chapters' : '左右/上下分屏章节已对调',
+      type: 'info',
+    });
   }, []);
 
   const [isZenMode, setIsZenMode] = useState<boolean>(false);
@@ -301,7 +321,7 @@ export const App: React.FC = () => {
   const [hudStats, setHudStats] = useState<{ title: string; wordCount: number; isSaving: boolean }>(() => {
     const chap = projectStore.getActiveChapter();
     return {
-      title: chap?.title || '未命名章节',
+      title: chap?.title || (isEn ? 'Untitled Chapter' : '未命名章节'),
       wordCount: chap ? countWordsFast(chap.content) : 0,
       isSaving: false,
     };
@@ -434,74 +454,74 @@ export const App: React.FC = () => {
     const unsubTheme = eventBus.on('theme-changed', (newId: any) => {
       if (THEMES[newId]) {
         setThemeId(newId);
-        localStorage.setItem('novelite_theme_id', newId);
+        safeStorageSet('novelite_theme_id', newId);
       }
     });
 
     const unsubVfx = eventBus.on('live-cursor:vfx-changed', (mode: any) => {
       if (mode) {
         setVfxMode(mode);
-        localStorage.setItem('novelite_cursor_vfx_mode', mode);
+        safeStorageSet('novelite_cursor_vfx_mode', mode);
       }
     });
 
     const unsubPhysics = eventBus.on('live-cursor:physics-changed', (mode: any) => {
       if (mode) {
         setPhysicsMode(mode);
-        localStorage.setItem('novelite_cursor_physics_mode', mode);
+        safeStorageSet('novelite_cursor_physics_mode', mode);
       }
     });
 
     const unsubFontSize = eventBus.on('font-size-changed', (newSize: any) => {
       if (typeof newSize === 'number') {
         setFontSize(newSize);
-        localStorage.setItem('novelite_font_size', String(newSize));
+        safeStorageSet('novelite_font_size', String(newSize));
       }
     });
 
     const unsubTypo = eventBus.on('plugin-setting-changed:plugin-chinese-typography', ({ key, value }: any) => {
       if (key === 'indentEnabled' && typeof value === 'boolean') {
         setIndentEnabled(value);
-        localStorage.setItem('novelite_indent_enabled', String(value));
+        safeStorageSet('novelite_indent_enabled', String(value));
       } else if (key === 'fontSize' && typeof value === 'number') {
         setFontSize(value);
-        localStorage.setItem('novelite_font_size', String(value));
+        safeStorageSet('novelite_font_size', String(value));
       }
     });
 
     const unsubImmersion = eventBus.on('plugin-setting-changed:plugin-immersion', ({ key, value }: any) => {
       if (key === 'typewriterEnabled' && typeof value === 'boolean') {
         setTypewriterEnabled(value);
-        localStorage.setItem('novelite_typewriter_enabled', String(value));
+        safeStorageSet('novelite_typewriter_enabled', String(value));
       } else if (key === 'typewriterAnchorRatio' && typeof value === 'number') {
         setTypewriterRatio(value);
-        localStorage.setItem('novelite_typewriter_ratio', String(value));
+        safeStorageSet('novelite_typewriter_ratio', String(value));
       } else if (key === 'typewriterSpeedMode' && typeof value === 'string') {
         setTypewriterSpeed(value as any);
-        localStorage.setItem('novelite_typewriter_speed', value);
+        safeStorageSet('novelite_typewriter_speed', value);
       } else if (key === 'dialogueEnabled' && typeof value === 'boolean') {
         setDialogueEnabled(value);
-        localStorage.setItem('novelite_dialogue_enabled', String(value));
+        safeStorageSet('novelite_dialogue_enabled', String(value));
       } else if (key === 'focusEnabled' && typeof value === 'boolean') {
         setSpotlightMode(value ? 'paragraph' : 'none');
-        localStorage.setItem('novelite_spotlight_mode', value ? 'paragraph' : 'none');
+        safeStorageSet('novelite_spotlight_mode', value ? 'paragraph' : 'none');
       }
     });
 
     const unsubBgEffect = eventBus.on('background-effect-changed', (effect: any) => {
       if (effect && typeof effect === 'string') {
         setBackgroundEffect(effect as BackgroundEffect);
-        localStorage.setItem('novelite_bg_effect', effect);
+        safeStorageSet('novelite_bg_effect', effect);
       }
     });
 
     const unsubBgPlugin = eventBus.on('plugin-setting-changed:plugin-background-atmosphere', ({ key, value }: any) => {
       if (key === 'effect' && typeof value === 'string') {
         setBackgroundEffect(value as BackgroundEffect);
-        localStorage.setItem('novelite_bg_effect', value);
+        safeStorageSet('novelite_bg_effect', value);
       } else if (key === 'intensity' && typeof value === 'number') {
         setBackgroundIntensity(value);
-        localStorage.setItem('novelite_bg_intensity', String(value));
+        safeStorageSet('novelite_bg_intensity', String(value));
       }
     });
 
@@ -512,7 +532,7 @@ export const App: React.FC = () => {
       } else {
         const chap = projectStore.getActiveChapter();
         setHudStats({
-          title: chap?.title || '未命名章节',
+          title: chap?.title || (languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节'),
           wordCount: chap ? countWordsFast(chap.content) : 0,
           isSaving: false,
         });
@@ -522,7 +542,7 @@ export const App: React.FC = () => {
     const unsubChapSelect = eventBus.on('chapter-selected', (chap: any) => {
       if (chap) {
         setHudStats({
-          title: chap.title || '未命名章节',
+          title: chap.title || (languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节'),
           wordCount: countWordsFast(chap.content || ''),
           isSaving: false,
         });
@@ -534,7 +554,7 @@ export const App: React.FC = () => {
       const active = projectStore.getActiveChapter();
       if (active && targetChapId && active.id === targetChapId && typeof data?.content === 'string') {
         setHudStats({
-          title: active.title || '未命名章节',
+          title: active.title || (languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节'),
           wordCount: countWordsFast(data.content),
           isSaving: false,
         });
@@ -561,9 +581,11 @@ export const App: React.FC = () => {
     const unsubToggleSplit = eventBus.on('split-view:toggle', () => {
       setIsSplitViewOpen((prev) => {
         const next = !prev;
-        localStorage.setItem('novelite_split_open', String(next));
+        safeStorageSet('novelite_split_open', String(next));
         eventBus.emit('show-toast', {
-          message: next ? '已开启对照分屏 (Alt+S)' : '已关闭对照分屏',
+          message: languageRef.current === 'en'
+            ? (next ? 'Split view opened (Alt+S)' : 'Split view closed')
+            : (next ? '已开启对照分屏 (Alt+S)' : '已关闭对照分屏'),
           type: 'info',
         });
         return next;
@@ -608,7 +630,7 @@ export const App: React.FC = () => {
     const unsubSidebar = eventBus.on('sidebar:toggle', () => {
       setIsSidebarOpen((prev) => {
         const next = !prev;
-        localStorage.setItem('novelite_sidebar_open', String(next));
+        safeStorageSet('novelite_sidebar_open', String(next));
         return next;
       });
     });
@@ -640,52 +662,52 @@ export const App: React.FC = () => {
 
   const handleSelectTheme = (id: string) => {
     setThemeId(id);
-    localStorage.setItem('novelite_theme_id', id);
+    safeStorageSet('novelite_theme_id', id);
   };
 
   const handleSelectCursorShape = (shape: 'beam' | 'block' | 'underline') => {
     setCursorShape(shape);
-    localStorage.setItem('novelite_cursor_shape', shape);
+    safeStorageSet('novelite_cursor_shape', shape);
   };
 
   const handleChangeCursorColor = (color: string) => {
     setCursorColor(color);
-    localStorage.setItem('novelite_cursor_color', color);
+    safeStorageSet('novelite_cursor_color', color);
   };
 
   const handleSelectFontPreset = (preset: 'lxgw' | 'songti' | 'sans' | 'mono' | 'custom') => {
     setFontPreset(preset);
-    localStorage.setItem('novelite_font_preset', preset);
+    safeStorageSet('novelite_font_preset', preset);
   };
 
   const handleChangeCustomFontName = (name: string) => {
     setCustomFontName(name);
-    localStorage.setItem('novelite_custom_font_name', name);
+    safeStorageSet('novelite_custom_font_name', name);
   };
 
   const handleChangeFontSize = (size: number) => {
     setFontSize(size);
-    localStorage.setItem('novelite_font_size', String(size));
+    safeStorageSet('novelite_font_size', String(size));
   };
 
   const handleChangeLineHeight = (height: number) => {
     setLineHeight(height);
-    localStorage.setItem('novelite_line_height', String(height));
+    safeStorageSet('novelite_line_height', String(height));
   };
 
   const handleChangeEditorTextColor = (color: string) => {
     setEditorTextColor(color);
-    localStorage.setItem('novelite_editor_text_color', color);
+    safeStorageSet('novelite_editor_text_color', color);
   };
 
   const handleChangeUiAccentColor = (color: string) => {
     setUiAccentColor(color);
-    localStorage.setItem('novelite_ui_accent_color', color);
+    safeStorageSet('novelite_ui_accent_color', color);
   };
 
   const handleChangeDialogueColor = (color: string) => {
     setDialogueColor(color);
-    localStorage.setItem('novelite_dialogue_color', color);
+    safeStorageSet('novelite_dialogue_color', color);
     const ctx = pluginManager.getPluginContext('plugin-immersion');
     if (color === 'auto') {
       ctx?.setSetting('dialogueColorPreset', 'theme');
@@ -699,7 +721,7 @@ export const App: React.FC = () => {
   const handleToggleDialogue = () => {
     setDialogueEnabled((prev) => {
       const next = !prev;
-      localStorage.setItem('novelite_dialogue_enabled', String(next));
+      safeStorageSet('novelite_dialogue_enabled', String(next));
       const ctx = pluginManager.getPluginContext('plugin-immersion');
       ctx?.setSetting('dialogueEnabled', next);
       eventBus.emit('editor-extensions-changed');
@@ -709,48 +731,48 @@ export const App: React.FC = () => {
 
   const handleChangeContentMaxWidth = (width: number) => {
     setContentMaxWidth(width);
-    localStorage.setItem('novelite_content_max_width', String(width));
+    safeStorageSet('novelite_content_max_width', String(width));
   };
 
   const handleChangeHorizontalPadding = (padding: number) => {
     setHorizontalPadding(padding);
-    localStorage.setItem('novelite_horiz_padding', String(padding));
+    safeStorageSet('novelite_horiz_padding', String(padding));
   };
 
   const handleChangeParagraphSpacing = (spacing: number) => {
     setParagraphSpacing(spacing);
-    localStorage.setItem('novelite_paragraph_spacing', String(spacing));
+    safeStorageSet('novelite_paragraph_spacing', String(spacing));
   };
 
   const handleToggleIndent = () => {
     setIndentEnabled((prev) => {
       const next = !prev;
-      localStorage.setItem('novelite_indent_enabled', String(next));
+      safeStorageSet('novelite_indent_enabled', String(next));
       return next;
     });
   };
 
   const handleChangeIndentSize = (size: '2em' | '1em' | '3em' | '0') => {
     setIndentSize(size);
-    localStorage.setItem('novelite_indent_size', size);
+    safeStorageSet('novelite_indent_size', size);
   };
 
   const handleChangeKinsoku = (val: 'strict' | 'loose' | 'native') => {
     setKinsokuStrictness(val);
-    localStorage.setItem('novelite_kinsoku_strictness', val);
+    safeStorageSet('novelite_kinsoku_strictness', val);
   };
 
   const handleTogglePunctuationHalt = () => {
     setPunctuationHalt((prev) => {
       const next = !prev;
-      localStorage.setItem('novelite_punctuation_halt', String(next));
+      safeStorageSet('novelite_punctuation_halt', String(next));
       return next;
     });
   };
 
   const handleChangeTextAlignment = (align: 'justify' | 'left') => {
     setTextAlignment(align);
-    localStorage.setItem('novelite_text_alignment', align);
+    safeStorageSet('novelite_text_alignment', align);
   };
 
   const handleChangeLetterSpacing = (val: number) => {
@@ -764,7 +786,7 @@ export const App: React.FC = () => {
       clearTimeout(debounceTimerRef.current[key]);
     }
     debounceTimerRef.current[key] = window.setTimeout(() => {
-      localStorage.setItem(key, value);
+      safeStorageSet(key, value);
     }, 200);
   };
 
@@ -780,12 +802,12 @@ export const App: React.FC = () => {
 
   const handleChangeVfxMode = (vfx: 'pure' | 'embers' | 'ripples' | 'feather') => {
     setVfxMode(vfx);
-    localStorage.setItem('novelite_cursor_vfx_mode', vfx);
+    safeStorageSet('novelite_cursor_vfx_mode', vfx);
   };
 
   const handleChangeBlinkMode = (mode: 'smooth' | 'solid' | 'blink') => {
     setBlinkMode(mode);
-    localStorage.setItem('novelite_cursor_blink_mode', mode);
+    safeStorageSet('novelite_cursor_blink_mode', mode);
   };
 
   const handleChangeBreatheCycle = (cycle: number) => {
@@ -795,49 +817,49 @@ export const App: React.FC = () => {
 
   const handleChangeSpeedMode = (mode: 'gentle' | 'balanced' | 'snappy') => {
     setSpeedMode(mode);
-    localStorage.setItem('novelite_cursor_speed_mode', mode);
+    safeStorageSet('novelite_cursor_speed_mode', mode);
   };
 
   const handleChangePhysicsMode = (mode: 'fluid' | 'ribbon' | 'quantum') => {
     setPhysicsMode(mode);
-    localStorage.setItem('novelite_cursor_physics_mode', mode);
+    safeStorageSet('novelite_cursor_physics_mode', mode);
   };
 
   const handleChangeLuminescence = (val: boolean) => {
     setLuminescence(val);
-    localStorage.setItem('novelite_cursor_luminescence', String(val));
+    safeStorageSet('novelite_cursor_luminescence', String(val));
   };
 
   const handleChangeInlineSkew = (val: boolean) => {
     setInlineSkew(val);
-    localStorage.setItem('novelite_cursor_inline_skew', String(val));
+    safeStorageSet('novelite_cursor_inline_skew', String(val));
   };
 
   const handleChangeStreamPreset = (preset: 'theme' | 'cyan-violet' | 'ice-blue' | 'emerald' | 'amber-rose' | 'sakura' | 'mono' | 'custom') => {
     setStreamPreset(preset);
-    localStorage.setItem('novelite_cursor_stream_preset', preset);
+    safeStorageSet('novelite_cursor_stream_preset', preset);
   };
 
   const handleChangeStreamHeadColor = (color: string) => {
     setStreamHeadColor(color);
-    localStorage.setItem('novelite_cursor_stream_head', color);
+    safeStorageSet('novelite_cursor_stream_head', color);
   };
 
   const handleChangeStreamTailColor = (color: string) => {
     setStreamTailColor(color);
-    localStorage.setItem('novelite_cursor_stream_tail', color);
+    safeStorageSet('novelite_cursor_stream_tail', color);
   };
 
   const handleChangeBackgroundEffect = (eff: BackgroundEffect) => {
     setBackgroundEffect(eff);
-    localStorage.setItem('novelite_bg_effect', eff);
+    safeStorageSet('novelite_bg_effect', eff);
     const ctx = pluginManager.getPluginContext('plugin-background-atmosphere');
     ctx?.setSetting('effect', eff);
   };
 
   const handleChangeBackgroundIntensity = (intensity: number) => {
     setBackgroundIntensity(intensity);
-    localStorage.setItem('novelite_bg_intensity', String(intensity));
+    safeStorageSet('novelite_bg_intensity', String(intensity));
     const ctx = pluginManager.getPluginContext('plugin-background-atmosphere');
     ctx?.setSetting('intensity', intensity);
   };
@@ -845,27 +867,27 @@ export const App: React.FC = () => {
   const handleChangeCustomImage = (img: string | null) => {
     setCustomImage(img);
     if (img) {
-      localStorage.setItem('novelite_custom_image', img);
+      safeStorageSet('novelite_custom_image', img);
     } else {
-      localStorage.removeItem('novelite_custom_image');
+      safeStorageRemove('novelite_custom_image');
     }
   };
 
   const handleChangeCustomImageRaw = (raw: string | null) => {
     setCustomImageRaw(raw);
     if (raw) {
-      localStorage.setItem('novelite_custom_image_raw', raw);
+      safeStorageSet('novelite_custom_image_raw', raw);
     } else {
-      localStorage.removeItem('novelite_custom_image_raw');
+      safeStorageRemove('novelite_custom_image_raw');
     }
   };
 
   const handleChangeCropParams = (params: CropParams | null) => {
     setCropParams(params);
     if (params) {
-      localStorage.setItem('novelite_crop_params', JSON.stringify(params));
+      safeStorageSet('novelite_crop_params', JSON.stringify(params));
     } else {
-      localStorage.removeItem('novelite_crop_params');
+      safeStorageRemove('novelite_crop_params');
     }
   };
 
@@ -881,20 +903,20 @@ export const App: React.FC = () => {
 
   const handleSelectSpotlightMode = (mode: 'none' | 'paragraph') => {
     setSpotlightMode(mode);
-    localStorage.setItem('novelite_spotlight_mode', mode);
+    safeStorageSet('novelite_spotlight_mode', mode);
   };
 
   const handleToggleZeroChrome = () => {
     setZeroChrome((prev) => {
       const next = !prev;
-      localStorage.setItem('novelite_zero_chrome', String(next));
+      safeStorageSet('novelite_zero_chrome', String(next));
       return next;
     });
   };
 
   const handleToggleTypewriter = (enabled: boolean) => {
     setTypewriterEnabled(enabled);
-    localStorage.setItem('novelite_typewriter_enabled', String(enabled));
+    safeStorageSet('novelite_typewriter_enabled', String(enabled));
     if (enabled) {
       pluginManager.enablePlugin('plugin-typewriter');
     }
@@ -905,12 +927,12 @@ export const App: React.FC = () => {
 
   const handleChangeTypewriterRatio = (ratio: number) => {
     setTypewriterRatio(ratio);
-    localStorage.setItem('novelite_typewriter_ratio', String(ratio));
+    safeStorageSet('novelite_typewriter_ratio', String(ratio));
   };
 
   const handleChangeTypewriterSpeed = (speed: 'gentle' | 'balanced' | 'snappy' | 'instant') => {
     setTypewriterSpeed(speed);
-    localStorage.setItem('novelite_typewriter_speed', speed);
+    safeStorageSet('novelite_typewriter_speed', speed);
   };
 
   return (
@@ -990,7 +1012,7 @@ export const App: React.FC = () => {
           <div
             onPointerDown={handleSplitterPointerDown}
             onDoubleClick={() => handleSplitRatioChange(0.5)}
-            title="按住拖拽调节分屏比例，双击恢复 50:50 对等"
+            title={isEn ? 'Drag to resize split panes, double click to reset to 50:50' : '按住拖拽调节分屏比例，双击恢复 50:50 对等'}
             className={`group flex items-center justify-center relative z-30 transition-colors ${
               splitDirection === 'vertical'
                 ? 'w-2 -mx-1 cursor-col-resize hover:bg-cyan-400/20 active:bg-cyan-400/40'
@@ -1023,7 +1045,7 @@ export const App: React.FC = () => {
               boundChapterId={secondaryChapterId || undefined}
               onSelectChapter={(id) => {
                 setSecondaryChapterId(id);
-                localStorage.setItem('novelite_split_secondary_chapter', id);
+                safeStorageSet('novelite_split_secondary_chapter', id);
               }}
               showPaneHeader={true}
               onClosePane={() => setIsSplitViewOpen(false)}
@@ -1078,7 +1100,7 @@ export const App: React.FC = () => {
         >
           {/* Status Jewel Light (Saving vs Saved, Adaptive to Theme Accent) */}
           <div
-            title={hudStats.isSaving ? '正在自动保存落盘...' : '已安全实时保存'}
+            title={isEn ? (hudStats.isSaving ? 'Saving changes...' : 'Changes safely saved') : (hudStats.isSaving ? '正在自动保存落盘...' : '已安全实时保存')}
             className="relative flex items-center justify-center cursor-default shrink-0"
           >
             {hudStats.isSaving ? (
@@ -1108,7 +1130,7 @@ export const App: React.FC = () => {
             className="font-semibold tracking-tight"
             style={{ color: theme.colors.text }}
           >
-            {hudStats.wordCount.toLocaleString()} 字
+            {hudStats.wordCount.toLocaleString()} {isEn ? 'words' : '字'}
           </span>
 
           <span className="opacity-25 select-none">|</span>
@@ -1126,7 +1148,7 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-1 pl-1.5 border-l ml-0.5" style={{ borderColor: `${theme.colors.border}60` }}>
             <button
               onClick={() => setIsCommandPaletteOpen(true)}
-              title="命令面板 (Ctrl+P / ⌘K)"
+              title={isEn ? 'Command Palette (Ctrl+P / ⌘K)' : '命令面板 (Ctrl+P / ⌘K)'}
               className="p-1 rounded-md opacity-60 hover:opacity-100 transition-all cursor-pointer"
               style={{ color: theme.colors.text }}
             >
@@ -1135,7 +1157,7 @@ export const App: React.FC = () => {
 
             <button
               onClick={() => setIsSettingsOpen(true)}
-              title="偏好设置 (Ctrl+, / ⌘,)"
+              title={isEn ? 'Preferences (Ctrl+, / ⌘,)' : '偏好设置 (Ctrl+, / ⌘,)'}
               className="p-1 rounded-md opacity-60 hover:opacity-100 transition-all cursor-pointer"
               style={{ color: theme.colors.text }}
             >

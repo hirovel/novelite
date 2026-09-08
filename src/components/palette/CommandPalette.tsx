@@ -69,7 +69,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
       id: 'cmd_switch_language',
       type: 'command',
       title: language === 'zh' ? '切换为英文界面 (Switch to English)' : 'Switch to Chinese (切换为简体中文)',
-      subtitle: 'Language / 界面语言',
+      subtitle: language === 'en' ? 'Language' : '界面语言',
       action: () => {
         const nextLang = language === 'zh' ? 'en' : 'zh';
         setLanguage(nextLang);
@@ -83,8 +83,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_cheatsheet',
       type: 'command',
-      title: '快捷键速查与自定义',
-      subtitle: '快捷键',
+      title: language === 'en' ? 'Hotkeys Cheatsheet & Custom Keymap' : '快捷键速查与自定义',
+      subtitle: language === 'en' ? 'Keymap' : '快捷键',
       shortcut: keymapRegistry.get('keymap:open-cheatsheet')?.currentKey || 'Ctrl+/',
       action: () => {
         eventBus.emit('keymap:open-cheatsheet');
@@ -94,8 +94,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_open_outline',
       type: 'command',
-      title: '打开大纲手稿台',
-      subtitle: '大纲目录',
+      title: language === 'en' ? 'Open Flight Deck & Outline' : '打开大纲手稿台',
+      subtitle: language === 'en' ? 'Outline Directory' : '大纲目录',
       shortcut: keymapRegistry.get('nav:flight-deck')?.currentKey || 'Ctrl+J',
       action: () => {
         eventBus.emit('quick-search:open');
@@ -105,8 +105,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_open_scratchpad',
       type: 'command',
-      title: '打开灵感备忘录',
-      subtitle: '设定与随笔',
+      title: language === 'en' ? 'Open Inspiration Scratchpad' : '打开灵感备忘录',
+      subtitle: language === 'en' ? 'Notes & Lore' : '设定与随笔',
       shortcut: keymapRegistry.get('nav:scratchpad')?.currentKey || 'Ctrl+Shift+M',
       action: () => {
         eventBus.emit('scratchpad:open');
@@ -116,8 +116,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_open_bookshelf',
       type: 'command',
-      title: '打开作品书架',
-      subtitle: '书架管理',
+      title: language === 'en' ? 'Open Manuscript Bookshelf' : '打开作品书架',
+      subtitle: language === 'en' ? 'Bookshelf' : '书架管理',
       shortcut: keymapRegistry.get('nav:bookshelf')?.currentKey || 'Ctrl+Shift+B',
       action: () => {
         eventBus.emit('bookshelf:open');
@@ -127,8 +127,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_global_search',
       type: 'command',
-      title: '全书正文全文检索',
-      subtitle: '全局搜索',
+      title: language === 'en' ? 'Global Full-text Search' : '全书正文全文检索',
+      subtitle: language === 'en' ? 'Global Search' : '全局搜索',
       shortcut: keymapRegistry.get('nav:global-search')?.currentKey || 'Ctrl+Shift+F',
       action: () => {
         eventBus.emit('global-search:open');
@@ -138,8 +138,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_import_novel',
       type: 'command',
-      title: '导入 TXT 小说 (自动切分卷章)',
-      subtitle: '稿件导入',
+      title: language === 'en' ? 'Import TXT Novel (Auto-split Chapters)' : '导入 TXT 小说 (自动切分卷章)',
+      subtitle: language === 'en' ? 'Manuscript Import' : '稿件导入',
       shortcut: keymapRegistry.get('novel:import-txt')?.currentKey || 'Ctrl+Shift+I',
       action: () => {
         eventBus.emit('novel-import:open');
@@ -149,8 +149,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_next_chapter',
       type: 'command',
-      title: '切换至下一章',
-      subtitle: '章节导航',
+      title: language === 'en' ? 'Switch to Next Chapter' : '切换至下一章',
+      subtitle: language === 'en' ? 'Navigation' : '章节导航',
       shortcut: keymapRegistry.get('nav:next-chapter')?.currentKey || 'Ctrl+]',
       action: () => {
         projectStore.navigateToNextChapter();
@@ -160,8 +160,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_prev_chapter',
       type: 'command',
-      title: '切换至上一章',
-      subtitle: '章节导航',
+      title: language === 'en' ? 'Switch to Previous Chapter' : '切换至上一章',
+      subtitle: language === 'en' ? 'Navigation' : '章节导航',
       shortcut: keymapRegistry.get('nav:prev-chapter')?.currentKey || 'Ctrl+[',
       action: () => {
         projectStore.navigateToPrevChapter();
@@ -171,11 +171,14 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     {
       id: 'cmd_auto_number',
       type: 'command',
-      title: '全书章节重新编号',
-      subtitle: '章节序号',
+      title: language === 'en' ? 'Renumber All Chapters' : '全书章节重新编号',
+      subtitle: language === 'en' ? 'Chapter Numbering' : '章节序号',
       action: () => {
         const count = projectStore.autoNumberChapters();
-        eventBus.emit('show-toast', { message: `已完成全书 ${count} 个章节序号编号`, type: 'success' });
+        eventBus.emit('show-toast', {
+          message: language === 'en' ? `Renumbered ${count} chapters across manuscript` : `已完成全书 ${count} 个章节序号编号`,
+          type: 'success',
+        });
         onClose();
       },
     }
@@ -188,7 +191,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
         id: `chap_${chap.id}`,
         type: 'chapter',
         title: chap.title,
-        subtitle: `${vol.title} • ${chap.wordCount || 0} 字`,
+        subtitle: `${vol.title} • ${chap.wordCount || 0} ${language === 'en' ? 'words' : '字'}`,
         action: () => {
           projectStore.setActiveChapter(chap.id);
           onClose();
@@ -204,8 +207,8 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     items.push({
       id: `cmd_${cmd.id}`,
       type: 'command',
-      title: cmd.title,
-      subtitle: cmd.category || '快捷命令',
+      title: language === 'en' && cmd.titleEn ? cmd.titleEn : cmd.title,
+      subtitle: (language === 'en' && cmd.categoryEn ? cmd.categoryEn : cmd.category) || (language === 'en' ? 'Quick Command' : '快捷命令'),
       shortcut: dynamicKey,
       action: () => {
         const targetId = cmd.pluginId || cmd.id;
@@ -279,7 +282,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
               setSelectedIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            placeholder="搜索章节、跳转或执行命令... (支持 Esc 退出)"
+            placeholder={language === 'en' ? "Search chapters, navigate, or run commands... (Esc to exit)" : "搜索章节、跳转或执行命令... (支持 Esc 退出)"}
             className="flex-1 bg-transparent text-sm outline-none placeholder:opacity-40 font-mono tracking-tight"
             style={{ color: theme.colors.text }}
           />
@@ -293,7 +296,7 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
         <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
           {filtered.length === 0 ? (
             <div className="py-12 text-center text-xs opacity-40 font-mono">
-              未找到匹配的章节或指令
+              {language === 'en' ? 'No matching chapters or commands found' : '未找到匹配的章节或指令'}
             </div>
           ) : (
             filtered.map((item, idx) => {
@@ -359,10 +362,10 @@ export const CommandPalette: React.FC<Props> = ({ isOpen, onClose, theme }) => {
           style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}80`, color: theme.colors.textMuted }}
         >
           <div className="flex items-center gap-3">
-            <span>↑↓ 切换选择</span>
-            <span>↵ 立即跳转</span>
+            <span>{language === 'en' ? '↑↓ Navigate' : '↑↓ 切换选择'}</span>
+            <span>{language === 'en' ? '↵ Execute / Jump' : '↵ 立即跳转'}</span>
           </div>
-          <span>Novelite Command Hub</span>
+          <span>{language === 'en' ? 'Novelite Command Hub' : 'Novelite 命令中心'}</span>
         </div>
       </div>
     </div>

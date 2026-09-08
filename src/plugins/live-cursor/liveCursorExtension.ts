@@ -31,6 +31,7 @@ export function createLiveCursorPluginExtension(
     engine.setFocused(view.hasFocus);
 
     let isRunning = false;
+    let rafId: number | null = null;
     let lastTime = performance.now();
     let dpr = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
 
@@ -170,9 +171,10 @@ export function createLiveCursorPluginExtension(
       }
 
       if (engine.isAnimating(config)) {
-        requestAnimationFrame(loop);
+        rafId = requestAnimationFrame(loop);
       } else {
         isRunning = false;
+        rafId = null;
       }
     };
 
@@ -180,7 +182,8 @@ export function createLiveCursorPluginExtension(
       if (!isRunning && ctx) {
         isRunning = true;
         lastTime = performance.now();
-        requestAnimationFrame(loop);
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(loop);
       }
     };
 
@@ -245,6 +248,10 @@ export function createLiveCursorPluginExtension(
       },
       destroy() {
         isRunning = false;
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
         view.scrollDOM.removeEventListener('scroll', handleScroll);
         view.contentDOM.removeEventListener('focus', handleFocus);
         view.contentDOM.removeEventListener('blur', handleBlur);

@@ -2,6 +2,7 @@ import { DEFAULT_KEYMAPS } from './defaultKeymaps';
 import type { KeybindingCategory, KeybindingItem } from './types';
 import { eventBus } from '../events/EventBus';
 import { commandRegistry } from '../plugins/CommandRegistry';
+import { safeStorageSet } from '../storage/safeStorage';
 
 const STORAGE_KEY = 'novelite_custom_keybindings';
 
@@ -36,7 +37,7 @@ export class KeymapRegistry {
 
   private saveCustomOverrides(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.customOverrides));
+      safeStorageSet(STORAGE_KEY, JSON.stringify(this.customOverrides));
     } catch (e) {
       console.error('Failed to persist custom keybindings:', e);
     }
@@ -72,6 +73,8 @@ export class KeymapRegistry {
     // If an existing binding exists, attach the runnable action directly rather than creating a duplicate
     if (existing) {
       if (item.run) existing.run = item.run;
+      if (item.titleEn) existing.titleEn = item.titleEn;
+      if (item.descriptionEn) existing.descriptionEn = item.descriptionEn;
       this.notify();
       return () => {
         if (existing.run === item.run) existing.run = undefined;

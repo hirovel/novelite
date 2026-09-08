@@ -1,6 +1,7 @@
 import { pluginManager } from './PluginManager';
 import type { NovelitePlugin } from './types';
 import { eventBus } from '../events/EventBus';
+import { safeStorageSet } from '../storage/safeStorage';
 
 export interface CustomPluginEntry {
   id: string;
@@ -44,7 +45,7 @@ class DynamicPluginLoaderService {
   }
 
   private saveState() {
-    localStorage.setItem(
+    safeStorageSet(
       'novelite_custom_plugins_code',
       JSON.stringify(Array.from(this.customPlugins.values()))
     );
@@ -77,8 +78,14 @@ class DynamicPluginLoaderService {
       `);
 
       const pluginObj = wrapped();
+      const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
       if (!pluginObj || typeof pluginObj !== 'object' || !pluginObj.metadata || !pluginObj.metadata.id) {
-        return { success: false, error: '插件代码必须导出一个包含 metadata.id 和 metadata.name 的有效插件对象' };
+        return {
+          success: false,
+          error: isEn
+            ? 'Plugin script must return an object with metadata.id and metadata.name'
+            : '插件代码必须导出一个包含 metadata.id 和 metadata.name 的有效插件对象',
+        };
       }
 
       const plugin: NovelitePlugin = pluginObj;
@@ -89,10 +96,10 @@ class DynamicPluginLoaderService {
         id: plugin.metadata.id,
         name: plugin.metadata.name,
         version: plugin.metadata.version || '1.0.0',
-        author: plugin.metadata.author || '自定义',
-        description: plugin.metadata.description || '自定义脚本扩展',
+        author: plugin.metadata.author || (isEn ? 'Custom' : '自定义'),
+        description: plugin.metadata.description || (isEn ? 'Custom script plugin' : '自定义脚本扩展'),
         code: code,
-        installedAt: new Date().toLocaleDateString('zh-CN'),
+        installedAt: new Date().toLocaleDateString(isEn ? 'en-US' : 'zh-CN'),
       };
       this.customPlugins.set(plugin.metadata.id, entry);
       this.saveState();

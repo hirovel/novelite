@@ -20,6 +20,7 @@ import { THEMES } from '../../core/themes/themeDefinitions';
 import { UlyssesFlightDeck } from './UlyssesFlightDeck';
 import { BookshelfModal } from './BookshelfModal';
 import { BreadcrumbMicroDropdown } from './BreadcrumbMicroDropdown';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   theme: Theme;
@@ -36,6 +37,8 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
   onOpenSettings: _onOpenSettings,
   onOpenCommandPalette: _onOpenCommandPalette,
 }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [activeChapterId, setActiveChapterId] = useState<string | null>(() => projectStore.getActiveChapter()?.id || null);
   const [isFlightDeckOpen, setIsFlightDeckOpen] = useState<boolean>(false);
@@ -165,7 +168,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
         // Fallback
       }
     }
-    eventBus.emit('show-toast', { message: '手稿已自动保存', type: 'info' });
+    eventBus.emit('show-toast', { message: isEn ? 'Manuscript auto-saved' : '手稿已自动保存', type: 'info' });
   };
 
   const handleClose = async () => {
@@ -178,7 +181,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
         // Fallback
       }
     }
-    eventBus.emit('show-toast', { message: '手稿已保存至本地', type: 'success' });
+    eventBus.emit('show-toast', { message: isEn ? 'Manuscript saved locally' : '手稿已保存至本地', type: 'success' });
   };
 
   const activeChap = projectStore.getActiveChapter();
@@ -219,20 +222,24 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
           <button
             onClick={() => setIsBookshelfOpen(true)}
             className="flex items-center gap-2 px-2 py-1 rounded-lg transition-colors cursor-pointer group text-xs font-medium opacity-75 hover:opacity-100 hover:bg-white/[0.06]"
-            title="打开作品书架 (Ctrl+Shift+B)"
+            title={isEn ? "Open Bookshelf (Ctrl+Shift+B)" : "打开作品书架 (Ctrl+Shift+B)"}
             style={{ color: theme.colors.text }}
           >
             <span className="tracking-wide max-w-[180px] truncate font-medium">
-              {project.title || '未命名作品'}
+              {project.title || (isEn ? 'Untitled Novel' : '未命名作品')}
             </span>
             <ChevronDown className="h-3 w-3 opacity-30 group-hover:opacity-80 transition-opacity shrink-0" />
             {isDiskConnected && (
               <span
                 className="ml-1.5 flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded-full"
-                title={`已挂载本地硬盘：${fileSystemStore.getCurrentFolderName()} (${diskStatus === 'syncing' ? '写入中' : '实时同步'})`}
+                title={
+                  isEn
+                    ? `Mounted local disk: ${fileSystemStore.getCurrentFolderName()} (${diskStatus === 'syncing' ? 'Syncing' : 'Live sync'})`
+                    : `已挂载本地硬盘：${fileSystemStore.getCurrentFolderName()} (${diskStatus === 'syncing' ? '写入中' : '实时同步'})`
+                }
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span>{diskStatus === 'syncing' ? '同步中' : '本地'}</span>
+                <span>{diskStatus === 'syncing' ? (isEn ? 'Syncing' : '同步中') : (isEn ? 'Local' : '本地')}</span>
               </span>
             )}
           </button>
@@ -248,7 +255,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
                 projectStore.navigateToPrevChapter();
               }}
               className="p-1 rounded-md opacity-0 group-hover/stepper:opacity-40 hover:!opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer mr-1 text-xs"
-              title="上一章 (Ctrl+[)"
+              title={isEn ? "Previous Chapter (Ctrl+[)" : "上一章 (Ctrl+[)"}
               style={{ color: theme.colors.text }}
             >
               <ChevronLeft className="h-3.5 w-3.5" />
@@ -263,17 +270,17 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
               }}
               className="group flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-white/[0.06] text-xs cursor-pointer transition-colors text-center"
               style={{ color: theme.colors.text }}
-              title="点击选择章节 (右键或按 Ctrl+J 打开大纲手稿台)"
+              title={isEn ? "Click to select chapter (Right-click or Ctrl+J for Flight Deck)" : "点击选择章节 (右键或按 Ctrl+J 打开大纲手稿台)"}
             >
               <span className="opacity-50 group-hover:opacity-80 font-normal tracking-wide">
-                {activeVol?.title || '第一卷'}
+                {activeVol?.title || (isEn ? 'Vol 1' : '第一卷')}
               </span>
               <span className="opacity-20 font-mono text-[10px] mx-0.5">/</span>
               <span className="opacity-80 group-hover:opacity-100 font-medium tracking-wide">
-                {activeChap?.title || '第一章'}
+                {activeChap?.title || (isEn ? 'Chapter 1' : '第一章')}
               </span>
               <span className="text-[10px] font-mono opacity-35 ml-1">
-                ({activeChap?.wordCount || 0}字)
+                {isEn ? `(${activeChap?.wordCount || 0} words)` : `(${activeChap?.wordCount || 0}字)`}
               </span>
               <ChevronDown className={`h-3 w-3 opacity-25 group-hover:opacity-70 transition-transform ml-0.5 ${isMicroDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -285,7 +292,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
                 projectStore.navigateToNextChapter();
               }}
               className="p-1 rounded-md opacity-0 group-hover/stepper:opacity-40 hover:!opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer ml-1 text-xs"
-              title="下一章 (Ctrl+])"
+              title={isEn ? "Next Chapter (Ctrl+])" : "下一章 (Ctrl+])"}
               style={{ color: theme.colors.text }}
             >
               <ChevronRight className="h-3.5 w-3.5" />
@@ -299,7 +306,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
           <button
             onClick={() => eventBus.emit('split-view:toggle')}
             className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer"
-            title="开启/关闭分屏 (Alt+S)"
+            title={isEn ? "Toggle Split View (Alt+S)" : "开启/关闭分屏 (Alt+S)"}
             style={{ color: theme.colors.text }}
           >
             <Columns className="h-3.5 w-3.5" />
@@ -310,7 +317,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
             <button
               onClick={() => setShowThemePicker(!showThemePicker)}
               className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer"
-              title="切换主题风格"
+              title={isEn ? "Switch Theme" : "切换主题风格"}
               style={{ color: theme.colors.text }}
             >
               <Palette className="h-3.5 w-3.5" />
@@ -327,7 +334,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="px-2.5 py-1 text-[9.5px] opacity-40 font-mono border-b border-white/5">
-                  <span>视觉风格</span>
+                  <span>{isEn ? 'Visual Theme' : '视觉风格'}</span>
                 </div>
                 <div className="py-0.5 space-y-0.5">
                   {themeList.map((t) => (
@@ -344,8 +351,10 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
                     >
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: t.dot }} />
-                        <span className="font-medium text-xs shrink-0">{t.nameZh}</span>
-                        <span className="text-[10px] opacity-40 font-mono truncate">({t.name})</span>
+                        <span className="font-medium text-xs shrink-0">{isEn ? t.name : t.nameZh}</span>
+                        <span className="text-[10px] opacity-40 font-mono truncate">
+                          ({isEn ? t.nameZh : t.name})
+                        </span>
                       </div>
                       {theme.id === t.id && (
                         <Check className="h-3 w-3 shrink-0" style={{ color: theme.colors.accent || '#38bdf8' }} />
@@ -362,7 +371,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
             <button
               onClick={handleMinimize}
               className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer"
-              title="最小化"
+              title={isEn ? "Minimize" : "最小化"}
               style={{ color: theme.colors.text }}
             >
               <Minus className="h-3 w-3" />
@@ -371,7 +380,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
             <button
               onClick={handleToggleFullscreen}
               className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-white/[0.06] transition-all cursor-pointer"
-              title={isFullscreen ? '还原窗口' : '最大化全屏'}
+              title={isFullscreen ? (isEn ? 'Exit Fullscreen' : '还原窗口') : (isEn ? 'Maximize' : '最大化全屏')}
               style={{ color: theme.colors.text }}
             >
               {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Square className="h-3 w-3" />}
@@ -380,7 +389,7 @@ export const TopSeamlessTitlebar: React.FC<Props> = ({
             <button
               onClick={handleClose}
               className="p-1.5 rounded-md opacity-40 hover:opacity-100 hover:bg-red-500/80 hover:text-white transition-all cursor-pointer ml-0.5"
-              title="关闭"
+              title={isEn ? "Close" : "关闭"}
               style={{ color: theme.colors.text }}
             >
               <X className="h-3 w-3" />

@@ -3,13 +3,16 @@ import { createFocusModeExtension, type FocusScope } from './focusExtension';
 import { createTypewriterExtension, type TypewriterConfig } from './typewriterExtension';
 import { createDialogueHighlighterExtension, type DialogueColorPreset } from './dialogueExtension';
 import { eventBus } from '../../core/events/EventBus';
+import { getLanguage } from '../../core/i18n';
 
 export const ImmersionPlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-immersion',
     name: '沉浸写作',
+    nameEn: 'Immersion Suite',
     version: '2.0.0',
     description: '提供段落专注模式、打字机定高滚动与对话台词高亮。',
+    descriptionEn: 'Paragraph focus spotlight, typewriter scrolling, and dialogue quote highlighting.',
     author: 'hirovel',
     icon: 'Focus',
     defaultEnabled: true,
@@ -19,14 +22,23 @@ export const ImmersionPlugin: NovelitePlugin = {
     ctx.registerCommand({
       id: 'focus.toggle',
       title: '切换专注模式',
+      titleEn: 'Toggle Focus Mode',
+      descriptionEn: 'Toggle focus spotlight on active paragraph or sentence',
       category: '沉浸写作',
+      categoryEn: 'Immersion',
       shortcut: 'Alt+F',
       run: (c) => {
+        const isEn = getLanguage() === 'en';
         const current = c.getSetting<boolean>('focusEnabled', false);
         const next = !current;
         c.setSetting('focusEnabled', next);
         eventBus.emit('editor-extensions-changed');
-        c.showToast(next ? '已开启专注模式' : '已关闭专注模式', 'info');
+        c.showToast(
+          isEn
+            ? (next ? 'Focus spotlight enabled' : 'Focus spotlight disabled')
+            : (next ? '已开启专注模式' : '已关闭专注模式'),
+          'info'
+        );
       },
     });
 
@@ -34,21 +46,31 @@ export const ImmersionPlugin: NovelitePlugin = {
     ctx.registerCommand({
       id: 'focus.cycle-scope',
       title: '切换专注范围 (段落 / 单句 / 三行)',
+      titleEn: 'Cycle Focus Scope (Paragraph / Sentence / 3-Line)',
+      descriptionEn: 'Cycle spotlight focus between paragraph, sentence, and 3-line horizon',
       category: '沉浸写作',
+      categoryEn: 'Immersion',
       shortcut: 'Alt+Shift+F',
       run: (c) => {
+        const isEn = getLanguage() === 'en';
         const scopes: FocusScope[] = ['paragraph', 'sentence', 'horizon'];
-        const names: Record<FocusScope, string> = {
-          paragraph: '当前段落',
-          sentence: '当前句子',
-          horizon: '三行视野',
-        };
+        const names: Record<FocusScope, string> = isEn
+          ? {
+              paragraph: 'Current Paragraph',
+              sentence: 'Current Sentence',
+              horizon: 'Three-line Horizon',
+            }
+          : {
+              paragraph: '当前段落',
+              sentence: '当前句子',
+              horizon: '三行视野',
+            };
         const current = c.getSetting<FocusScope>('focusScope', 'paragraph');
         const nextIdx = (scopes.indexOf(current) + 1) % scopes.length;
         const next = scopes[nextIdx];
         c.setSetting('focusScope', next);
         eventBus.emit('editor-extensions-changed');
-        c.showToast(`专注范围: ${names[next]}`, 'info');
+        c.showToast(isEn ? `Focus scope: ${names[next]}` : `专注范围: ${names[next]}`, 'info');
       },
     });
 
@@ -56,13 +78,22 @@ export const ImmersionPlugin: NovelitePlugin = {
     ctx.registerCommand({
       id: 'typewriter.toggle',
       title: '切换打字机模式',
+      titleEn: 'Toggle Typewriter Mode',
+      descriptionEn: 'Keep active typing line pinned at fixed viewport height',
       category: '沉浸写作',
+      categoryEn: 'Immersion',
       run: (c) => {
+        const isEn = getLanguage() === 'en';
         const enabled = c.getSetting<boolean>('typewriterEnabled', false);
         const next = !enabled;
         c.setSetting('typewriterEnabled', next);
         eventBus.emit('editor-extensions-changed');
-        c.showToast(next ? '已开启打字机模式' : '已关闭打字机模式', 'info');
+        c.showToast(
+          isEn
+            ? (next ? 'Typewriter mode enabled' : 'Typewriter mode disabled')
+            : (next ? '已开启打字机模式' : '已关闭打字机模式'),
+          'info'
+        );
       },
     });
 
@@ -70,13 +101,22 @@ export const ImmersionPlugin: NovelitePlugin = {
     ctx.registerCommand({
       id: 'dialogue.toggle',
       title: '切换对话台词高亮',
+      titleEn: 'Toggle Dialogue Quote Highlights',
+      descriptionEn: 'Toggle color highlighting for character quotes and dialogue',
       category: '沉浸写作',
+      categoryEn: 'Immersion',
       run: (c) => {
+        const isEn = getLanguage() === 'en';
         const current = c.getSetting<boolean>('dialogueEnabled', true);
         const next = !current;
         c.setSetting('dialogueEnabled', next);
         eventBus.emit('editor-extensions-changed');
-        c.showToast(next ? '已开启对话台词高亮' : '已关闭对话台词高亮', 'info');
+        c.showToast(
+          isEn
+            ? (next ? 'Dialogue highlight enabled' : 'Dialogue highlight disabled')
+            : (next ? '已开启对话台词高亮' : '已关闭对话台词高亮'),
+          'info'
+        );
       },
     });
   },

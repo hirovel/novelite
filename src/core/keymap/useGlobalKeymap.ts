@@ -5,6 +5,8 @@ import { pluginManager } from '../plugins/PluginManager';
 import { eventBus } from '../events/EventBus';
 import { projectStore } from '../storage/ProjectStore';
 
+import { getLanguage } from '../i18n';
+
 export function useGlobalKeymap() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -108,18 +110,29 @@ export function useGlobalKeymap() {
           const next = !current;
           ctx?.setSetting('focusEnabled', next);
           eventBus.emit('editor-extensions-changed');
-          ctx?.showToast(next ? '已开启专注聚光灯' : '已关闭专注聚光灯', 'info');
+          const isEn = getLanguage() === 'en';
+          ctx?.showToast(
+            isEn
+              ? (next ? 'Focus mode enabled' : 'Focus mode disabled')
+              : (next ? '已开启专注聚光灯' : '已关闭专注聚光灯'),
+            'info'
+          );
           break;
         }
         case 'focus:toggle-scope': {
           const ctx = pluginManager.getPluginContext('plugin-immersion');
           const scopes = ['paragraph', 'sentence', 'horizon'] as const;
-          const names = { paragraph: '当前逻辑段落', sentence: '当前单句推敲', horizon: '三行微光渐变' };
+          const isEn = getLanguage() === 'en';
+          const namesZh = { paragraph: '当前逻辑段落', sentence: '当前单句推敲', horizon: '三行微光渐变' };
+          const namesEn = { paragraph: 'Paragraph Spotlight', sentence: 'Sentence Crafting', horizon: 'Three-line Horizon' };
           const current = ctx?.getSetting<(typeof scopes)[number]>('focusScope', 'paragraph') || 'paragraph';
           const next = scopes[(scopes.indexOf(current) + 1) % scopes.length];
           ctx?.setSetting('focusScope', next);
           eventBus.emit('editor-extensions-changed');
-          ctx?.showToast(`聚光范围: ${names[next] || next}`, 'info');
+          ctx?.showToast(
+            isEn ? `Focus scope: ${namesEn[next] || next}` : `聚光范围: ${namesZh[next] || next}`,
+            'info'
+          );
           break;
         }
         case 'literary:toggle-dialogue': {
@@ -128,7 +141,13 @@ export function useGlobalKeymap() {
           const next = !current;
           ctx?.setSetting('dialogueEnabled', next);
           eventBus.emit('editor-extensions-changed');
-          ctx?.showToast(next ? '已开启台词高亮' : '已关闭台词高亮', 'info');
+          const isEn = getLanguage() === 'en';
+          ctx?.showToast(
+            isEn
+              ? (next ? 'Dialogue highlight enabled' : 'Dialogue highlight disabled')
+              : (next ? '已开启台词高亮' : '已关闭台词高亮'),
+            'info'
+          );
           break;
         }
         case 'literary:quick-export': {

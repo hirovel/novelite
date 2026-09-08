@@ -28,6 +28,7 @@ import { THEMES } from '../../core/themes/themeDefinitions';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
 import { VersionHistoryModal } from './VersionHistoryModal';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -44,6 +45,8 @@ interface ContextMenuState {
 }
 
 export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeChapterId, setActiveChapterId] = useState<string | null>(() => projectStore.getActiveChapter()?.id || null);
@@ -167,12 +170,16 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
 
   const handleAutoNumber = () => {
     const count = projectStore.autoNumberChapters();
-    eventBus.emit('show-toast', { message: `已规范全书 ${count} 章节序号`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Renumbered ${count} chapters` : `已规范全书 ${count} 章节序号`,
+      type: 'success',
+    });
   };
 
   // Inline New Volume Submit
   const handleCreateVolumeSubmit = () => {
-    const title = newVolTitle.trim() || `第 ${project.volumes.length + 1} 卷`;
+    const defaultTitle = isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`;
+    const title = newVolTitle.trim() || defaultTitle;
     projectStore.addVolume(title);
     setNewVolTitle('');
     setInlineNewVol(false);
@@ -183,7 +190,8 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
     if (!inlineNewChap) return;
     const vol = project.volumes.find((v) => v.id === inlineNewChap.volId);
     const count = (vol?.chapters.length || 0) + 1;
-    const title = newChapTitle.trim() || `第 ${count} 章`;
+    const defaultTitle = isEn ? `Chapter ${count}` : `第 ${count} 章`;
+    const title = newChapTitle.trim() || defaultTitle;
 
     const newChap = projectStore.insertChapter(inlineNewChap.volId, title, inlineNewChap.index);
     setActiveChapterId(newChap.id);
@@ -215,7 +223,10 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
     setContextMenu(null);
     const copy = projectStore.duplicateChapter(chapId);
     if (copy) {
-      eventBus.emit('show-toast', { message: `已创建副本《${copy.title}》`, type: 'success' });
+      eventBus.emit('show-toast', {
+        message: isEn ? `Created copy "${copy.title}"` : `已创建副本《${copy.title}》`,
+        type: 'success',
+      });
     }
   };
 
@@ -224,18 +235,27 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
     e.stopPropagation();
     setContextMenu(null);
     projectStore.deleteChapter(chapId);
-    eventBus.emit('show-toast', { message: `已删除《${chapTitle}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted "${chapTitle}"` : `已删除《${chapTitle}》`,
+      type: 'info',
+    });
   };
 
   // Delete Volume
   const handleDeleteVolume = (e: React.MouseEvent, volId: string, volTitle: string) => {
     e.stopPropagation();
     if (project.volumes.length <= 1) {
-      eventBus.emit('show-toast', { message: '至少需保留一个分卷', type: 'warning' });
+      eventBus.emit('show-toast', {
+        message: isEn ? 'At least one volume must be kept' : '至少需保留一个分卷',
+        type: 'warning',
+      });
       return;
     }
     projectStore.deleteVolume(volId);
-    eventBus.emit('show-toast', { message: `已删除分卷《${volTitle}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted volume "${volTitle}"` : `已删除分卷《${volTitle}》`,
+      type: 'info',
+    });
   };
 
   // Export Chapter (TXT / MD)
@@ -260,7 +280,10 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    eventBus.emit('show-toast', { message: `已导出《${chap.title}.${format}》`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Exported "${chap.title}.${format}"` : `已导出《${chap.title}.${format}》`,
+      type: 'success',
+    });
   };
 
   // Drag and Drop Handlers
@@ -365,7 +388,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
         >
           <div className="flex items-center gap-1.5 overflow-hidden flex-1 mr-1">
             <h3 className="font-semibold text-xs truncate tracking-wide" style={{ color: theme.colors.text }}>
-              {project.title || '长篇小说大纲'}
+              {project.title || (isEn ? 'Novel Manuscript Outline' : '长篇小说大纲')}
             </h3>
           </div>
 
@@ -380,10 +403,10 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                     volumes: prev.volumes.map((v, idx) => (idx === 0 ? { ...v, isExpanded: true } : v)),
                   }));
                   setInlineNewChap({ volId: targetVol.id });
-                  setNewChapTitle(`第 ${(targetVol.chapters.length || 0) + 1} 章`);
+                  setNewChapTitle(isEn ? `Chapter ${(targetVol.chapters.length || 0) + 1}` : `第 ${(targetVol.chapters.length || 0) + 1} 章`);
                 }}
                 className="p-1 rounded-md opacity-50 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
-                title="新建章节 (Ctrl+N)"
+                title={isEn ? "New Chapter (Ctrl+N)" : "新建章节 (Ctrl+N)"}
                 style={{ color: theme.colors.text }}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -398,7 +421,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                   setShowThemePicker(!showThemePicker);
                 }}
                 className="p-1 rounded-md opacity-50 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
-                title="切换全局主题风格"
+                title={isEn ? "Switch Global Theme" : "切换全局主题风格"}
                 style={{ color: theme.colors.text }}
               >
                 <Palette className="h-3.5 w-3.5" />
@@ -415,7 +438,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="px-2.5 py-1 text-[9.5px] opacity-40 font-mono border-b border-white/5">
-                    <span>全局视觉风格</span>
+                    <span>{isEn ? "Global Visual Themes" : "全局视觉风格"}</span>
                   </div>
                   <div className="py-0.5 space-y-0.5">
                     {themeList.map((t) => (
@@ -429,8 +452,8 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
                           <span className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: t.dot }} />
-                          <span className="font-medium text-xs shrink-0">{t.nameZh}</span>
-                          <span className="text-[10px] opacity-40 font-mono truncate">({t.name})</span>
+                          <span className="font-medium text-xs shrink-0">{isEn ? t.name : t.nameZh}</span>
+                          <span className="text-[10px] opacity-40 font-mono truncate">({isEn ? (t.isDark ? 'Dark' : 'Light') : t.name})</span>
                         </div>
                         {theme.id === t.id && (
                           <Check className="h-3 w-3 shrink-0" style={{ color: theme.colors.accent || '#38bdf8' }} />
@@ -447,7 +470,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               onClick={onToggle}
               className="p-1 rounded-md opacity-40 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
               style={{ color: theme.colors.text }}
-              title="收起侧栏 (Ctrl+B)"
+              title={isEn ? "Collapse Sidebar (Ctrl+B)" : "收起侧栏 (Ctrl+B)"}
             >
               <PanelLeftClose className="h-3.5 w-3.5" />
             </button>
@@ -465,7 +488,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索章节..."
+              placeholder={isEn ? "Search chapters..." : "搜索章节..."}
               className="w-full bg-transparent text-xs outline-none placeholder:opacity-30 font-sans"
               style={{ color: theme.colors.text }}
             />
@@ -544,7 +567,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                     )}
 
                     <span className="text-[9.5px] font-mono opacity-30 shrink-0">
-                      ({vol.chapters.length} · {volWordCount.toLocaleString()}字)
+                      ({vol.chapters.length} · {volWordCount.toLocaleString()} {isEn ? 'words' : '字'})
                     </span>
                   </div>
 
@@ -555,14 +578,14 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                         e.stopPropagation();
                         setInlineNewChap({ volId: vol.id });
                       }}
-                      title="在此卷新建章节"
+                      title={isEn ? "Add Chapter to this Volume" : "在此卷新建章节"}
                       className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                     >
                       <Plus className="h-3 w-3" />
                     </button>
                     <button
                       onClick={(e) => handleStartRename(e, vol.id, vol.title)}
-                      title="重命名 (F2)"
+                      title={isEn ? "Rename (F2)" : "重命名 (F2)"}
                       className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                     >
                       <Edit3 className="h-3 w-3" />
@@ -570,7 +593,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                     {project.volumes.length > 1 && (
                       <button
                         onClick={(e) => handleDeleteVolume(e, vol.id, vol.title)}
-                        title="删除分卷"
+                        title={isEn ? "Delete Volume" : "删除分卷"}
                         className="p-1 opacity-50 hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 rounded"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -583,7 +606,9 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                 {vol.isExpanded && (
                   <div className="pl-4 space-y-0.5 mt-0.5 border-l border-white/[0.04] ml-2">
                     {visibleChapters.length === 0 && !inlineNewChap && (
-                      <div className="py-2 text-center text-[9.5px] opacity-30 font-mono">空分卷</div>
+                      <div className="py-2 text-center text-[9.5px] opacity-30 font-mono">
+                        {isEn ? 'Empty volume' : '空分卷'}
+                      </div>
                     )}
 
                     {visibleChapters.map((chap) => {
@@ -660,14 +685,14 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                             {/* Word Count & Action Capsule */}
                             <div className="flex items-center gap-1 shrink-0 ml-1">
                               <span className="text-[9.5px] font-mono opacity-30 group-hover:opacity-0 transition-opacity">
-                                {wordCount.toLocaleString()} 字
+                                {wordCount.toLocaleString()} {isEn ? 'words' : '字'}
                               </span>
 
                               {/* Hover Quick Actions */}
                               <div className="hidden group-hover:flex items-center gap-0.5">
                                 <button
                                   onClick={(e) => handleStartRename(e, chap.id, chap.title)}
-                                  title="重命名 (F2)"
+                                  title={isEn ? "Rename (F2)" : "重命名 (F2)"}
                                   className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                                 >
                                   <Edit3 className="h-2.5 w-2.5" />
@@ -677,14 +702,14 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                                     e.stopPropagation();
                                     handleDuplicateChapter(chap.id);
                                   }}
-                                  title="创建副本"
+                                  title={isEn ? "Duplicate" : "创建副本"}
                                   className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                                 >
                                   <Copy className="h-2.5 w-2.5" />
                                 </button>
                                 <button
                                   onClick={(e) => handleContextMenu(e, chap, vol.id)}
-                                  title="更多操作"
+                                  title={isEn ? "More Options" : "更多操作"}
                                   className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
                                 >
                                   <MoreVertical className="h-2.5 w-2.5" />
@@ -709,7 +734,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                           type="text"
                           value={newChapTitle}
                           onChange={(e) => setNewChapTitle(e.target.value)}
-                          placeholder="输入章节名，敲回车..."
+                          placeholder={isEn ? "Enter chapter title, press Enter..." : "输入章节名，敲回车..."}
                           onBlur={handleCreateChapterSubmit}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleCreateChapterSubmit();
@@ -734,7 +759,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                 type="text"
                 value={newVolTitle}
                 onChange={(e) => setNewVolTitle(e.target.value)}
-                placeholder="输入分卷名，敲回车..."
+                placeholder={isEn ? "Enter volume title, press Enter..." : "输入分卷名，敲回车..."}
                 onBlur={handleCreateVolumeSubmit}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreateVolumeSubmit();
@@ -753,18 +778,18 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
           style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}30`, color: theme.colors.textMuted }}
         >
           <span className="text-[10px] font-mono opacity-40">
-            {project.volumes.length} 卷 · {totalChapters} 章 · {totalWords.toLocaleString()} 字
+            {project.volumes.length} {isEn ? 'Vols' : '卷'} · {totalChapters} {isEn ? 'Chs' : '章'} · {totalWords.toLocaleString()} {isEn ? 'words' : '字'}
           </span>
 
           <button
             onClick={() => {
               setInlineNewVol(true);
-              setNewVolTitle(`第 ${project.volumes.length + 1} 卷`);
+              setNewVolTitle(isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`);
             }}
             className="px-2 py-0.5 rounded-lg text-xs opacity-60 hover:opacity-100 hover:bg-white/5 transition-all cursor-pointer"
             style={{ color: theme.colors.text }}
           >
-            + 新建分卷
+            + {isEn ? 'New Volume' : '新建分卷'}
           </button>
         </div>
 
@@ -790,7 +815,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               style={{ color: theme.colors.text }}
             >
               <Edit3 className="h-3 w-3 opacity-50" />
-              <span>重命名 (F2)</span>
+              <span>{isEn ? 'Rename (F2)' : '重命名 (F2)'}</span>
             </button>
 
             <button
@@ -799,7 +824,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               style={{ color: theme.colors.text }}
             >
               <Copy className="h-3 w-3 opacity-50" />
-              <span>创建副本</span>
+              <span>{isEn ? 'Duplicate' : '创建副本'}</span>
             </button>
 
             <button
@@ -811,7 +836,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               style={{ color: theme.colors.text }}
             >
               <History className="h-3 w-3 opacity-50" />
-              <span>历史版本快照</span>
+              <span>{isEn ? 'Version Snapshots' : '历史版本快照'}</span>
             </button>
 
             <button
@@ -826,7 +851,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               style={{ color: theme.colors.text }}
             >
               <ArrowUpToLine className="h-3 w-3 opacity-50" />
-              <span>在上方插入</span>
+              <span>{isEn ? 'Insert Above' : '在上方插入'}</span>
             </button>
 
             <button
@@ -841,7 +866,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               style={{ color: theme.colors.text }}
             >
               <ArrowDownToLine className="h-3 w-3 opacity-50" />
-              <span>在下方插入</span>
+              <span>{isEn ? 'Insert Below' : '在下方插入'}</span>
             </button>
 
             <button
@@ -850,7 +875,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
               style={{ color: theme.colors.text }}
             >
               <Hash className="h-3 w-3 opacity-50" />
-              <span>全书规范重编号</span>
+              <span>{isEn ? 'Renumber Chapters' : '全书规范重编号'}</span>
             </button>
 
             {/* Export & Delete */}
@@ -864,7 +889,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                 style={{ color: theme.colors.text }}
               >
                 <Download className="h-3 w-3 opacity-50" />
-                <span>导出 TXT</span>
+                <span>{isEn ? 'Export to TXT' : '导出 TXT'}</span>
               </button>
 
               <button
@@ -872,7 +897,7 @@ export const AestheticStudioTree: React.FC<Props> = ({ isOpen, onToggle, theme }
                 className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors text-left"
               >
                 <Trash2 className="h-3 w-3" />
-                <span>删除章节</span>
+                <span>{isEn ? 'Delete Chapter' : '删除章节'}</span>
               </button>
             </div>
           </div>

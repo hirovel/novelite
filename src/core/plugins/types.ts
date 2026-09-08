@@ -5,8 +5,10 @@ import type { Theme } from '../themes/types';
 export interface PluginMetadata {
   id: string;
   name: string;
+  nameEn?: string;
   version: string;
   description: string;
+  descriptionEn?: string;
   author?: string;
   icon?: string;
   defaultEnabled?: boolean;
@@ -16,8 +18,11 @@ export interface Command {
   id: string;
   pluginId?: string;
   title: string;
+  titleEn?: string;
   description?: string;
+  descriptionEn?: string;
   category?: string;
+  categoryEn?: string;
   shortcut?: string;
   icon?: React.ReactNode;
   run: (ctx: PluginContext) => void | Promise<void>;
@@ -26,6 +31,7 @@ export interface Command {
 export interface SidebarTabContribution {
   id: string;
   title: string;
+  titleEn?: string;
   icon: string; // Lucide icon name: 'BookOpen' | 'Lightbulb' | 'Users' | 'BarChart3' | 'Puzzle' | 'Layers' | 'Sparkles'
   badge?: string | number;
   order?: number;
@@ -57,6 +63,7 @@ export interface ModalContribution {
 export interface TextFormatterContribution {
   id: string;
   title: string;
+  titleEn?: string;
   shortcut?: string;
   format: (text: string) => string;
 }
@@ -64,6 +71,7 @@ export interface TextFormatterContribution {
 export interface BackgroundRendererContribution {
   id: string;
   name: string;
+  nameEn?: string;
   render: (theme: Theme, intensity: number) => React.ReactNode;
 }
 

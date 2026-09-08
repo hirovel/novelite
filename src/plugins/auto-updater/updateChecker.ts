@@ -1,5 +1,6 @@
 import type { UpdateInfo } from './types';
 import { eventBus } from '../../core/events/EventBus';
+import { safeStorageSet } from '../../core/storage/safeStorage';
 
 export const CURRENT_VERSION = '1.0.0';
 export const GITHUB_REPO = 'hirovel/novelite';
@@ -88,8 +89,8 @@ export async function checkForUpdates(
       assets,
     };
 
-    localStorage.setItem(LAST_CHECK_KEY, String(now));
-    localStorage.setItem(CACHE_KEY, JSON.stringify(updateInfo));
+    safeStorageSet(LAST_CHECK_KEY, String(now));
+    safeStorageSet(CACHE_KEY, JSON.stringify(updateInfo));
 
     if (hasUpdate) {
       eventBus.emit('app:update-available', updateInfo);

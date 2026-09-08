@@ -5,7 +5,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'editor:undo',
     title: '撤销',
+    titleEn: 'Undo',
     description: '撤销上一步编辑操作',
+    descriptionEn: 'Undo the previous editing action',
     category: 'editing',
     scope: 'editor',
     defaultKey: 'Ctrl+Z',
@@ -13,7 +15,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'editor:redo',
     title: '重做',
+    titleEn: 'Redo',
     description: '重做已撤销的编辑操作',
+    descriptionEn: 'Redo the undone editing action',
     category: 'editing',
     scope: 'editor',
     defaultKey: 'Ctrl+Y',
@@ -21,7 +25,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'editor:zoom-in',
     title: '增大字号',
+    titleEn: 'Increase Font Size',
     description: '增大编辑器字体大小',
+    descriptionEn: 'Increase editor font size',
     category: 'editing',
     scope: 'global',
     defaultKey: 'Ctrl+=',
@@ -29,7 +35,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'editor:zoom-out',
     title: '减小字号',
+    titleEn: 'Decrease Font Size',
     description: '减小编辑器字体大小',
+    descriptionEn: 'Decrease editor font size',
     category: 'editing',
     scope: 'global',
     defaultKey: 'Ctrl+-',
@@ -39,7 +47,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'nav:prev-chapter',
     title: '上一章',
+    titleEn: 'Previous Chapter',
     description: '保存当前章节并切换至上一章',
+    descriptionEn: 'Save current chapter and navigate to previous chapter',
     category: 'navigation',
     scope: 'global',
     defaultKey: 'Ctrl+[',
@@ -47,7 +57,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'nav:next-chapter',
     title: '下一章',
+    titleEn: 'Next Chapter',
     description: '保存当前章节并切换至下一章',
+    descriptionEn: 'Save current chapter and navigate to next chapter',
     category: 'navigation',
     scope: 'global',
     defaultKey: 'Ctrl+]',
@@ -55,7 +67,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'nav:flight-deck',
     title: '大纲手稿台',
+    titleEn: 'Flight Deck & Outline',
     description: '打开分卷大纲、章节列表与灵感备忘录手稿台',
+    descriptionEn: 'Open volume outlines, chapter directory, and notes deck',
     category: 'navigation',
     scope: 'global',
     defaultKey: 'Ctrl+J',
@@ -63,7 +77,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'nav:scratchpad',
     title: '灵感备忘录',
+    titleEn: 'Inspiration Scratchpad',
     description: '打开全书设定与灵感随笔备忘录',
+    descriptionEn: 'Open worldbuilding notes and scratchpad memo',
     category: 'navigation',
     scope: 'global',
     defaultKey: 'Ctrl+Shift+M',
@@ -71,7 +87,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'nav:bookshelf',
     title: '作品书架',
+    titleEn: 'Manuscript Bookshelf',
     description: '切换作品或管理作品书架',
+    descriptionEn: 'Switch manuscripts or manage project library',
     category: 'navigation',
     scope: 'global',
     defaultKey: 'Ctrl+Shift+B',
@@ -81,7 +99,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'nav:global-search',
     title: '全书全文检索',
+    titleEn: 'Global Full-text Search',
     description: '跨越全书分卷与章节正文进行全文搜索',
+    descriptionEn: 'Search across all volumes and chapter manuscripts',
     category: 'search',
     scope: 'global',
     defaultKey: 'Ctrl+Shift+F',
@@ -89,7 +109,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'search:toggle-hud',
     title: '章节查找与替换',
+    titleEn: 'Find & Replace in Chapter',
     description: '打开章节内查找与替换悬浮面板',
+    descriptionEn: 'Open in-chapter search and replace floating HUD',
     category: 'search',
     scope: 'global',
     defaultKey: 'Ctrl+F',
@@ -97,7 +119,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'search:replace-hud',
     title: '章节替换模式',
+    titleEn: 'Replace Mode HUD',
     description: '直接打开替换模式悬浮面板',
+    descriptionEn: 'Directly open replacement mode in search HUD',
     category: 'search',
     scope: 'global',
     defaultKey: 'Ctrl+H',
@@ -105,7 +129,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'nav:command-palette',
     title: '命令面板',
+    titleEn: 'Command Palette',
     description: '打开全局命令面板快速执行功能与跳转章节',
+    descriptionEn: 'Open command palette to quickly run actions and jump chapters',
     category: 'search',
     scope: 'global',
     defaultKey: 'Ctrl+P',
@@ -115,7 +141,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'split:toggle',
     title: '开启/关闭分屏',
+    titleEn: 'Toggle Split View',
     description: '开启或关闭双编辑器分屏对照',
+    descriptionEn: 'Open or close dual-editor side-by-side comparison',
     category: 'split_view',
     scope: 'global',
     defaultKey: 'Alt+S',
@@ -123,7 +151,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'split:swap-panes',
     title: '交换分屏章节',
+    titleEn: 'Swap Split Panes',
     description: '互换主副编辑区当前打开的章节',
+    descriptionEn: 'Swap active chapters between primary and secondary editor panes',
     category: 'split_view',
     scope: 'global',
     defaultKey: 'Alt+X',
@@ -131,7 +161,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'split:focus-toggle',
     title: '切换分屏焦点',
+    titleEn: 'Toggle Split Focus',
     description: '在主编辑区与副编辑区之间切换输入焦点',
+    descriptionEn: 'Switch typing focus between primary and secondary editor panes',
     category: 'split_view',
     scope: 'global',
     defaultKey: 'Ctrl+\\',
@@ -139,7 +171,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'split:focus-primary',
     title: '聚焦主编辑区',
+    titleEn: 'Focus Primary Pane',
     description: '将输入焦点切换至左侧/上方主编辑区',
+    descriptionEn: 'Move typing focus to primary editor pane',
     category: 'split_view',
     scope: 'global',
     defaultKey: 'Alt+1',
@@ -147,7 +181,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'split:focus-secondary',
     title: '聚焦副编辑区',
+    titleEn: 'Focus Secondary Pane',
     description: '将输入焦点切换至右侧/下方副编辑区',
+    descriptionEn: 'Move typing focus to secondary editor pane',
     category: 'split_view',
     scope: 'global',
     defaultKey: 'Alt+2',
@@ -157,7 +193,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'literary:save-chapter',
     title: '保存章节',
+    titleEn: 'Save Manuscript',
     description: '保存当前章节手稿至本地存储',
+    descriptionEn: 'Save current chapter manuscript to local storage',
     category: 'literary',
     scope: 'global',
     defaultKey: 'Ctrl+S',
@@ -165,7 +203,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'literary:format-chinese',
     title: '中文段落排版',
+    titleEn: 'Format Paragraphs',
     description: '自动添加段首两全角空格缩进并整理空行',
+    descriptionEn: 'Auto-format paragraph indentation and clean whitespace',
     category: 'literary',
     scope: 'global',
     defaultKey: 'Ctrl+Shift+L',
@@ -173,7 +213,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'focus:toggle',
     title: '专注聚光灯',
+    titleEn: 'Focus Spotlight',
     description: '开启或关闭聚光灯模式 (高亮当前段落并暗化周围)',
+    descriptionEn: 'Toggle focus spotlight mode (illuminate current paragraph/sentence)',
     category: 'literary',
     scope: 'global',
     defaultKey: 'Alt+F',
@@ -181,7 +223,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'focus:toggle-scope',
     title: '切换聚光灯范围',
+    titleEn: 'Cycle Focus Scope',
     description: '在段落、单句与三行微光之间切换聚焦范围',
+    descriptionEn: 'Cycle focus scope between paragraph, sentence, and tri-line',
     category: 'literary',
     scope: 'global',
     defaultKey: 'Alt+Shift+F',
@@ -189,7 +233,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'literary:toggle-dialogue',
     title: '对话台词高亮',
+    titleEn: 'Dialogue Highlighting',
     description: '开启或关闭引号内人物对话台词的高亮显示',
+    descriptionEn: 'Toggle quotation mark dialogue speech highlighting',
     category: 'literary',
     scope: 'global',
     defaultKey: 'Ctrl+Shift+H',
@@ -197,7 +243,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'novel:import-txt',
     title: '导入 TXT 小说',
+    titleEn: 'Import TXT Novel',
     description: '从本地导入 .txt / .md 文本并自动识别分卷章节',
+    descriptionEn: 'Import .txt / .md files with auto-detected chapters',
     category: 'literary',
     scope: 'global',
     defaultKey: 'Ctrl+Shift+I',
@@ -205,7 +253,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'literary:quick-export',
     title: '导出为 TXT 文本',
+    titleEn: 'Export to TXT',
     description: '将全书分卷与章节内容合并导出为 .txt 文件',
+    descriptionEn: 'Export manuscript and chapters to a plain .txt document',
     category: 'literary',
     scope: 'global',
     defaultKey: 'Ctrl+Shift+E',
@@ -215,7 +265,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'view:toggle-sidebar',
     title: '切换侧边栏',
+    titleEn: 'Toggle Sidebar',
     description: '展开或折叠左侧大纲与作品导航侧栏',
+    descriptionEn: 'Expand or collapse navigation and outline sidebar',
     category: 'system',
     scope: 'global',
     defaultKey: 'Ctrl+B',
@@ -223,7 +275,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'keymap:open-cheatsheet',
     title: '快捷键速查与自定义',
+    titleEn: 'Keymap Cheatsheet & Remap',
     description: '打开快捷键速查面板，支持修改与自定义按键',
+    descriptionEn: 'Open keybinding cheatsheet and hotkey remap panel',
     category: 'system',
     scope: 'global',
     defaultKey: 'Ctrl+/',
@@ -231,7 +285,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'view:toggle-zen',
     title: '禅模式 (全屏写作)',
+    titleEn: 'Zen Mode (Full Screen)',
     description: '隐藏界面辅助控件，全屏纯净写作',
+    descriptionEn: 'Hide interface chrome for immersive distraction-free writing',
     category: 'system',
     scope: 'global',
     defaultKey: 'F11',
@@ -239,7 +295,9 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
   {
     id: 'view:open-settings',
     title: '打开偏好设置',
+    titleEn: 'Open Preferences',
     description: '打开排版、光标、背景、主题与快捷键设置抽屉',
+    descriptionEn: 'Open typography, cursor, themes, and keymap settings drawer',
     category: 'system',
     scope: 'global',
     defaultKey: 'Ctrl+,',

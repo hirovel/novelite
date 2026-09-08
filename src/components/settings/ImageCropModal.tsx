@@ -15,6 +15,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import type { Theme } from '../../core/themes/types';
+import { useI18n } from '../../core/i18n';
 
 export interface CropParams {
   scale: number;
@@ -41,6 +42,9 @@ export const ImageCropModal: React.FC<Props> = ({
   onClose,
   onApply,
 }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
+
   const [scale, setScale] = useState<number>(initialParams?.scale ?? 1.0);
   const [rotation, setRotation] = useState<number>(initialParams?.rotation ?? 0);
   const [aspectRatio, setAspectRatio] = useState<'screen' | '16:9' | '16:10' | '4:3' | 'original'>(
@@ -442,10 +446,10 @@ export const ImageCropModal: React.FC<Props> = ({
             </div>
             <div>
               <h3 className="text-xs font-bold tracking-tight" style={{ color: theme.colors.text }}>
-                背景图片裁剪
+                {isEn ? 'Crop Background Image' : '背景图片裁剪'}
               </h3>
               <p className="text-[10px] font-mono opacity-50" style={{ color: theme.colors.textMuted }}>
-                调整图片位置、缩放与显示比例
+                {isEn ? 'Adjust image position, zoom, and aspect ratio' : '调整图片位置、缩放与显示比例'}
               </p>
             </div>
           </div>
@@ -455,10 +459,10 @@ export const ImageCropModal: React.FC<Props> = ({
               onClick={handleResetOriginal}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-[11px] font-mono opacity-70 hover:opacity-100 transition-all"
               style={{ color: theme.colors.text }}
-              title="重置为初始状态"
+              title={isEn ? 'Reset to initial state' : '重置为初始状态'}
             >
               <RotateCcw className="h-3 w-3" />
-              <span>恢复初始</span>
+              <span>{isEn ? 'Reset' : '恢复初始'}</span>
             </button>
 
             <button
@@ -536,13 +540,13 @@ export const ImageCropModal: React.FC<Props> = ({
             <div className="absolute top-3 left-3 flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/80 backdrop-blur-md text-[10px] font-mono text-white/80 border border-white/10 shadow-sm">
                 <Move className="h-3 w-3" />
-                <span>拖拽移动 · 滚轮缩放</span>
+                <span>{isEn ? "Drag to pan · Scroll to zoom" : "拖拽移动 · 滚轮缩放"}</span>
               </div>
 
               {isSnappedCenter && (
                 <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-500/30 backdrop-blur-md text-[10px] font-mono text-cyan-300 border border-cyan-400/40 shadow-xs animate-in fade-in zoom-in duration-150">
                   <AlignCenter className="h-3 w-3" />
-                  <span>已居中</span>
+                  <span>{isEn ? "Centered" : "已居中"}</span>
                 </div>
               )}
             </div>
@@ -559,15 +563,15 @@ export const ImageCropModal: React.FC<Props> = ({
             {/* Aspect Ratio Selector */}
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-medium opacity-60 mr-1" style={{ color: theme.colors.text }}>
-                比例:
+                {isEn ? 'Ratio:' : '比例:'}
               </span>
               <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
                 {[
-                  { id: 'screen', label: '自适应' },
+                  { id: 'screen', label: isEn ? 'Auto' : '自适应' },
                   { id: '16:9', label: '16:9' },
                   { id: '16:10', label: '16:10' },
                   { id: '4:3', label: '4:3' },
-                  { id: 'original', label: '原始比例' },
+                  { id: 'original', label: isEn ? 'Original' : '原始比例' },
                 ].map((ratio) => (
                   <button
                     key={ratio.id}
@@ -587,64 +591,64 @@ export const ImageCropModal: React.FC<Props> = ({
             {/* Smart Align Tools */}
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-medium opacity-60 mr-1" style={{ color: theme.colors.text }}>
-                对齐:
+                {isEn ? 'Align:' : '对齐:'}
               </span>
               <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/10">
                 <button
                   onClick={handleAlignCenter}
-                  title="居中对齐"
+                  title={isEn ? 'Center align' : '居中对齐'}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
                   style={{ color: theme.colors.text }}
                 >
                   <AlignCenter className="h-3.5 w-3.5 text-cyan-400" />
-                  <span>居中</span>
+                  <span>{isEn ? 'Center' : '居中'}</span>
                 </button>
                 <button
                   onClick={handleFitCover}
-                  title="填满裁剪框"
+                  title={isEn ? 'Fit cover' : '填满裁剪框'}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
                   style={{ color: theme.colors.text }}
                 >
                   <Maximize2 className="h-3.5 w-3.5" />
-                  <span>填满</span>
+                  <span>{isEn ? 'Cover' : '填满'}</span>
                 </button>
                 <button
                   onClick={handleFitContain}
-                  title="完整适应"
+                  title={isEn ? 'Fit contain' : '完整适应'}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
                   style={{ color: theme.colors.text }}
                 >
                   <Minimize2 className="h-3.5 w-3.5" />
-                  <span>适应</span>
+                  <span>{isEn ? 'Fit' : '适应'}</span>
                 </button>
                 <button
                   onClick={handleAlignTop}
-                  title="靠顶对齐"
+                  title={isEn ? 'Align top' : '靠顶对齐'}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
                   style={{ color: theme.colors.text }}
                 >
                   <ArrowUpToLine className="h-3.5 w-3.5" />
-                  <span>靠顶</span>
+                  <span>{isEn ? 'Top' : '靠顶'}</span>
                 </button>
                 <button
                   onClick={handleAlignBottom}
-                  title="靠底对齐"
+                  title={isEn ? 'Align bottom' : '靠底对齐'}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
                   style={{ color: theme.colors.text }}
                 >
                   <ArrowDownToLine className="h-3.5 w-3.5" />
-                  <span>靠底</span>
+                  <span>{isEn ? 'Bottom' : '靠底'}</span>
                 </button>
               </div>
 
               <button
                 onClick={handleRotate}
-                title="顺时针旋转 90 度"
+                title={isEn ? 'Rotate 90 degrees clockwise' : '顺时针旋转 90 度'}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-white/10 bg-black/40 hover:bg-white/10 text-xs font-mono transition-all"
                 style={{ color: theme.colors.text }}
               >
                 <RotateCw className="h-3.5 w-3.5" />
-                <span>旋转</span>
+                <span>{isEn ? 'Rotate' : '旋转'}</span>
               </button>
             </div>
           </div>
@@ -681,7 +685,7 @@ export const ImageCropModal: React.FC<Props> = ({
                 className="px-4 py-2 rounded-xl border border-white/10 text-xs font-mono opacity-60 hover:opacity-100 hover:bg-white/5 transition-all"
                 style={{ color: theme.colors.text }}
               >
-                取消
+                {isEn ? 'Cancel' : '取消'}
               </button>
               <button
                 onClick={handleExportCropped}
@@ -693,7 +697,7 @@ export const ImageCropModal: React.FC<Props> = ({
                 }}
               >
                 <Check className="h-3.5 w-3.5" />
-                <span>保存并应用</span>
+                <span>{isEn ? 'Save & Apply' : '保存并应用'}</span>
               </button>
             </div>
           </div>

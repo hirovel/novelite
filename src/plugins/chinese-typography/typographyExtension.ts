@@ -1,6 +1,7 @@
 import { Prec, type Extension } from '@codemirror/state';
 import { RangeSetBuilder } from '@codemirror/state';
 import { EditorView, ViewPlugin, ViewUpdate, Decoration, type DecorationSet, keymap } from '@codemirror/view';
+import { getLanguage } from '../../core/i18n';
 
 /**
  * Detailed configuration options for Chinese typography styling and layout.
@@ -48,6 +49,7 @@ const listDeco = Decoration.line({
 const codeDeco = Decoration.line({
   class: 'cm-no-indent cm-line-code',
 });
+const hideHashDeco = Decoration.replace({});
 
 /**
  * Checks if a line text is exempt from auto indentation (e.g. Markdown Header, Blockquote, Divider, Code fence, List)
@@ -78,13 +80,15 @@ const chineseLineDecorator = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
         this.decorations = this.computeDecorations(update.view);
       }
     }
 
     computeDecorations(view: EditorView): DecorationSet {
       const builder = new RangeSetBuilder<Decoration>();
+      const selection = view.state.selection.main;
+
       for (const { from, to } of view.visibleRanges) {
         let pos = from;
         while (pos <= to) {
@@ -92,15 +96,21 @@ const chineseLineDecorator = ViewPlugin.fromClass(
           const text = line.text;
           const trimmed = text.trim();
 
+          const isCursorOnLine = selection.to >= line.from && selection.from <= line.to;
+
           // 1. Chapter and Section Headings (#, ##, ###, #### and Chinese fullwidth ＃)
-          if (/^(?:#|＃)\s/.test(trimmed)) {
-            builder.add(line.from, line.from, header1Deco);
-          } else if (/^(?:##|＃＃)\s/.test(trimmed)) {
-            builder.add(line.from, line.from, header2Deco);
-          } else if (/^(?:###|＃＃＃)\s/.test(trimmed)) {
-            builder.add(line.from, line.from, header3Deco);
-          } else if (/^(?:####|＃＃＃＃)\s/.test(trimmed)) {
-            builder.add(line.from, line.from, header4Deco);
+          const headingMatch = text.match(/^(\s*(?:#{1,6}|＃{1,6})\s+)/);
+          if (headingMatch) {
+            const hashSymbols = headingMatch[1].replace(/\s/g, '');
+            const level = hashSymbols.length;
+            const deco = level === 1 ? header1Deco : level === 2 ? header2Deco : level === 3 ? header3Deco : header4Deco;
+            builder.add(line.from, line.from, deco);
+
+            // Option B: Live Preview dynamic heading reveal.
+            // When cursor is NOT on this line, seamlessly hide the leading '# ' syntax marks!
+            if (!isCursorOnLine) {
+              builder.add(line.from, line.from + headingMatch[1].length, hideHashDeco);
+            }
           }
           // 2. Blockquotes & Poem Inscriptions
           else if (/^(?:>|》)\s/.test(trimmed)) {
@@ -141,8 +151,24 @@ export function createTypographyExtension(
   getConfig: () => TypographyConfig
 ): Extension {
   const resolveFontFamily = (cfg: TypographyConfig): string => {
+    const isEn = getLanguage() === 'en';
+
     if (cfg.fontPreset === 'custom' && cfg.customFontName.trim()) {
       return `"${cfg.customFontName.trim()}", "PingFang SC", "Microsoft YaHei", "微软雅黑", sans-serif`;
+    }
+
+    if (isEn) {
+      switch (cfg.fontPreset) {
+        case 'lxgw':
+          return `"Georgia", "Baskerville", "Palatino Linotype", "Book Antiqua", "Times New Roman", serif`;
+        case 'songti':
+          return `"Garamond", "EB Garamond", "Times New Roman", "Baskerville", serif`;
+        case 'mono':
+          return `"Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace`;
+        case 'sans':
+        default:
+          return `system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, Helvetica, Arial, sans-serif`;
+      }
     }
 
     switch (cfg.fontPreset) {
@@ -159,12 +185,16 @@ export function createTypographyExtension(
   };
 
   const resolveLineBreak = (cfg: TypographyConfig): string => {
+    if (getLanguage() === 'en') return 'normal';
     if (cfg.kinsokuStrictness === 'native') return 'normal';
     if (cfg.kinsokuStrictness === 'loose') return 'loose';
     return 'strict';
   };
 
   const resolveFontFeatures = (cfg: TypographyConfig): string => {
+    if (getLanguage() === 'en') {
+      return '"kern" 1, "liga" 1';
+    }
     const halt = cfg.punctuationHalt !== false ? '"halt" 1, ' : '';
     return `${halt}"kern" 1, "liga" 1, "palt" 1`;
   };
@@ -179,7 +209,7 @@ export function createTypographyExtension(
         key: 'Enter',
         run: (view: EditorView) => {
           const cfg = getConfig();
-          if (cfg.indentEnabled === false) return false;
+          if (cfg.indentEnabled === false || getLanguage() === 'en') return false;
 
           const state = view.state;
           const head = state.selection.main.head;
@@ -223,7 +253,7 @@ export function createTypographyExtension(
         key: 'Backspace',
         run: (view: EditorView) => {
           const cfg = getConfig();
-          if (cfg.indentEnabled === false) return false;
+          if (cfg.indentEnabled === false || getLanguage() === 'en') return false;
 
           const state = view.state;
           if (!state.selection.main.empty) return false;
@@ -254,7 +284,7 @@ export function createTypographyExtension(
   const pasteNormalizer = EditorView.domEventHandlers({
     paste(e, view) {
       const cfg = getConfig();
-      if (cfg.indentEnabled === false) return false;
+      if (cfg.indentEnabled === false || getLanguage() === 'en') return false;
 
       const text = e.clipboardData?.getData('text/plain');
       if (!text) return false;

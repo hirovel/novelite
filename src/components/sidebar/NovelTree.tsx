@@ -18,6 +18,7 @@ import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import { exportNovelService } from '../../core/storage/ExportNovelService';
 import type { NovelProject, Volume } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
+import { useI18n } from '../../core/i18n';
 import type { Theme } from '../../core/themes/types';
 
 interface Props {
@@ -25,6 +26,8 @@ interface Props {
 }
 
 export const NovelTree: React.FC<Props> = ({ theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -98,7 +101,8 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
   };
 
   const handleCreateVolumeSubmit = () => {
-    const title = newVolTitle.trim() || `第 ${project.volumes.length + 1} 卷`;
+    const defaultTitle = isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`;
+    const title = newVolTitle.trim() || defaultTitle;
     projectStore.addVolume(title);
     setNewVolTitle('');
     setInlineNewVol(false);
@@ -108,7 +112,8 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
     if (!inlineNewChap) return;
     const vol = project.volumes.find((v) => v.id === inlineNewChap.volId);
     const count = (vol?.chapters.length || 0) + 1;
-    const title = newChapTitle.trim() || `第 ${count} 章`;
+    const defaultTitle = isEn ? `Chapter ${count}` : `第 ${count} 章`;
+    const title = newChapTitle.trim() || defaultTitle;
 
     const newChap = projectStore.insertChapter(inlineNewChap.volId, title, inlineNewChap.index);
     setActiveChapterId(newChap.id);
@@ -136,24 +141,36 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
   const handleDeleteVolume = (e: React.MouseEvent, volId: string, title: string) => {
     e.stopPropagation();
     if (project.volumes.length <= 1) {
-      eventBus.emit('show-toast', { message: '至少需保留一个分卷', type: 'warning' });
+      eventBus.emit('show-toast', {
+        message: isEn ? 'At least one volume must be preserved' : '至少需保留一个分卷',
+        type: 'warning',
+      });
       return;
     }
     projectStore.deleteVolume(volId);
-    eventBus.emit('show-toast', { message: `已删除分卷《${title}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted volume "${title}"` : `已删除分卷《${title}》`,
+      type: 'info',
+    });
   };
 
   const handleDeleteChapter = (e: React.MouseEvent, chapId: string, title: string) => {
     e.stopPropagation();
     projectStore.deleteChapter(chapId);
-    eventBus.emit('show-toast', { message: `已删除章节《${title}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted chapter "${title}"` : `已删除章节《${title}》`,
+      type: 'info',
+    });
   };
 
   const handleDuplicateChapter = (e: React.MouseEvent, chapId: string) => {
     e.stopPropagation();
     const copy = projectStore.duplicateChapter(chapId);
     if (copy) {
-      eventBus.emit('show-toast', { message: `已创建副本《${copy.title}》`, type: 'success' });
+      eventBus.emit('show-toast', {
+        message: isEn ? `Created duplicate "${copy.title}"` : `已创建副本《${copy.title}》`,
+        type: 'success',
+      });
     }
   };
 
@@ -234,12 +251,12 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
             type="text"
             value={filterQuery}
             onChange={(e) => setFilterQuery(e.target.value)}
-            placeholder="搜索章节或分卷..."
+            placeholder={isEn ? 'Search chapters or volumes...' : '搜索章节或分卷...'}
             className="w-full bg-transparent text-xs outline-none placeholder:opacity-40 font-mono"
             style={{ color: theme.colors.text }}
           />
           {filterQuery && (
-            <button onClick={() => setFilterQuery('')} className="opacity-40 hover:opacity-100 text-xs">
+            <button onClick={() => setFilterQuery('')} className="opacity-40 hover:opacity-100 text-xs cursor-pointer">
               <X className="h-3 w-3" />
             </button>
           )}
@@ -313,7 +330,9 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                   )}
 
                   <span className="text-[10px] font-mono opacity-40 shrink-0">
-                    ({vol.chapters.length} · {volWordCount.toLocaleString()}字)
+                    {isEn
+                      ? `(${vol.chapters.length} · ${volWordCount.toLocaleString()} words)`
+                      : `(${vol.chapters.length} · ${volWordCount.toLocaleString()}字)`}
                   </span>
                 </div>
 
@@ -323,16 +342,16 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                       e.stopPropagation();
                       setInlineNewChap({ volId: vol.id });
                     }}
-                    title="新建章节"
-                    className="p-1 hover:opacity-100 hover:bg-white/10 rounded opacity-60"
+                    title={isEn ? 'New Chapter' : '新建章节'}
+                    className="p-1 hover:opacity-100 hover:bg-white/10 rounded opacity-60 cursor-pointer"
                     style={{ color: theme.colors.accent || '#38bdf8' }}
                   >
                     <Plus className="h-3 w-3" />
                   </button>
                   <button
                     onClick={(e) => handleStartRename(e, vol.id, vol.title)}
-                    title="重命名分卷"
-                    className="p-1 hover:opacity-100 hover:bg-white/10 rounded opacity-60"
+                    title={isEn ? 'Rename Volume' : '重命名分卷'}
+                    className="p-1 hover:opacity-100 hover:bg-white/10 rounded opacity-60 cursor-pointer"
                     style={{ color: theme.colors.accent || '#38bdf8' }}
                   >
                     <Edit3 className="h-3 w-3" />
@@ -340,8 +359,8 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                   {project.volumes.length > 1 && (
                     <button
                       onClick={(e) => handleDeleteVolume(e, vol.id, vol.title)}
-                      title="删除分卷"
-                      className="p-1 hover:text-red-400 hover:bg-red-500/10 rounded"
+                      title={isEn ? 'Delete Volume' : '删除分卷'}
+                      className="p-1 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -424,28 +443,28 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
 
                           <div className="flex items-center gap-1 shrink-0 ml-2">
                             <span className="text-[10px] font-mono opacity-40 group-hover:opacity-0 transition-opacity">
-                              {wordCount.toLocaleString()} 字
+                              {isEn ? `${wordCount.toLocaleString()} words` : `${wordCount.toLocaleString()} 字`}
                             </span>
 
                             <div className="hidden group-hover:flex items-center gap-0.5">
                               <button
                                 onClick={(e) => handleStartRename(e, chap.id, chap.title)}
-                                title="重命名"
-                                className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
+                                title={isEn ? 'Rename' : '重命名'}
+                                className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded cursor-pointer"
                               >
                                 <Edit3 className="h-2.5 w-2.5" />
                               </button>
                               <button
                                 onClick={(e) => handleDuplicateChapter(e, chap.id)}
-                                title="创建副本"
-                                className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded"
+                                title={isEn ? 'Duplicate' : '创建副本'}
+                                className="p-1 opacity-50 hover:opacity-100 hover:bg-white/10 rounded cursor-pointer"
                               >
                                 <Copy className="h-2.5 w-2.5" />
                               </button>
                               <button
                                 onClick={(e) => handleDeleteChapter(e, chap.id, chap.title)}
-                                title="删除章节"
-                                className="p-1 opacity-50 hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 rounded"
+                                title={isEn ? 'Delete Chapter' : '删除章节'}
+                                className="p-1 opacity-50 hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
                               >
                                 <Trash2 className="h-2.5 w-2.5" />
                               </button>
@@ -469,7 +488,7 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
                         type="text"
                         value={newChapTitle}
                         onChange={(e) => setNewChapTitle(e.target.value)}
-                        placeholder="输入新章节名，按 Enter 确认..."
+                        placeholder={isEn ? 'Enter chapter title, press Enter...' : '输入新章节名，按 Enter 确认...'}
                         onBlur={handleCreateChapterSubmit}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') handleCreateChapterSubmit();
@@ -494,7 +513,7 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
               type="text"
               value={newVolTitle}
               onChange={(e) => setNewVolTitle(e.target.value)}
-              placeholder="输入新分卷名称，按 Enter 确认..."
+              placeholder={isEn ? 'Enter volume title, press Enter...' : '输入新分卷名称，按 Enter 确认...'}
               onBlur={handleCreateVolumeSubmit}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreateVolumeSubmit();
@@ -512,22 +531,22 @@ export const NovelTree: React.FC<Props> = ({ theme }) => {
         <button
           onClick={() => {
             setInlineNewVol(true);
-            setNewVolTitle(`第 ${project.volumes.length + 1} 卷`);
+            setNewVolTitle(isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`);
           }}
           className="px-2.5 py-1 rounded-lg text-xs opacity-60 hover:opacity-100 hover:bg-white/5 transition-all cursor-pointer"
           style={{ color: theme.colors.text }}
         >
-          + 新建分卷
+          {isEn ? '+ New Volume' : '+ 新建分卷'}
         </button>
 
         <button
           onClick={() => exportNovelService.exportProjectToTxt(projectStore.getProject())}
           className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs opacity-60 hover:opacity-100 hover:bg-white/5 transition-all cursor-pointer"
           style={{ color: theme.colors.text }}
-          title="导出全本 TXT (所见即所得，Ctrl+Shift+E)"
+          title={isEn ? 'Export Full Manuscript to TXT (Ctrl+Shift+E)' : '导出全本 TXT (所见即所得，Ctrl+Shift+E)'}
         >
           <FileDown className="h-3 w-3" />
-          <span>导出全本</span>
+          <span>{isEn ? 'Export TXT' : '导出全本'}</span>
         </button>
       </div>
     </div>

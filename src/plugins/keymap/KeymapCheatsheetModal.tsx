@@ -22,6 +22,7 @@ import { projectStore } from '../../core/storage/ProjectStore';
 import type { KeybindingCategory, KeybindingItem } from '../../core/keymap/types';
 import type { Theme } from '../../core/themes/types';
 import { eventBus } from '../../core/events/EventBus';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -29,24 +30,24 @@ interface Props {
   theme: Theme;
 }
 
-const CATEGORY_CONFIG: {
-  id: KeybindingCategory | 'all';
-  label: string;
-  icon: React.FC<{ className?: string }>;
-}[] = [
-  { id: 'all', label: '全部', icon: Sparkles },
-  { id: 'editing', label: '文本编辑', icon: FileText },
-  { id: 'navigation', label: '章节导航', icon: Compass },
-  { id: 'search', label: '查找与检索', icon: Search },
-  { id: 'split_view', label: '分屏编辑', icon: Columns },
-  { id: 'literary', label: '排版与写作', icon: BookOpen },
-  { id: 'system', label: '界面与系统', icon: Sliders },
-];
-
 export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
+  const { t, language } = useI18n();
   const [activeCategory, setActiveCategory] = useState<KeybindingCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [items, setItems] = useState<KeybindingItem[]>(() => keymapRegistry.getAll());
+
+  const categoryConfig = useMemo(() => {
+    void language;
+    return [
+      { id: 'all' as const, label: t('keymap.categories.all'), icon: Sparkles },
+      { id: 'editing' as const, label: t('keymap.categories.editing'), icon: FileText },
+      { id: 'navigation' as const, label: t('keymap.categories.navigation'), icon: Compass },
+      { id: 'search' as const, label: t('keymap.categories.search'), icon: Search },
+      { id: 'split_view' as const, label: t('keymap.categories.split_view'), icon: Columns },
+      { id: 'literary' as const, label: t('keymap.categories.literary'), icon: BookOpen },
+      { id: 'system' as const, label: t('keymap.categories.system'), icon: Sliders },
+    ];
+  }, [language, t]);
   
   // Key Remap State
   const [recordingId, setRecordingId] = useState<string | null>(null);
@@ -81,9 +82,10 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
 
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
@@ -130,7 +132,9 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
       const q = searchQuery.toLowerCase();
       return (
         item.title.toLowerCase().includes(q) ||
+        Boolean(item.titleEn && item.titleEn.toLowerCase().includes(q)) ||
         item.description.toLowerCase().includes(q) ||
+        Boolean(item.descriptionEn && item.descriptionEn.toLowerCase().includes(q)) ||
         item.currentKey.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q)
       );
@@ -153,7 +157,10 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
   const handleSaveRecording = (id: string) => {
     if (recordedKey) {
       keymapRegistry.updateBinding(id, recordedKey);
-      eventBus.emit('show-toast', { message: `快捷键已修改为 ${recordedKey}`, type: 'success' });
+      eventBus.emit('show-toast', {
+        message: language === 'en' ? `Hotkey updated to ${recordedKey}` : `快捷键已修改为 ${recordedKey}`,
+        type: 'success',
+      });
     }
     setRecordingId(null);
     setRecordedKey('');
@@ -162,16 +169,19 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
 
   const handleResetSingle = (id: string) => {
     keymapRegistry.resetBinding(id);
-    eventBus.emit('show-toast', { message: '已恢复默认按键', type: 'info' });
+    eventBus.emit('show-toast', {
+      message: language === 'en' ? 'Default hotkey restored' : '已恢复默认按键',
+      type: 'info',
+    });
     setRecordingId(null);
     setRecordedKey('');
     setConflictItem(null);
   };
 
   const handleResetAll = () => {
-    if (window.confirm('确定要将所有快捷键重置为系统出厂默认设置吗？')) {
+    if (window.confirm(language === 'en' ? 'Are you sure you want to reset all hotkeys to system factory defaults?' : '确定要将所有快捷键重置为系统出厂默认设置吗？')) {
       keymapRegistry.resetAll();
-      eventBus.emit('show-toast', { message: '所有快捷键已重置为默认值', type: 'success' });
+      eventBus.emit('show-toast', { message: t('keymap.resetAllSuccess'), type: 'success' });
     }
   };
 
@@ -219,18 +229,28 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
         const next = !current;
         ctx?.setSetting('focusEnabled', next);
         eventBus.emit('editor-extensions-changed');
-        ctx?.showToast(next ? '已开启专注聚光灯' : '已关闭专注聚光灯', 'info');
+        ctx?.showToast(
+          language === 'en'
+            ? (next ? 'Focus spotlight enabled' : 'Focus spotlight disabled')
+            : (next ? '已开启专注聚光灯' : '已关闭专注聚光灯'),
+          'info'
+        );
         break;
       }
       case 'focus:toggle-scope': {
         const ctx = pluginManager.getPluginContext('plugin-immersion');
         const scopes = ['paragraph', 'sentence', 'horizon'] as const;
-        const names = { paragraph: '当前逻辑段落', sentence: '当前单句推敲', horizon: '三行微光渐变' };
+        const names = language === 'en'
+          ? { paragraph: 'Current Paragraph', sentence: 'Current Sentence', horizon: 'Three-line Horizon' }
+          : { paragraph: '当前逻辑段落', sentence: '当前单句推敲', horizon: '三行微光渐变' };
         const current = ctx?.getSetting<(typeof scopes)[number]>('focusScope', 'paragraph') || 'paragraph';
         const next = scopes[(scopes.indexOf(current) + 1) % scopes.length];
         ctx?.setSetting('focusScope', next);
         eventBus.emit('editor-extensions-changed');
-        ctx?.showToast(`聚光范围: ${names[next] || next}`, 'info');
+        ctx?.showToast(
+          language === 'en' ? `Focus scope: ${names[next] || next}` : `聚光范围: ${names[next] || next}`,
+          'info'
+        );
         break;
       }
       case 'literary:toggle-dialogue': {
@@ -239,7 +259,12 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
         const next = !current;
         ctx?.setSetting('dialogueEnabled', next);
         eventBus.emit('editor-extensions-changed');
-        ctx?.showToast(next ? '已开启台词高亮' : '已关闭台词高亮', 'info');
+        ctx?.showToast(
+          language === 'en'
+            ? (next ? 'Dialogue highlight enabled' : 'Dialogue highlight disabled')
+            : (next ? '已开启台词高亮' : '已关闭台词高亮'),
+          'info'
+        );
         break;
       }
       case 'literary:quick-export': {
@@ -332,10 +357,12 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
             </div>
             <div>
               <h2 className="text-base font-semibold tracking-tight" style={{ color: theme.colors.text }}>
-                快捷键速查与自定义
+                {language === 'en' ? 'Hotkeys & Keymap Cheatsheet' : '快捷键速查与自定义'}
               </h2>
               <p className="text-xs opacity-50 font-mono mt-0.5">
-                支持点击键位重新录制自定义 · 点击 ▶ 可直接执行功能
+                {language === 'en'
+                  ? 'Click key badge to record new binding · Click ▶ to run action'
+                  : '支持点击键位重新录制自定义 · 点击 ▶ 可直接执行功能'}
               </p>
             </div>
           </div>
@@ -343,12 +370,12 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
           <div className="flex items-center gap-2">
             <button
               onClick={handleResetAll}
-              title="一键恢复所有快捷键至默认设置"
+              title={t('keymap.resetAllTitle')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs opacity-60 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer font-mono"
               style={{ color: theme.colors.text }}
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              <span>恢复默认</span>
+              <span>{t('common.restoreDefault')}</span>
             </button>
 
             <button
@@ -369,7 +396,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="搜索快捷键、指令名称、功能描述或键位 (例如: Ctrl+S、分屏、行操作)..."
+              placeholder={t('keymap.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-10 py-2 rounded-xl text-xs bg-black/30 border outline-none transition-all placeholder:opacity-30"
@@ -390,7 +417,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
 
           {/* Category Tabs */}
           <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 scrollbar-none">
-            {CATEGORY_CONFIG.map((cat) => {
+            {categoryConfig.map((cat) => {
               const Icon = cat.icon;
               const isSelected = activeCategory === cat.id;
               return (
@@ -415,10 +442,10 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
           {filteredItems.length === 0 ? (
             <div className="py-20 text-center text-xs opacity-40 font-mono">
-              未找到匹配 “{searchQuery}” 的快捷键
+              {t('keymap.notFound')}
             </div>
           ) : (
-            CATEGORY_CONFIG.filter((c) => c.id !== 'all').map((cat) => {
+            categoryConfig.filter((c) => c.id !== 'all').map((cat) => {
               const catItems = groupedItems.get(cat.id as KeybindingCategory);
               if (!catItems || catItems.length === 0) return null;
 
@@ -454,16 +481,16 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                           <div className="flex flex-col min-w-0 pr-3">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-medium truncate" style={{ color: theme.colors.text }}>
-                                {item.title}
+                                {language === 'en' && item.titleEn ? item.titleEn : item.title}
                               </span>
                               {item.isCustomized && (
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-cyan-500/20 text-cyan-300">
-                                  已修改
+                                  {t('keymap.customizedBadge')}
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] opacity-45 truncate mt-0.5" title={item.description}>
-                              {item.description}
+                            <span className="text-[11px] opacity-45 truncate mt-0.5" title={language === 'en' && item.descriptionEn ? item.descriptionEn : item.description}>
+                              {language === 'en' && item.descriptionEn ? item.descriptionEn : item.description}
                             </span>
                           </div>
 
@@ -472,13 +499,13 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                             {isRecording ? (
                               <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
                                 <div className="px-2.5 py-1 rounded-xl text-xs font-mono bg-cyan-500/30 text-cyan-200 border border-cyan-400/50 animate-pulse flex items-center gap-1">
-                                  <span>{recordedKey || '请按下新按键...'}</span>
+                                  <span>{recordedKey || t('keymap.recordingPrompt')}</span>
                                 </div>
 
                                 {conflictItem && (
                                   <span
                                     className="text-amber-400 text-xs flex items-center"
-                                    title={`按键冲突：已绑定至「${conflictItem.title}」`}
+                                    title={t('keymap.conflictWarning')}
                                   >
                                     <AlertTriangle className="h-3.5 w-3.5" />
                                   </span>
@@ -487,7 +514,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                                 <button
                                   onClick={() => handleSaveRecording(item.id)}
                                   className="p-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 transition-colors"
-                                  title="确认保存"
+                                  title={t('common.save')}
                                 >
                                   <Check className="h-3.5 w-3.5" />
                                 </button>
@@ -498,7 +525,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                                     setConflictItem(null);
                                   }}
                                   className="p-1 rounded-lg hover:bg-white/10 opacity-50 hover:opacity-100 transition-colors"
-                                  title="取消"
+                                  title={t('common.cancel')}
                                 >
                                   <X className="h-3.5 w-3.5" />
                                 </button>
@@ -512,7 +539,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                                     setRecordedKey('');
                                     setConflictItem(null);
                                   }}
-                                  title="点击录制并修改此快捷键"
+                                  title={t('keymap.recordNewKey')}
                                   className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/40 border border-white/10 hover:border-cyan-400/60 transition-all cursor-pointer font-mono text-[11px] select-none hover:scale-105"
                                 >
                                   {displayKey.mods.map((m) => (
@@ -528,7 +555,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={() => handleExecute(item)}
-                                    title="一键直接运行此功能"
+                                    title={t('keymap.runActionNow')}
                                     className="p-1.5 rounded-lg hover:bg-white/10 opacity-60 hover:opacity-100 hover:text-cyan-300 transition-all cursor-pointer"
                                   >
                                     <Play className="h-3 w-3" />
@@ -540,7 +567,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                                       setRecordedKey('');
                                       setConflictItem(null);
                                     }}
-                                    title="修改快捷键"
+                                    title={t('keymap.recordNewKey')}
                                     className="p-1.5 rounded-lg hover:bg-white/10 opacity-60 hover:opacity-100 transition-all cursor-pointer"
                                   >
                                     <Edit2 className="h-3 w-3" />
@@ -549,7 +576,7 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
                                   {item.isCustomized && (
                                     <button
                                       onClick={() => handleResetSingle(item.id)}
-                                      title="恢复此键默认设置"
+                                      title={t('common.restoreDefault')}
                                       className="p-1.5 rounded-lg hover:bg-white/10 opacity-50 hover:opacity-100 hover:text-amber-400 transition-all cursor-pointer"
                                     >
                                       <RotateCcw className="h-3 w-3" />
@@ -575,10 +602,10 @@ export const KeymapCheatsheetModal: React.FC<Props> = ({ isOpen, onClose, theme 
           style={{ borderColor: `${theme.colors.border}25` }}
         >
           <div className="flex items-center gap-2">
-            <span>💡 提示：点击任意键位可直接按下新键录制修改 · 点击 ▶ 可直接执行指令</span>
+            <span>{language === 'en' ? '💡 Tip: Click any key badge to record a new binding · Click ▶ to execute command' : '💡 提示：点击任意键位可直接按下新键录制修改 · 点击 ▶ 可直接执行指令'}</span>
           </div>
           <div>
-            <span>按 <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-bold">Esc</kbd> 退出速查</span>
+            <span>{language === 'en' ? <>Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-bold">Esc</kbd> to exit</> : <>按 <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-bold">Esc</kbd> 退出速查</>}</span>
           </div>
         </footer>
       </div>

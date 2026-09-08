@@ -2,6 +2,7 @@ import React from 'react';
 import { Sparkles, DownloadCloud, ExternalLink, X } from 'lucide-react';
 import type { UpdateInfo } from './types';
 import type { Theme } from '../../core/themes/types';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -11,10 +12,13 @@ interface Props {
 }
 
 export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
+
   if (!isOpen || !updateInfo) return null;
 
   const publishedDate = updateInfo.publishedAt
-    ? new Date(updateInfo.publishedAt).toLocaleDateString('zh-CN', {
+    ? new Date(updateInfo.publishedAt).toLocaleDateString(isEn ? 'en-US' : 'zh-CN', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
@@ -59,7 +63,7 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold text-sm tracking-wide" style={{ color: theme.colors.text }}>
-                  发现新版本 v{updateInfo.latestVersion}
+                  {isEn ? `New Version Available v${updateInfo.latestVersion}` : `发现新版本 v${updateInfo.latestVersion}`}
                 </h3>
                 <span
                   className="px-1.5 py-0.2 text-[9.5px] font-mono rounded-full font-semibold"
@@ -68,11 +72,11 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
                     color: theme.colors.accent || '#38bdf8',
                   }}
                 >
-                  NEW
+                  {isEn ? 'NEW' : '最新'}
                 </span>
               </div>
               <p className="text-[10.5px] opacity-40 font-mono">
-                当前版本: v{updateInfo.currentVersion} {publishedDate && `· 发布于 ${publishedDate}`}
+                {isEn ? `Current: v${updateInfo.currentVersion}` : `当前版本: v${updateInfo.currentVersion}`} {publishedDate && (isEn ? `· Released on ${publishedDate}` : `· 发布于 ${publishedDate}`)}
               </p>
             </div>
           </div>
@@ -89,20 +93,20 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
         {/* Release Notes Body */}
         <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar text-xs leading-relaxed font-sans">
           <div className="font-semibold text-xs opacity-75" style={{ color: theme.colors.text }}>
-            {updateInfo.releaseTitle || `Novelite v${updateInfo.latestVersion} 更新日志：`}
+            {updateInfo.releaseTitle || (isEn ? `Novelite v${updateInfo.latestVersion} Release Notes:` : `Novelite v${updateInfo.latestVersion} 更新日志：`)}
           </div>
 
           <div
             className="p-3.5 rounded-xl border border-white/5 bg-black/20 font-mono text-[11px] leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto select-text"
             style={{ color: theme.colors.text }}
           >
-            {updateInfo.releaseNotes || '此版本包含多项性能优化与创作体验改进。'}
+            {updateInfo.releaseNotes || (isEn ? 'This release includes multiple performance optimizations and writing experience improvements.' : '此版本包含多项性能优化与创作体验改进。')}
           </div>
 
           {/* Download Assets List if Available */}
           {updateInfo.assets && updateInfo.assets.length > 0 && (
             <div className="space-y-1.5 pt-1">
-              <span className="text-[10px] font-mono opacity-50">安装包资源：</span>
+              <span className="text-[10px] font-mono opacity-50">{isEn ? 'Download Assets:' : '安装包资源：'}</span>
               <div className="flex flex-wrap gap-1.5">
                 {updateInfo.assets.map((asset, idx) => (
                   <a
@@ -132,14 +136,14 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
             className="px-3 py-1.5 rounded-xl text-xs opacity-50 hover:opacity-100 hover:bg-white/5 transition-colors cursor-pointer"
             style={{ color: theme.colors.text }}
           >
-            稍后提醒
+            {isEn ? 'Remind Me Later' : '稍后提醒'}
           </button>
 
           <button
             onClick={handleOpenRelease}
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-white transition-all cursor-pointer shadow-md"
           >
-            <span>前往 GitHub 下载升级</span>
+            <span>{isEn ? 'Download on GitHub' : '前往 GitHub 下载升级'}</span>
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
         </div>

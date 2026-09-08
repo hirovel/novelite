@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { LiveCursorEngine, type StreamPresetId } from '../../plugins/live-cursor/LiveCursorEngine';
 import type { Theme } from '../../core/themes/types';
 import { Sliders, Pipette, Layers, Activity, Palette } from 'lucide-react';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   theme: Theme;
@@ -66,7 +67,26 @@ export const LiveCursorTestArena: React.FC<Props> = ({
   streamTailColor = '#a78bfa',
   onChangeStreamTailColor,
 }) => {
-  const [text, setText] = useState<string>('这是一段正文测试文本+——+！\n这也是测试文本！');
+  const { language } = useI18n();
+  const isEn = language === 'en';
+
+  const [text, setText] = useState<string>(() =>
+    language === 'en'
+      ? 'The quick brown fox jumps over the lazy dog.'
+      : '这是一段正文测试文本+——+！'
+  );
+
+  const prevLangRef = useRef(language);
+  useEffect(() => {
+    if (prevLangRef.current !== language) {
+      prevLangRef.current = language;
+      setText(
+        language === 'en'
+          ? 'The quick brown fox jumps over the lazy dog.'
+          : '这是一段正文测试文本+——+！'
+      );
+    }
+  }, [language]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -113,24 +133,87 @@ export const LiveCursorTestArena: React.FC<Props> = ({
     };
   }, [cursorShape, cursorColor, cursorAnimationLength, cursorTrailSize, vfxMode, blinkMode, breatheCycle, speedMode, physicsMode, luminescence, inlineSkew, streamPreset, streamHeadColor, streamTailColor, theme]);
 
-  const colorPresets = [
-    { name: '极光紫', value: '#a78bfa' },
-    { name: '霓虹青', value: '#38bdf8' },
-    { name: '翡翠绿', value: '#34d399' },
-    { name: '炽热金', value: '#f59e0b' },
-    { name: '落樱粉', value: '#f472b6' },
-    { name: '纯净白', value: '#f8fafc' },
-  ];
+  const labels = useMemo(() => ({
+    arena: isEn ? 'Cursor Test Arena' : '光标测试演练场',
+    followTheme: isEn ? 'Follow Theme' : '跟随主题',
+    classicSolid: isEn ? 'Classic Solid' : '经典单色',
+    vibrantStream: isEn ? 'Dual-Color Stream' : '双色流光',
+    beam: isEn ? 'Smooth Beam' : '平滑光柱',
+    beamDesc: isEn ? 'Slim vertical line' : '细垂直光柱',
+    block: isEn ? 'Minimal Block' : '极简色块',
+    blockDesc: isEn ? 'Character block' : '字符方块',
+    underline: isEn ? 'Underline' : '水平基准线',
+    underlineDesc: isEn ? 'Baseline marker' : '底部横线',
+    arenaPlaceholder: isEn ? 'Type text or press arrow keys to test cursor dynamics...' : '输入文字或按方向键测试光标跟随手感...',
+    morphology: isEn ? 'Cursor Morphology' : '光标形态',
+    colorStudio: isEn ? 'Cursor Color Studio' : '光标色彩工坊',
+    themePreset: isEn ? 'Theme Preset' : '主题预设',
+    themeDesc: isEn ? 'Cursor color tracks active theme automatically.' : '光标颜色跟随当前主题，换肤时自动同步。',
+    themeStream: isEn ? 'Theme Stream' : '主题流光',
+    selectSolid: isEn ? 'Select Solid Color:' : '选择单色：',
+    solidMode: isEn ? 'Solid Mode' : '纯色模式',
+    selectStream: isEn ? 'Select Stream Palette:' : '选择流光配色：',
+    gradient: isEn ? 'Chroma Gradient' : '双色渐变',
+    startColor: isEn ? 'Start Color' : '起始色',
+    endColor: isEn ? 'End Color' : '结束色',
+    dynamics: isEn ? 'Dynamics & Motion' : '动力学与手感',
+    dynamicsModel: isEn ? 'Physics Simulation Model' : '动力学物理模型',
+    fluid: isEn ? 'Fluid' : '流体',
+    fluidDesc: isEn ? 'Smooth elasticity' : '平滑流体拉伸',
+    ribbon: isEn ? 'Ribbon' : '丝带',
+    ribbonDesc: isEn ? 'Multi-node trailing' : '多节点弧形摆动',
+    quantum: isEn ? 'Snappy' : '敏捷',
+    quantumDesc: isEn ? 'High damping snap' : '高阻尼快速落位',
+    speedTuning: isEn ? 'Motion Responsiveness' : '移动手感调校',
+    gentle: isEn ? 'Gentle' : '柔和',
+    gentleDesc: isEn ? 'Soft tracking' : '平缓跟随',
+    balanced: isEn ? 'Balanced' : '均衡',
+    balancedDesc: isEn ? 'Natural flow' : '自然跟随',
+    snappy: isEn ? 'Snappy' : '敏捷',
+    snappyDesc: isEn ? 'Instant response' : '即时跟随',
+    inlineSkew: isEn ? 'Inline Skew Shearing' : '行内倾角切变',
+    inlineSkewDesc: isEn ? 'Skews forward while typing, rests vertical' : '打字时前倾，静止时回正',
+    vfxAndBreathing: isEn ? 'Particle Sparks & Idle Breathing' : '按键微光与静态呼吸',
+    vfxTitle: isEn ? 'Keypress Particle Sparks' : '按键微粒子效果',
+    vfxNone: isEn ? 'None' : '无',
+    vfxNoneDesc: isEn ? 'Disable particles' : '不开启粒子',
+    vfxEmbers: isEn ? 'Embers' : '星火',
+    vfxEmbersDesc: isEn ? 'Floating sparkles' : '击键产生微光点',
+    vfxRipples: isEn ? 'Ripples' : '波纹',
+    vfxRipplesDesc: isEn ? 'Subtle fluid rings' : '换行展开微水纹',
+    vfxFeather: isEn ? 'Feather' : '轻芒',
+    vfxFeatherDesc: isEn ? 'Soft breathing aura' : '散发呼吸微光',
+    blinkTitle: isEn ? 'Idle Breathing & Blinking' : '静态呼吸与闪烁',
+    blinkSmooth: isEn ? 'Smooth' : '柔和呼吸',
+    blinkSmoothDesc: isEn ? 'Soft cyclic glow' : '缓慢明暗',
+    blinkClassic: isEn ? 'Blink' : '传统闪烁',
+    blinkClassicDesc: isEn ? 'Standard pulse' : '标准通断',
+    blinkSolid: isEn ? 'Solid' : '常亮静止',
+    blinkSolidDesc: isEn ? 'Steady static' : '持续稳定',
+    slidersTitle: isEn ? 'Dynamics Parameter Tuning' : '动力学参数微调',
+    animDuration: isEn ? 'Animation Duration' : '动画响应时长',
+    trailLength: isEn ? 'Trail Stretch Length' : '拖尾延展长度',
+    breatheCycle: isEn ? 'Idle Breathing Cycle' : '静态呼吸周期',
+  }), [isEn]);
 
-  const streamPresets: Array<{ id: StreamPresetId; name: string; colors: [string, string] }> = [
-    { id: 'theme', name: '跟随主题', colors: theme.cursorStream || [theme.colors.accent || '#a78bfa', `${theme.colors.accent || '#a78bfa'}44`] },
-    { id: 'cyan-violet', name: '青紫双色', colors: ['#38bdf8', '#a78bfa'] },
-    { id: 'ice-blue', name: '冰蓝微光', colors: ['#67e8f9', '#3b82f6'] },
-    { id: 'emerald', name: '翡翠流荧', colors: ['#6ee7b7', '#059669'] },
-    { id: 'amber-rose', name: '赤金幻彩', colors: ['#fde047', '#f43f5e'] },
-    { id: 'sakura', name: '落樱星辉', colors: ['#fbcfe8', '#db2777'] },
-    { id: 'custom', name: '自定义', colors: [streamHeadColor, streamTailColor] },
-  ];
+  const colorPresets = useMemo(() => [
+    { name: isEn ? 'Aurora Violet' : '极光紫', value: '#a78bfa' },
+    { name: isEn ? 'Neon Cyan' : '霓虹青', value: '#38bdf8' },
+    { name: isEn ? 'Emerald' : '翡翠绿', value: '#34d399' },
+    { name: isEn ? 'Radiant Gold' : '炽热金', value: '#f59e0b' },
+    { name: isEn ? 'Sakura Pink' : '落樱粉', value: '#f472b6' },
+    { name: isEn ? 'Pure White' : '纯净白', value: '#f8fafc' },
+  ], [isEn]);
+
+  const streamPresets: Array<{ id: StreamPresetId; name: string; colors: [string, string] }> = useMemo(() => [
+    { id: 'theme', name: isEn ? 'Follow Theme' : '跟随主题', colors: theme.cursorStream || [theme.colors.accent || '#a78bfa', `${theme.colors.accent || '#a78bfa'}44`] },
+    { id: 'cyan-violet', name: isEn ? 'Cyan & Violet' : '青紫双色', colors: ['#38bdf8', '#a78bfa'] },
+    { id: 'ice-blue', name: isEn ? 'Ice Blue Glow' : '冰蓝微光', colors: ['#67e8f9', '#3b82f6'] },
+    { id: 'emerald', name: isEn ? 'Emerald Luminescence' : '翡翠流荧', colors: ['#6ee7b7', '#059669'] },
+    { id: 'amber-rose', name: isEn ? 'Amber Rose' : '赤金幻彩', colors: ['#fde047', '#f43f5e'] },
+    { id: 'sakura', name: isEn ? 'Sakura Sparkle' : '落樱星辉', colors: ['#fbcfe8', '#db2777'] },
+    { id: 'custom', name: isEn ? 'Custom' : '自定义', colors: [streamHeadColor, streamTailColor] },
+  ], [isEn, theme, streamHeadColor, streamTailColor]);
 
   const updateCaret = useCallback((immediate = false) => {
     const input = inputRef.current;
@@ -324,7 +407,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
             <Sliders className="h-3.5 w-3.5 opacity-70" />
-            <span>光标测试演练场</span>
+            <span>{labels.arena}</span>
           </div>
           <div className="flex items-center gap-2">
             <span
@@ -336,16 +419,16 @@ export const LiveCursorTestArena: React.FC<Props> = ({
               }}
             >
               {activeColorMode === 'theme'
-                ? `跟随主题 · ${theme.nameZh}`
+                ? `${labels.followTheme} · ${isEn ? theme.name : theme.nameZh}`
                 : activeColorMode === 'solid'
-                ? '经典单色'
-                : '双色流光'}
+                ? labels.classicSolid
+                : labels.vibrantStream}
             </span>
             <span
               className="font-mono text-[10.5px] px-2.5 py-0.5 rounded-full border border-white/10 opacity-75"
               style={{ color: theme.colors.text }}
             >
-              {cursorShape === 'block' ? '极简色块' : cursorShape === 'underline' ? '水平基准线' : '平滑光柱'}
+              {cursorShape === 'block' ? labels.block : cursorShape === 'underline' ? labels.underline : labels.beam}
             </span>
           </div>
         </div>
@@ -375,7 +458,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
               engineRef.current.setFocused(true);
               updateCaret(false);
             }}
-            placeholder="输入文字或按方向键测试光标跟随手感..."
+            placeholder={labels.arenaPlaceholder}
             className="w-full resize-none rounded-xl py-3 px-3.5 text-sm leading-[22px] min-h-[68px] outline-none font-mono transition-colors block"
             style={{
               backgroundColor: 'transparent',
@@ -396,14 +479,14 @@ export const LiveCursorTestArena: React.FC<Props> = ({
       >
         <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
           <Layers className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
-          <span>光标形态</span>
+          <span>{labels.morphology}</span>
         </div>
 
         <div className="grid grid-cols-3 gap-2.5">
           {[
-            { id: 'beam', name: '平滑光柱', desc: '细垂直光柱' },
-            { id: 'block', name: '极简色块', desc: '字符方块' },
-            { id: 'underline', name: '水平基准线', desc: '底部横线' },
+            { id: 'beam', name: labels.beam, desc: labels.beamDesc },
+            { id: 'block', name: labels.block, desc: labels.blockDesc },
+            { id: 'underline', name: labels.underline, desc: labels.underlineDesc },
           ].map((s) => {
             const isCur = cursorShape === s.id;
             return (
@@ -441,7 +524,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
             <Palette className="h-3.5 w-3.5" style={{ color: theme.colors.accent }} />
-            <span>光标色彩工坊</span>
+            <span>{labels.colorStudio}</span>
           </div>
 
           {/* 3-Mode Segmented Control */}
@@ -457,7 +540,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 border: activeColorMode === 'theme' ? `1px solid ${theme.colors.accent}40` : '1px solid transparent',
               }}
             >
-              跟随主题
+              {labels.followTheme}
             </button>
             <button
               onClick={handleSelectSolidMode}
@@ -470,7 +553,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 border: activeColorMode === 'solid' ? `1px solid ${theme.colors.accent}40` : '1px solid transparent',
               }}
             >
-              经典单色
+              {labels.classicSolid}
             </button>
             <button
               onClick={handleSelectStreamMode}
@@ -483,7 +566,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 border: activeColorMode === 'stream' ? `1px solid ${theme.colors.accent}40` : '1px solid transparent',
               }}
             >
-              幻彩流光
+              {labels.vibrantStream}
             </button>
           </div>
         </div>
@@ -500,7 +583,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                  {theme.nameZh}
+                  {isEn ? theme.name : theme.nameZh}
                 </span>
                 <span className="text-[10px] font-mono opacity-50">({theme.name})</span>
                 <span
@@ -511,11 +594,11 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                     border: `1px solid ${theme.colors.accent}40`,
                   }}
                 >
-                  主题预设
+                  {labels.themePreset}
                 </span>
               </div>
               <p className="text-[11px] opacity-65 leading-relaxed" style={{ color: theme.colors.textMuted }}>
-                光标颜色跟随当前主题，换肤时自动同步。
+                {labels.themeDesc}
               </p>
             </div>
 
@@ -532,7 +615,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                   style={{ backgroundColor: (theme.cursorStream || ['', theme.colors.accent])[1] }}
                 />
               </div>
-              <span className="text-[9.5px] font-mono opacity-50">主题流光</span>
+              <span className="text-[9.5px] font-mono opacity-50">{labels.themeStream}</span>
             </div>
           </div>
         )}
@@ -542,9 +625,9 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-                选择单色：
+                {labels.selectSolid}
               </span>
-              <span className="text-[10px] font-mono opacity-50">纯色模式</span>
+              <span className="text-[10px] font-mono opacity-50">{labels.solidMode}</span>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
@@ -605,9 +688,9 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-                选择流光配色：
+                {labels.selectStream}
               </span>
-              <span className="text-[10px] font-mono opacity-50">双色渐变</span>
+              <span className="text-[10px] font-mono opacity-50">{labels.gradient}</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -643,7 +726,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
             {streamPreset === 'custom' && (
               <div className="flex items-center gap-3 pt-2 px-1">
                 <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
-                  <span className="text-[10.5px] opacity-75">起始色</span>
+                  <span className="text-[10.5px] opacity-75">{labels.startColor}</span>
                   <div className="relative flex items-center gap-1.5">
                     <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamHeadColor }} />
                     <input
@@ -657,7 +740,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
                 </label>
 
                 <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-white/10 bg-white/[0.03] cursor-pointer hover:border-white/25 transition-all">
-                  <span className="text-[10.5px] opacity-75">结束色</span>
+                  <span className="text-[10.5px] opacity-75">{labels.endColor}</span>
                   <div className="relative flex items-center gap-1.5">
                     <span className="h-4 w-4 rounded-full border border-white/20 shadow-xs" style={{ backgroundColor: streamTailColor }} />
                     <input
@@ -686,21 +769,21 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
             <Activity className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
-            <span>动力学与手感</span>
+            <span>{labels.dynamics}</span>
           </div>
-          <span className="text-[10px] font-mono opacity-40">快捷键 Alt+P</span>
+          <span className="text-[10px] font-mono opacity-40">Alt+P</span>
         </div>
 
         {/* 动力学模式 */}
         <div className="space-y-2">
           <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-            动力学物理模型
+            {labels.dynamicsModel}
           </label>
           <div className="grid grid-cols-3 gap-2.5">
             {[
-              { id: 'fluid', name: '流体', desc: '平滑流体拉伸' },
-              { id: 'ribbon', name: '丝带', desc: '多节点弧形摆动' },
-              { id: 'quantum', name: '敏捷', desc: '高阻尼快速落位' },
+              { id: 'fluid', name: labels.fluid, desc: labels.fluidDesc },
+              { id: 'ribbon', name: labels.ribbon, desc: labels.ribbonDesc },
+              { id: 'quantum', name: labels.quantum, desc: labels.quantumDesc },
             ].map((pm) => {
               const isCur = physicsMode === pm.id;
               return (
@@ -728,13 +811,13 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         {/* 移动手感调校 */}
         <div className="space-y-2 pt-2 border-t border-white/5">
           <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-            移动手感调校
+            {labels.speedTuning}
           </label>
           <div className="grid grid-cols-3 gap-2">
             {[
-              { id: 'gentle', name: '柔和', desc: '平缓跟随' },
-              { id: 'balanced', name: '均衡', desc: '自然跟随' },
-              { id: 'snappy', name: '敏捷', desc: '即时跟随' },
+              { id: 'gentle', name: labels.gentle, desc: labels.gentleDesc },
+              { id: 'balanced', name: labels.balanced, desc: labels.balancedDesc },
+              { id: 'snappy', name: labels.snappy, desc: labels.snappyDesc },
             ].map((sm) => {
               const isCur = speedMode === sm.id;
               return (
@@ -763,9 +846,9 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         <div className="flex items-center justify-between p-3 rounded-xl border border-white/5 bg-white/[0.02]">
           <div>
             <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
-              行内倾角切变
+              {labels.inlineSkew}
             </div>
-            <div className="text-[10px] opacity-50">打字时前倾，静止时回正</div>
+            <div className="text-[10px] opacity-50">{labels.inlineSkewDesc}</div>
           </div>
           <button
             onClick={() => onChangeInlineSkew?.(!inlineSkew)}
@@ -790,20 +873,20 @@ export const LiveCursorTestArena: React.FC<Props> = ({
         }}
       >
         <div className="font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
-          <span>按键微光与静态呼吸</span>
+          <span>{labels.vfxAndBreathing}</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div className="space-y-2">
             <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-              按键微粒子效果
+              {labels.vfxTitle}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'pure', name: '无', desc: '不开启粒子' },
-                { id: 'embers', name: '星火', desc: '击键产生微光点' },
-                { id: 'ripples', name: '波纹', desc: '换行展开微水纹' },
-                { id: 'feather', name: '轻芒', desc: '散发呼吸微光' },
+                { id: 'pure', name: labels.vfxNone, desc: labels.vfxNoneDesc },
+                { id: 'embers', name: labels.vfxEmbers, desc: labels.vfxEmbersDesc },
+                { id: 'ripples', name: labels.vfxRipples, desc: labels.vfxRipplesDesc },
+                { id: 'feather', name: labels.vfxFeather, desc: labels.vfxFeatherDesc },
               ].map((vfx) => {
                 const isCur = vfxMode === vfx.id;
                 return (
@@ -830,13 +913,13 @@ export const LiveCursorTestArena: React.FC<Props> = ({
 
           <div className="space-y-2">
             <label className="block text-[11px] opacity-75" style={{ color: theme.colors.text }}>
-              静态呼吸与闪烁
+              {labels.blinkTitle}
             </label>
             <div className="grid grid-cols-3 gap-1.5">
               {[
-                { id: 'smooth', name: '柔和呼吸', desc: '缓慢明暗' },
-                { id: 'blink', name: '传统闪烁', desc: '标准通断' },
-                { id: 'solid', name: '常亮静止', desc: '持续稳定' },
+                { id: 'smooth', name: labels.blinkSmooth, desc: labels.blinkSmoothDesc },
+                { id: 'blink', name: labels.blinkClassic, desc: labels.blinkClassicDesc },
+                { id: 'solid', name: labels.blinkSolid, desc: labels.blinkSolidDesc },
               ].map((bm) => {
                 const isCur = blinkMode === bm.id;
                 return (
@@ -873,14 +956,14 @@ export const LiveCursorTestArena: React.FC<Props> = ({
       >
         <div className="flex items-center gap-2 font-medium text-xs opacity-90" style={{ color: theme.colors.text }}>
           <Sliders className="h-3.5 w-3.5 opacity-75" style={{ color: theme.colors.accent }} />
-          <span>动力学参数微调</span>
+          <span>{labels.slidersTitle}</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
           {/* Slider 1: Response Time */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">动画响应时长</span>
+              <span className="text-[11px] font-medium opacity-75">{labels.animDuration}</span>
               <span
                 className="font-mono text-[10.5px] px-2 py-0.5 rounded-md font-semibold shadow-inner"
                 style={{ backgroundColor: `${theme.colors.accent}18`, color: theme.colors.accent }}
@@ -928,7 +1011,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           {/* Slider 2: Trail Stretch */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">拖尾延展长度</span>
+              <span className="text-[11px] font-medium opacity-75">{labels.trailLength}</span>
               <span
                 className="font-mono text-[10.5px] px-2 py-0.5 rounded-md font-semibold shadow-inner"
                 style={{ backgroundColor: `${theme.colors.accent}18`, color: theme.colors.accent }}
@@ -976,7 +1059,7 @@ export const LiveCursorTestArena: React.FC<Props> = ({
           {/* Slider 3: Breathe Cycle */}
           <div className="space-y-2.5 p-3 rounded-xl border border-white/10 bg-white/[0.03]">
             <div className="flex justify-between items-center">
-              <span className="text-[11px] font-medium opacity-75">静态呼吸周期</span>
+              <span className="text-[11px] font-medium opacity-75">{labels.breatheCycle}</span>
               <span
                 className="font-mono text-[10.5px] px-2 py-0.5 rounded-md font-semibold shadow-inner"
                 style={{ backgroundColor: `${theme.colors.accent}18`, color: theme.colors.accent }}

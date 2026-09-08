@@ -12,6 +12,7 @@ export class InteractiveCanvasEngine {
   private layers: Map<string, CanvasRenderLayer> = new Map();
 
   private isRunning: boolean = false;
+  private rafId: number | null = null;
   private lastTime: number = 0;
   private idleFrameCount: number = 0;
   private readonly IDLE_THRESHOLD: number = 45; // ~0.75s of zero motion before pausing rAF to save CPU/battery
@@ -76,12 +77,19 @@ export class InteractiveCanvasEngine {
     if (!this.isRunning && this.canvas && this.ctx) {
       this.isRunning = true;
       this.lastTime = performance.now();
-      requestAnimationFrame(this.renderLoop);
+      if (this.rafId) {
+        cancelAnimationFrame(this.rafId);
+      }
+      this.rafId = requestAnimationFrame(this.renderLoop);
     }
   }
 
   private stop(): void {
     this.isRunning = false;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
   }
 
   private renderLoop = (currentTime: number): void => {
@@ -116,7 +124,7 @@ export class InteractiveCanvasEngine {
       this.idleFrameCount = 0;
     }
 
-    requestAnimationFrame(this.renderLoop);
+    this.rafId = requestAnimationFrame(this.renderLoop);
   };
 }
 

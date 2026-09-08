@@ -1,12 +1,15 @@
 import type { NovelitePlugin, PluginContext } from '../../core/plugins/types';
 import type { Theme } from '../../core/themes/types';
+import { getLanguage } from '../../core/i18n';
 
 export const BackgroundAtmospherePlugin: NovelitePlugin = {
   metadata: {
     id: 'plugin-background-atmosphere',
     name: '背景与氛围',
+    nameEn: 'Background Atmosphere',
     version: '1.0.0',
     description: '提供自定义背景壁纸、高斯模糊、暗化遮罩与氛围渲染。',
+    descriptionEn: 'Custom wallpapers, Gaussian blur, dimming overlays, and atmospheric background effects.',
     author: 'hirovel',
     icon: 'Sparkles',
     defaultEnabled: true,
@@ -16,6 +19,7 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
     ctx.registerBackgroundRenderer({
       id: 'aurora',
       name: '极光流云',
+      nameEn: 'Aurora Flow',
       render: (theme: Theme, intensity: number) => {
         const accent = theme.colors.accent || '#a78bfa';
         const cursor = theme.colors.cursor || accent;
@@ -51,6 +55,7 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
     ctx.registerBackgroundRenderer({
       id: 'ruled',
       name: '信纸横线',
+      nameEn: 'Manuscript Ruled Lines',
       render: () => {
         return null;
       },
@@ -60,7 +65,10 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
     ctx.registerCommand({
       id: 'background.cycle-effect',
       title: '切换背景空间氛围特效',
+      titleEn: 'Cycle Background Atmosphere Effect',
+      descriptionEn: 'Cycle between solid, aurora, ruled manuscript, and custom image',
       category: '视觉沉浸',
+      categoryEn: 'Atmosphere',
       shortcut: 'Alt+B',
       run: (c) => {
         const hasCustom = !!localStorage.getItem('novelite_custom_image');
@@ -71,13 +79,21 @@ export const BackgroundAtmospherePlugin: NovelitePlugin = {
         const next = effects[(effects.indexOf(current) + 1) % effects.length];
         c.setSetting('effect', next);
         c.emit('background-effect-changed', next);
-        const nameMap: Record<string, string> = {
-          custom: '自定义背景',
-          solid: '纯色背景',
-          aurora: '极光流云',
-          ruled: '信纸横线',
-        };
-        c.showToast(`已切换空间氛围: ${nameMap[next] || next}`, 'info');
+        const isEn = getLanguage() === 'en';
+        const nameMap: Record<string, string> = isEn
+          ? {
+              custom: 'Custom Wallpaper',
+              solid: 'Solid Color',
+              aurora: 'Aurora Flow',
+              ruled: 'Manuscript Ruled',
+            }
+          : {
+              custom: '自定义背景',
+              solid: '纯色背景',
+              aurora: '极光流云',
+              ruled: '信纸横线',
+            };
+        c.showToast(isEn ? `Atmosphere effect: ${nameMap[next] || next}` : `已切换空间氛围: ${nameMap[next] || next}`, 'info');
       },
     });
   },

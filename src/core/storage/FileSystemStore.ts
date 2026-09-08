@@ -5,6 +5,10 @@ import { eventBus } from '../events/EventBus';
 
 export type DiskSyncStatus = 'idle' | 'syncing' | 'saved' | 'external-change' | 'error';
 
+function getIsEn(): boolean {
+  return typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
+}
+
 export class FileSystemStore {
   private static instance: FileSystemStore;
   private currentDirHandle: any = null;
@@ -35,7 +39,7 @@ export class FileSystemStore {
   }
 
   public isDiskConnected(): boolean {
-    return Boolean(this.currentDirHandle);
+    return this.currentDirHandle !== null;
   }
 
   public getCurrentFolderName(): string | null {
@@ -52,7 +56,9 @@ export class FileSystemStore {
   public async openLocalDirectory(): Promise<NovelProject | null> {
     if (!this.isSupported()) {
       eventBus.emit('show-toast', {
-        message: '当前浏览器不支持原生文件系统 API，请使用 Edge 或 Chrome',
+        message: getIsEn()
+          ? 'Your browser does not support the File System Access API. Please use Chrome or Edge.'
+          : '当前浏览器不支持原生文件系统 API，请使用 Edge 或 Chrome',
         type: 'warning',
       });
       return null;
@@ -124,11 +130,12 @@ export class FileSystemStore {
 
           if (!volumes[0]) {
             const rootVolId = `vol_fs_root_${Date.now()}`;
+            const rootVolTitle = getIsEn() ? 'Volume 1' : '第一卷';
             this.volumeDirHandles.set(rootVolId, dirHandle);
-            this.volumeNames.set(rootVolId, '第一卷');
+            this.volumeNames.set(rootVolId, rootVolTitle);
             volumes.push({
               id: rootVolId,
-              title: '第一卷',
+              title: rootVolTitle,
               isExpanded: true,
               chapters: [],
             });
@@ -152,17 +159,21 @@ export class FileSystemStore {
 
       if (volumes.length === 0) {
         // Create initial default chapter on disk
-        const defaultVolDir = await dirHandle.getDirectoryHandle('第一卷', { create: true });
+        const isEn = getIsEn();
+        const defaultVolName = isEn ? 'Volume 1' : '第一卷';
+        const defaultChapName = isEn ? 'Chapter 1' : '第一章';
+        const defaultFileName = isEn ? 'Chapter 1.txt' : '第一章.txt';
+        const defaultVolDir = await dirHandle.getDirectoryHandle(defaultVolName, { create: true });
         const defaultVolId = `vol_fs_init_${Date.now()}`;
         this.volumeDirHandles.set(defaultVolId, defaultVolDir);
-        this.volumeNames.set(defaultVolId, '第一卷');
+        this.volumeNames.set(defaultVolId, defaultVolName);
 
-        const defaultFile = await defaultVolDir.getFileHandle('第一章.txt', { create: true });
+        const defaultFile = await defaultVolDir.getFileHandle(defaultFileName, { create: true });
         const defaultChapId = `chap_fs_init_${Date.now()}`;
         this.chapterFileHandles.set(defaultChapId, defaultFile);
-        this.chapterMeta.set(defaultChapId, { volId: defaultVolId, fileName: '第一章.txt' });
+        this.chapterMeta.set(defaultChapId, { volId: defaultVolId, fileName: defaultFileName });
 
-        const initialText = '# 第一章\n\n开始写作。';
+        const initialText = isEn ? '# Chapter 1\n\nStart writing here.' : '# 第一章\n\n开始写作。';
         const writable = await defaultFile.createWritable();
         await writable.write(initialText);
         await writable.close();
@@ -172,12 +183,12 @@ export class FileSystemStore {
 
         volumes.push({
           id: defaultVolId,
-          title: '第一卷',
+          title: defaultVolName,
           isExpanded: true,
           chapters: [
             {
               id: defaultChapId,
-              title: '第一章',
+              title: defaultChapName,
               content: initialText,
               wordCount: countWordsFast(initialText),
               updatedAt: Date.now(),
@@ -186,8 +197,9 @@ export class FileSystemStore {
         });
       }
 
-      const bookTitle = dirHandle.name || '本地作品';
-      const newProj = projectStore.createProject(bookTitle, '本地作者');
+      const isEn = getIsEn();
+      const bookTitle = dirHandle.name || (isEn ? 'Local Project' : '本地作品');
+      const newProj = projectStore.createProject(bookTitle, isEn ? 'Local Author' : '本地作者');
       newProj.volumes = volumes;
       newProj.activeChapterId = volumes[0]?.chapters[0]?.id || null;
       projectStore.save();
@@ -202,7 +214,9 @@ export class FileSystemStore {
       this.syncStatus = 'saved';
       eventBus.emit('disk-sync-changed', { status: 'saved', folderName: bookTitle });
       eventBus.emit('show-toast', {
-        message: `已挂载本地硬盘目录《${bookTitle}》（${volumes.length} 卷 · ${totalChaptersCount} 章）实时双向同步已激活`,
+        message: isEn
+          ? `Mounted local disk folder "${bookTitle}" (${volumes.length} vols · ${totalChaptersCount} chapters). Two-way sync activated.`
+          : `已挂载本地硬盘目录《${bookTitle}》（${volumes.length} 卷 · ${totalChaptersCount} 章）实时双向同步已激活`,
         type: 'success',
       });
 
@@ -210,8 +224,9 @@ export class FileSystemStore {
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         console.error('Error opening directory:', err);
+        const isEn = getIsEn();
         eventBus.emit('show-toast', {
-          message: '打开本地目录失败: ' + (err.message || '未知错误'),
+          message: isEn ? `Failed to open local directory: ${err.message || 'Unknown error'}` : ('打开本地目录失败: ' + (err.message || '未知错误')),
           type: 'error',
         });
       }
@@ -305,8 +320,11 @@ export class FileSystemStore {
           eventBus.emit('active-chapter-changed', curChap.id);
           eventBus.emit('disk-sync-changed', { status: 'saved' });
 
+          const isEn = getIsEn();
           eventBus.emit('show-toast', {
-            message: `检测到外部修改 (VSCode/Typora/云同步)，已平滑热重载最新《${curChap.title}》`,
+            message: isEn
+              ? `External change detected (VSCode/Typora/Cloud). Hot-reloaded "${curChap.title}".`
+              : `检测到外部修改 (VSCode/Typora/云同步)，已平滑热重载最新《${curChap.title}》`,
             type: 'info',
           });
           return true;
@@ -342,8 +360,11 @@ export class FileSystemStore {
         }
       }
 
+      const isEn = getIsEn();
       eventBus.emit('show-toast', {
-        message: `已成功将全书以纯文本标准目录导出至：${dirHandle.name}`,
+        message: isEn
+          ? `Successfully exported manuscript directory to: ${dirHandle.name}`
+          : `已成功将全书以纯文本标准目录导出至：${dirHandle.name}`,
         type: 'success',
       });
       return true;
@@ -407,7 +428,8 @@ export class FileSystemStore {
 
     try {
       const volDir = this.volumeDirHandles.get(volumeId) || this.currentDirHandle;
-      const safeTitle = (title.trim() || '未命名章节').replace(/[\\/:*?"<>|]/g, '_');
+      const fallbackTitle = getIsEn() ? 'Untitled Chapter' : '未命名章节';
+      const safeTitle = (title.trim() || fallbackTitle).replace(/[\\/:*?"<>|]/g, '_');
       const fileName = `${safeTitle}.txt`;
 
       const fileHandle = await volDir.getFileHandle(fileName, { create: true });
@@ -432,7 +454,8 @@ export class FileSystemStore {
     const meta = this.chapterMeta.get(chapterId);
     if (!meta) return false;
 
-    const safeTitle = (newTitle.trim() || '未命名章节').replace(/[\\/:*?"<>|]/g, '_');
+    const fallbackTitle = getIsEn() ? 'Untitled Chapter' : '未命名章节';
+    const safeTitle = (newTitle.trim() || fallbackTitle).replace(/[\\/:*?"<>|]/g, '_');
     const ext = meta.fileName.endsWith('.md') ? '.md' : '.txt';
     const newFileName = `${safeTitle}${ext}`;
     if (newFileName === meta.fileName) return true;
@@ -478,7 +501,8 @@ export class FileSystemStore {
     if (!this.currentDirHandle) return false;
 
     try {
-      const safeTitle = (title.trim() || '新建分卷').replace(/[\\/:*?"<>|]/g, '_');
+      const fallbackVol = getIsEn() ? 'New Volume' : '新建分卷';
+      const safeTitle = (title.trim() || fallbackVol).replace(/[\\/:*?"<>|]/g, '_');
       const volDir = await this.currentDirHandle.getDirectoryHandle(safeTitle, { create: true });
       this.volumeDirHandles.set(volumeId, volDir);
       this.volumeNames.set(volumeId, safeTitle);
@@ -495,7 +519,8 @@ export class FileSystemStore {
     const oldName = this.volumeNames.get(volumeId);
     if (!oldName) return false;
 
-    const safeTitle = (newTitle.trim() || '新建分卷').replace(/[\\/:*?"<>|]/g, '_');
+    const fallbackVol = getIsEn() ? 'New Volume' : '新建分卷';
+    const safeTitle = (newTitle.trim() || fallbackVol).replace(/[\\/:*?"<>|]/g, '_');
     if (safeTitle === oldName) return true;
 
     try {

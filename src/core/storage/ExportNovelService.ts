@@ -48,13 +48,16 @@ export class ExportNovelService {
   public exportProjectToTxt(project: NovelProject): void {
     if (!project) return;
 
-    const bookTitle = project.title || '未命名小说';
-    const bookAuthor = project.author || '佚名';
+    const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
+    const bookTitle = project.title || (isEn ? 'Untitled Novel' : '未命名小说');
+    const bookAuthor = project.author || (isEn ? 'Anonymous' : '佚名');
 
-    let output = `《${bookTitle}》\n作者：${bookAuthor}\n\n====================================\n\n`;
+    let output = isEn
+      ? `${bookTitle}\nAuthor: ${bookAuthor}\n\n====================================\n\n`
+      : `《${bookTitle}》\n作者：${bookAuthor}\n\n====================================\n\n`;
 
     project.volumes?.forEach((vol) => {
-      output += `\n【${vol.title}】\n\n`;
+      output += isEn ? `\n[${vol.title}]\n\n` : `\n【${vol.title}】\n\n`;
       vol.chapters?.forEach((chap) => {
         output += `\n${this.formatChapterWysiwyg(chap)}\n\n`;
       });
@@ -64,14 +67,14 @@ export class ExportNovelService {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `《${bookTitle}》_全本.txt`;
+    a.download = isEn ? `${bookTitle}_Complete.txt` : `《${bookTitle}》_全本.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
     eventBus.emit('show-toast', {
-      message: `已成功导出《${bookTitle}》全本 TXT`,
+      message: isEn ? `Successfully exported "${bookTitle}" full manuscript TXT` : `已成功导出《${bookTitle}》全本 TXT`,
       type: 'success',
     });
   }
@@ -81,6 +84,7 @@ export class ExportNovelService {
    */
   public exportChapterToTxt(chap: Chapter): void {
     if (!chap) return;
+    const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
     const content = this.formatChapterWysiwyg(chap);
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -93,7 +97,7 @@ export class ExportNovelService {
     URL.revokeObjectURL(url);
 
     eventBus.emit('show-toast', {
-      message: `已导出《${chap.title}.txt》`,
+      message: isEn ? `Exported "${chap.title}.txt"` : `已导出《${chap.title}.txt》`,
       type: 'success',
     });
   }
@@ -103,6 +107,7 @@ export class ExportNovelService {
    */
   public exportChapterToMd(chap: Chapter): void {
     if (!chap) return;
+    const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
     const content = chap.content || `# ${chap.title}\n`;
     const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -115,7 +120,7 @@ export class ExportNovelService {
     URL.revokeObjectURL(url);
 
     eventBus.emit('show-toast', {
-      message: `已导出《${chap.title}.md》`,
+      message: isEn ? `Exported "${chap.title}.md"` : `已导出《${chap.title}.md》`,
       type: 'success',
     });
   }

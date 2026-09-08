@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { Theme } from '../../core/themes/types';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
+import { useI18n } from '../../core/i18n';
 import {
   BookOpen,
   Sparkles,
@@ -32,6 +33,8 @@ const ICON_MAP: Record<string, any> = {
 };
 
 export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettings }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [pluginTabs, setPluginTabs] = useState(() => pluginManager.getSidebarTabs());
   const [plugins, setPlugins] = useState(() => pluginManager.getAllPlugins());
   const [activeTab, setActiveTab] = useState<string>(() => {
@@ -86,11 +89,12 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
           {pluginTabs.map((tab) => {
             const Icon = ICON_MAP[tab.icon] || Layers;
             const isActive = activeTab === tab.id;
+            const displayTitle = isEn && tab.titleEn ? tab.titleEn : tab.title;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                title={tab.title}
+                title={displayTitle}
                 className={`group relative flex items-center justify-center gap-1.5 flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
                   isActive
                     ? 'shadow-xs font-semibold'
@@ -102,7 +106,7 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
                 }}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" />
-                <span className="text-[11px] truncate">{tab.title}</span>
+                <span className="text-[11px] truncate">{displayTitle}</span>
 
                 {/* Active Indicator Line */}
                 {isActive && (
@@ -118,7 +122,7 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
           {/* Built-in Plugin Ecosystem Management Tab */}
           <button
             onClick={() => setActiveTab('plugins-manager')}
-            title="插件生态与扩展管理"
+            title={isEn ? 'Extensions & Plugin Ecosystem' : '插件生态与扩展管理'}
             className={`group relative flex items-center justify-center gap-1.5 flex-1 py-1.5 px-2 rounded-lg text-xs font-medium transition-all ${
               activeTab === 'plugins-manager'
                 ? 'shadow-xs font-semibold'
@@ -130,7 +134,7 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
             }}
           >
             <Puzzle className="h-3.5 w-3.5 shrink-0" />
-            <span className="text-[11px] truncate">扩展</span>
+            <span className="text-[11px] truncate">{isEn ? 'Extensions' : '扩展'}</span>
             {activeTab === 'plugins-manager' && (
               <div
                 className="absolute -bottom-1 left-2 right-2 h-0.5 rounded-full shadow-xs"
@@ -143,7 +147,7 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
         {/* Collapse Sidebar Button */}
         <button
           onClick={onToggle}
-          title="折叠边栏 (Ctrl+B)"
+          title={isEn ? 'Collapse Sidebar (Ctrl+B)' : '折叠边栏 (Ctrl+B)'}
           className="ml-2 p-1.5 rounded-lg hover:bg-white/10 opacity-60 hover:opacity-100 transition-all hover:scale-105 active:scale-95"
           style={{ color: theme.colors.text }}
         >
@@ -156,13 +160,13 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
         {activeTab === 'plugins-manager' ? (
           <div className="flex h-full flex-col p-3 text-xs overflow-y-auto space-y-3">
             <div className="flex items-center justify-between opacity-70 font-mono text-[11px] pb-1 border-b border-white/5">
-              <span>已载入插件 ({plugins.length})</span>
+              <span>{isEn ? `Loaded Plugins (${plugins.length})` : `已载入插件 (${plugins.length})`}</span>
               <button
                 onClick={onOpenSettings}
-                className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors"
+                className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
               >
                 <Settings className="h-3 w-3" />
-                <span>偏好设置</span>
+                <span>{isEn ? 'Preferences' : '偏好设置'}</span>
               </button>
             </div>
 
@@ -191,13 +195,13 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
 
                       <button
                         onClick={() => pluginManager.togglePlugin(p.metadata.id)}
-                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-mono transition-all font-semibold ${
+                        className={`text-[10px] px-2.5 py-0.5 rounded-full font-mono transition-all font-semibold cursor-pointer ${
                           isEnabled
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-xs'
                             : 'bg-white/5 text-neutral-400 border border-white/5'
                         }`}
                       >
-                        {isEnabled ? '已启用' : '已禁用'}
+                        {isEn ? (isEnabled ? 'Enabled' : 'Disabled') : (isEnabled ? '已启用' : '已禁用')}
                       </button>
                     </div>
 
@@ -239,7 +243,7 @@ export const Sidebar: React.FC<Props> = ({ theme, isOpen, onToggle, onOpenSettin
         <span className="text-[11px] font-mono opacity-50">Novelite Microkernel 2.0</span>
         <button
           onClick={onOpenSettings}
-          title="打开偏好设置 (Ctrl+,)"
+          title={isEn ? "Preferences (Ctrl+,)" : "打开偏好设置 (Ctrl+,)"}
           className="p-1.5 rounded-lg border border-white/5 hover:bg-white/10 opacity-60 hover:opacity-100 transition-all hover:scale-105"
           style={{ color: theme.colors.text }}
         >

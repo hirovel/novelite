@@ -13,6 +13,11 @@ import type {
 import { commandRegistry } from './CommandRegistry';
 import { keymapRegistry } from '../keymap/KeymapRegistry';
 import { eventBus } from '../events/EventBus';
+import { safeStorageSet } from '../storage/safeStorage';
+
+function getIsEn(): boolean {
+  return typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
+}
 
 export class PluginManager {
   private static instance: PluginManager;
@@ -76,8 +81,8 @@ export class PluginManager {
       this.explicitStates.forEach((val, key) => {
         obj[key] = val;
       });
-      localStorage.setItem('novelite_plugin_states', JSON.stringify(obj));
-      localStorage.setItem('novelite_enabled_plugins', JSON.stringify(Array.from(this.enabledPluginIds)));
+      safeStorageSet('novelite_plugin_states', JSON.stringify(obj));
+      safeStorageSet('novelite_enabled_plugins', JSON.stringify(Array.from(this.enabledPluginIds)));
     } catch (e) {
       console.error('Failed to save plugin states:', e);
     }
@@ -150,7 +155,9 @@ export class PluginManager {
           unbindKeymap = keymapRegistry.register({
             id: command.id,
             title: command.title,
+            titleEn: command.titleEn,
             description: command.description || `${command.title} (${pluginId})`,
+            descriptionEn: command.descriptionEn || (command.titleEn ? `${command.titleEn} (${pluginId})` : undefined),
             category: 'system',
             scope: 'global',
             defaultKey: command.shortcut,
@@ -228,24 +235,30 @@ export class PluginManager {
         let unregCmd: (() => void) | null = null;
         let unbindKeymap: (() => void) | null = null;
         if (formatter.shortcut) {
+          const isEn = getIsEn();
           unregCmd = commandRegistry.register({
             id: `formatter.${formatter.id}`,
-            title: `排版: ${formatter.title}`,
+            title: isEn && formatter.titleEn ? `Format: ${formatter.titleEn}` : `排版: ${formatter.title}`,
+            titleEn: formatter.titleEn ? `Format: ${formatter.titleEn}` : undefined,
             category: '排版与写作',
+            categoryEn: 'Typography',
             shortcut: formatter.shortcut,
             run: (c) => {
               const current = c.getEditorContent();
               const formatted = formatter.format(current);
               if (formatted !== current) {
                 c.setEditorContent(formatted);
-                c.showToast(`已执行「${formatter.title}」`, 'success');
+                const en = getIsEn();
+                c.showToast(en ? `Executed "${formatter.titleEn || formatter.title}"` : `已执行「${formatter.title}」`, 'success');
               }
             },
           });
           unbindKeymap = keymapRegistry.register({
             id: `formatter.${formatter.id}`,
-            title: `排版: ${formatter.title}`,
-            description: `排版格式化 (${formatter.title})`,
+            title: isEn && formatter.titleEn ? `Format: ${formatter.titleEn}` : `排版: ${formatter.title}`,
+            titleEn: formatter.titleEn ? `Format: ${formatter.titleEn}` : undefined,
+            description: isEn && formatter.titleEn ? `Typesetting format (${formatter.titleEn})` : `排版格式化 (${formatter.title})`,
+            descriptionEn: `Typesetting format (${formatter.titleEn || formatter.title})`,
             category: 'literary',
             scope: 'global',
             defaultKey: formatter.shortcut,
@@ -254,7 +267,8 @@ export class PluginManager {
               const formatted = formatter.format(current);
               if (formatted !== current && this.editorContentSetter) {
                 this.editorContentSetter(formatted);
-                this.toastHandler?.(`已执行「${formatter.title}」`, 'success');
+                const en = getIsEn();
+                this.toastHandler?.(en ? `Executed "${formatter.titleEn || formatter.title}"` : `已执行「${formatter.title}」`, 'success');
               }
             },
           });
@@ -311,7 +325,7 @@ export class PluginManager {
       },
       setSetting: <T>(key: string, value: T): void => {
         const fullKey = `novelite_plugin_${pluginId}_${key}`;
-        localStorage.setItem(fullKey, JSON.stringify(value));
+        safeStorageSet(fullKey, JSON.stringify(value));
         eventBus.emit(`plugin-setting-changed:${pluginId}`, { key, value });
         // 仅在插件真正注册了编辑器扩展时才通知 CodeMirror 重构扩展，避免无扩展插件（如背景氛围、字数统计等）改动引发无谓重载
         const plugin = this.plugins.get(pluginId);

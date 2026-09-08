@@ -15,6 +15,8 @@ import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import type { NovelProject, Chapter } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
+import { safeStorageSet } from '../../core/storage/safeStorage';
+import { useI18n } from '../../core/i18n';
 
 export type NavigationDemoMode = 'ulysses-sheets' | 'bear-hairline' | 'horizon-island' | 'obsidian-alt';
 
@@ -33,6 +35,8 @@ interface ContextMenuState {
 }
 
 export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [navMode, setNavMode] = useState<NavigationDemoMode>(() => {
     return (localStorage.getItem('novelite_nav_demo_mode') as NavigationDemoMode) || 'ulysses-sheets';
@@ -112,7 +116,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
 
   const handleChangeNavMode = (mode: NavigationDemoMode) => {
     setNavMode(mode);
-    localStorage.setItem('novelite_nav_demo_mode', mode);
+    safeStorageSet('novelite_nav_demo_mode', mode);
   };
 
   const handleSelectChapter = (chapId: string) => {
@@ -128,7 +132,8 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
     const vol = project.volumes.find((v) => v.id === inlineNewChap.volId) || project.volumes[0];
     if (!vol) return;
     const count = vol.chapters.length + 1;
-    const title = newChapTitle.trim() || `第 ${count} 章`;
+    const defaultTitle = isEn ? `Chapter ${count}` : `第 ${count} 章`;
+    const title = newChapTitle.trim() || defaultTitle;
 
     const newChap = projectStore.insertChapter(vol.id, title, inlineNewChap.index);
     setActiveChapterId(newChap.id);
@@ -137,7 +142,8 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
   };
 
   const handleCreateVolumeSubmit = () => {
-    const title = newVolTitle.trim() || `第 ${project.volumes.length + 1} 卷`;
+    const defaultTitle = isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`;
+    const title = newVolTitle.trim() || defaultTitle;
     const newVol = projectStore.addVolume(title);
     setSelectedVolId(newVol.id);
     setNewVolTitle('');
@@ -166,7 +172,10 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
     setContextMenu(null);
     const copy = projectStore.duplicateChapter(chapId);
     if (copy) {
-      eventBus.emit('show-toast', { message: `已创建副本《${copy.title}》`, type: 'success' });
+      eventBus.emit('show-toast', {
+        message: isEn ? `Created copy "${copy.title}"` : `已创建副本《${copy.title}》`,
+        type: 'success',
+      });
     }
   };
 
@@ -174,12 +183,18 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
     e.stopPropagation();
     setContextMenu(null);
     projectStore.deleteChapter(chapId);
-    eventBus.emit('show-toast', { message: `已删除《${chapTitle}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted "${chapTitle}"` : `已删除《${chapTitle}》`,
+      type: 'info',
+    });
   };
 
   const handleAutoNumber = () => {
     const count = projectStore.autoNumberChapters();
-    eventBus.emit('show-toast', { message: `已规范全书 ${count} 章节序号`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Renumbered ${count} chapters` : `已规范全书 ${count} 章节序号`,
+      type: 'success',
+    });
   };
 
   const handleExportChapter = (chap: Chapter, format: 'txt' | 'md' = 'txt') => {
@@ -203,7 +218,10 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    eventBus.emit('show-toast', { message: `已导出《${chap.title}.${format}》`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Exported "${chap.title}.${format}"` : `已导出《${chap.title}.${format}》`,
+      type: 'success',
+    });
   };
 
   const handleContextMenu = (e: React.MouseEvent, chap: Chapter, volId: string) => {
@@ -226,7 +244,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
   // Helper to extract first sentence snippet for Ulysses Sheet Cards
   const getFirstSentence = (content = '') => {
     const clean = content.replace(/^#+\s+.*$/gm, '').trim();
-    if (!clean) return '暂无正文内容……';
+    if (!clean) return isEn ? 'No content yet...' : '暂无正文内容……';
     const firstLine = clean.split('\n')[0].trim();
     return firstLine.slice(0, 48) + (firstLine.length > 48 ? '…' : '');
   };
@@ -237,14 +255,14 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
       <div className="absolute top-3 left-4 z-40 flex items-center gap-1.5 p-1 rounded-xl border bg-black/40 backdrop-blur-2xl shadow-xl border-white/10 text-xs select-none">
         <span className="text-[10px] font-mono opacity-40 px-1.5 flex items-center gap-1">
           <Sparkles className="h-3 w-3" style={{ color: theme.colors.accent || '#38bdf8' }} />
-          导航风格体验:
+          {isEn ? 'Nav Style:' : '导航风格体验:'}
         </span>
         {(
           [
-            { id: 'ulysses-sheets', label: '1. Ulysses 卡片' },
-            { id: 'bear-hairline', label: '2. Bear 2 发丝树' },
-            { id: 'horizon-island', label: '3. 顶部灵动胶囊' },
-            { id: 'obsidian-alt', label: '4. Obsidian 分区' },
+            { id: 'ulysses-sheets', label: isEn ? '1. Ulysses Sheets' : '1. Ulysses 卡片' },
+            { id: 'bear-hairline', label: isEn ? '2. Bear 2 Tree' : '2. Bear 2 发丝树' },
+            { id: 'horizon-island', label: isEn ? '3. Horizon Island' : '3. 顶部灵动胶囊' },
+            { id: 'obsidian-alt', label: isEn ? '4. Obsidian Split' : '4. Obsidian 分区' },
           ] as const
         ).map((m) => (
           <button
@@ -282,7 +300,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
             <div className="flex items-center gap-2 overflow-hidden flex-1">
               <BookOpen className="h-3.5 w-3.5 opacity-60" style={{ color: theme.colors.accent || '#38bdf8' }} />
               <h3 className="font-semibold text-xs truncate" style={{ color: theme.colors.text }}>
-                {project.title || '未命名作品'}
+                {project.title || (isEn ? 'Untitled Novel' : '未命名作品')}
               </h3>
             </div>
             <button
@@ -290,7 +308,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                 if (activeVol) setInlineNewChap({ volId: activeVol.id });
               }}
               className="p-1 rounded-md opacity-50 hover:opacity-100 hover:bg-white/10 cursor-pointer"
-              title="新建章节 (Ctrl+N)"
+              title={isEn ? "New Chapter (Ctrl+N)" : "新建章节 (Ctrl+N)"}
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -314,10 +332,10 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
             <button
               onClick={() => {
                 setInlineNewVol(true);
-                setNewVolTitle(`第 ${project.volumes.length + 1} 卷`);
+                setNewVolTitle(isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`);
               }}
               className="p-1 rounded-md opacity-30 hover:opacity-80 shrink-0 cursor-pointer"
-              title="新建分卷"
+              title={isEn ? "New Volume" : "新建分卷"}
             >
               <Plus className="h-3 w-3" />
             </button>
@@ -331,7 +349,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                 type="text"
                 value={newVolTitle}
                 onChange={(e) => setNewVolTitle(e.target.value)}
-                placeholder="输入分卷名称，敲回车..."
+                placeholder={isEn ? "Enter volume title, press Enter..." : "输入分卷名称，敲回车..."}
                 onBlur={handleCreateVolumeSubmit}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreateVolumeSubmit();
@@ -364,7 +382,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                 >
                   <div className="flex items-center justify-between pb-1">
                     <span className="font-semibold truncate flex-1 mr-2">{chap.title}</span>
-                    <span className="text-[10px] font-mono opacity-40 shrink-0">{wordCount} 字</span>
+                    <span className="text-[10px] font-mono opacity-40 shrink-0">{wordCount} {isEn ? 'words' : '字'}</span>
                   </div>
                   <p className="text-[10.5px] opacity-40 line-clamp-2 leading-relaxed font-sans select-none">
                     {snippet}
@@ -381,7 +399,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                   type="text"
                   value={newChapTitle}
                   onChange={(e) => setNewChapTitle(e.target.value)}
-                  placeholder="输入章节名，敲回车..."
+                  placeholder={isEn ? "Enter chapter title, press Enter..." : "输入章节名，敲回车..."}
                   onBlur={handleCreateChapterSubmit}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreateChapterSubmit();
@@ -395,14 +413,14 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
 
           {/* Footer */}
           <div className="p-2.5 px-3.5 border-t border-white/5 flex items-center justify-between text-[10px] opacity-40 font-mono">
-            <span>{totalChapters} 章 · {totalWords.toLocaleString()} 字</span>
+            <span>{totalChapters} {isEn ? 'chs' : '章'} · {totalWords.toLocaleString()} {isEn ? 'words' : '字'}</span>
             <button
               onClick={() => {
                 if (activeVol) setInlineNewChap({ volId: activeVol.id });
               }}
               className="hover:text-white cursor-pointer"
             >
-              + 新建章节
+              + {isEn ? 'New Chapter' : '新建章节'}
             </button>
           </div>
         </aside>
@@ -422,7 +440,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           {/* Header */}
           <div className="pt-13 px-4 pb-2.5 flex items-center justify-between border-b border-white/5">
             <h3 className="font-semibold text-xs tracking-wide opacity-80" style={{ color: theme.colors.text }}>
-              {project.title || '未命名作品'}
+              {project.title || (isEn ? 'Untitled Novel' : '未命名作品')}
             </h3>
             <div className="flex items-center gap-1">
               <button
@@ -430,6 +448,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                   if (project.volumes[0]) setInlineNewChap({ volId: project.volumes[0].id });
                 }}
                 className="p-1 rounded opacity-40 hover:opacity-100 cursor-pointer"
+                title={isEn ? "New Chapter" : "新建章节"}
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
@@ -463,7 +482,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                         style={{ color: isCur ? theme.colors.text : theme.colors.textMuted }}
                       >
                         <span className="truncate flex-1">{chap.title}</span>
-                        <span className="text-[9.5px] font-mono opacity-30 shrink-0 ml-1">{wordCount}字</span>
+                        <span className="text-[9.5px] font-mono opacity-30 shrink-0 ml-1">{wordCount} {isEn ? 'words' : '字'}</span>
                       </div>
                     );
                   })}
@@ -474,15 +493,15 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
 
           {/* Footer */}
           <div className="p-2.5 px-3.5 border-t border-white/5 flex items-center justify-between text-[10px] opacity-40 font-mono">
-            <span>{totalChapters} 章 · {totalWords.toLocaleString()} 字</span>
+            <span>{totalChapters} {isEn ? 'chs' : '章'} · {totalWords.toLocaleString()} {isEn ? 'words' : '字'}</span>
             <button
               onClick={() => {
                 setInlineNewVol(true);
-                setNewVolTitle(`第 ${project.volumes.length + 1} 卷`);
+                setNewVolTitle(isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`);
               }}
               className="hover:text-white cursor-pointer"
             >
-              + 新建分卷
+              + {isEn ? 'New Volume' : '新建分卷'}
             </button>
           </div>
         </aside>
@@ -504,10 +523,10 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           >
             <BookOpen className="h-3.5 w-3.5 opacity-80" style={{ color: theme.colors.accent || '#38bdf8' }} />
             <span className="font-semibold text-xs tracking-wide">
-              {activeVol?.title || '第一卷'} › {activeChap?.title || '第一章'}
+              {activeVol?.title || (isEn ? 'Volume 1' : '第一卷')} › {activeChap?.title || (isEn ? 'Chapter 1' : '第一章')}
             </span>
             <span className="text-[10px] font-mono opacity-40">
-              ({activeChap?.wordCount || 0} 字)
+              ({activeChap?.wordCount || 0} {isEn ? 'words' : '字'})
             </span>
             <ChevronDown className="h-3 w-3 opacity-40" />
           </div>
@@ -520,8 +539,8 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
               style={{ color: theme.colors.text }}
             >
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                <span className="font-semibold text-xs">全书大纲与章节速览</span>
-                <span className="text-[10px] font-mono opacity-40">{totalChapters} 章 · {totalWords.toLocaleString()} 字</span>
+                <span className="font-semibold text-xs">{isEn ? 'Novel Outline & Fast Peek' : '全书大纲与章节速览'}</span>
+                <span className="text-[10px] font-mono opacity-40">{totalChapters} {isEn ? 'chs' : '章'} · {totalWords.toLocaleString()} {isEn ? 'words' : '字'}</span>
               </div>
 
               {/* Two Column Selector */}
@@ -557,7 +576,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                       }}
                     >
                       <span className="truncate flex-1">{c.title}</span>
-                      <span className="text-[10px] font-mono opacity-40 ml-1">{c.wordCount}字</span>
+                      <span className="text-[10px] font-mono opacity-40 ml-1">{c.wordCount} {isEn ? 'words' : '字'}</span>
                     </div>
                   ))}
                 </div>
@@ -581,13 +600,14 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           {/* Header */}
           <div className="pt-13 px-4 pb-2.5 flex items-center justify-between border-b border-white/5">
             <h3 className="font-semibold text-xs tracking-wide" style={{ color: theme.colors.text }}>
-              {project.title || '未命名作品'}
+              {project.title || (isEn ? 'Untitled Novel' : '未命名作品')}
             </h3>
             <button
               onClick={() => {
                 if (activeVol) setInlineNewChap({ volId: activeVol.id });
               }}
               className="p-1 rounded opacity-40 hover:opacity-100 cursor-pointer"
+              title={isEn ? "New Chapter" : "新建章节"}
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -595,7 +615,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
 
           {/* Top Half: Volumes Folder Section */}
           <div className="h-36 border-b border-white/5 overflow-y-auto p-2 space-y-1 bg-black/10">
-            <div className="text-[10px] font-mono opacity-30 px-1">分卷目录</div>
+            <div className="text-[10px] font-mono opacity-30 px-1">{isEn ? 'Volumes' : '分卷目录'}</div>
             {project.volumes.map((v) => (
               <div
                 key={v.id}
@@ -615,7 +635,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           {/* Bottom Half: Chapters in selected volume */}
           <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
             <div className="text-[10px] font-mono opacity-30 px-1 pb-1">
-              《{activeVol?.title}》章节列表
+              {isEn ? `"${activeVol?.title}" Chapters` : `《${activeVol?.title}》章节列表`}
             </div>
             {activeVol?.chapters.map((chap) => {
               const isCur = chap.id === activeChapterId;
@@ -632,7 +652,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                   style={{ color: theme.colors.text }}
                 >
                   <span className="truncate flex-1">{chap.title}</span>
-                  <span className="text-[9.5px] font-mono opacity-30 ml-1">{wordCount}字</span>
+                  <span className="text-[9.5px] font-mono opacity-30 ml-1">{wordCount} {isEn ? 'words' : '字'}</span>
                 </div>
               );
             })}
@@ -640,14 +660,14 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
 
           {/* Footer */}
           <div className="p-2.5 px-3.5 border-t border-white/5 flex items-center justify-between text-[10px] opacity-40 font-mono">
-            <span>{totalChapters} 章 · {totalWords.toLocaleString()} 字</span>
+            <span>{totalChapters} {isEn ? 'chs' : '章'} · {totalWords.toLocaleString()} {isEn ? 'words' : '字'}</span>
             <button
               onClick={() => {
                 if (activeVol) setInlineNewChap({ volId: activeVol.id });
               }}
               className="hover:text-white cursor-pointer"
             >
-              + 新建章节
+              + {isEn ? 'New Chapter' : '新建章节'}
             </button>
           </div>
         </aside>
@@ -666,34 +686,34 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-2 py-1 text-[9.5px] font-mono opacity-40 border-b border-white/5 truncate">
-            《{contextMenu.chapTitle}》
+            {isEn ? `"${contextMenu.chapTitle}"` : `《${contextMenu.chapTitle}》`}
           </div>
 
           <button
             onClick={() => handleStartRename(null as any, contextMenu.chapId, contextMenu.chapTitle)}
-            className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+            className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
             style={{ color: theme.colors.text }}
           >
             <Edit3 className="h-3 w-3 opacity-50" />
-            <span>重命名 (F2)</span>
+            <span>{isEn ? 'Rename (F2)' : '重命名 (F2)'}</span>
           </button>
 
           <button
             onClick={() => handleDuplicateChapter(contextMenu.chapId)}
-            className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+            className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
             style={{ color: theme.colors.text }}
           >
             <Copy className="h-3 w-3 opacity-50" />
-            <span>创建副本</span>
+            <span>{isEn ? 'Duplicate' : '创建副本'}</span>
           </button>
 
           <button
             onClick={handleAutoNumber}
-            className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+            className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
             style={{ color: theme.colors.text }}
           >
             <Hash className="h-3 w-3 opacity-50" />
-            <span>全书规范重编号</span>
+            <span>{isEn ? 'Renumber Chapters' : '全书规范重编号'}</span>
           </button>
 
           <div className="pt-1 mt-1 border-t border-white/5 space-y-0.5">
@@ -702,19 +722,19 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
                 const chap = projectStore.findChapter(contextMenu.chapId);
                 if (chap) handleExportChapter(chap, 'txt');
               }}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <Download className="h-3 w-3 opacity-50" />
-              <span>导出 TXT</span>
+              <span>{isEn ? 'Export TXT' : '导出 TXT'}</span>
             </button>
 
             <button
               onClick={(e) => handleDeleteChapter(e, contextMenu.chapId, contextMenu.chapTitle)}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors text-left cursor-pointer"
             >
               <Trash2 className="h-3 w-3" />
-              <span>删除章节</span>
+              <span>{isEn ? 'Delete Chapter' : '删除章节'}</span>
             </button>
           </div>
         </div>
@@ -730,7 +750,7 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
             className="w-72 p-3 rounded-xl border bg-black/80 backdrop-blur-xl space-y-2 border-white/20 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-xs font-semibold text-white">重命名</div>
+            <div className="text-xs font-semibold text-white">{isEn ? 'Rename' : '重命名'}</div>
             <input
               ref={editInputRef}
               type="text"
@@ -745,15 +765,15 @@ export const NovelNavigationHub: React.FC<Props> = ({ isOpen, theme }) => {
             <div className="flex justify-end gap-1 text-xs">
               <button
                 onClick={() => setEditingId(null)}
-                className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white"
+                className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white cursor-pointer"
               >
-                取消
+                {isEn ? 'Cancel' : '取消'}
               </button>
               <button
                 onClick={() => handleSaveRename('chap', editingId)}
-                className="px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium"
+                className="px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium cursor-pointer"
               >
-                保存
+                {isEn ? 'Save' : '保存'}
               </button>
             </div>
           </div>

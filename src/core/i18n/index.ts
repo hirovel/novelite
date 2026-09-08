@@ -4,6 +4,7 @@ import { zh } from './locales/zh';
 import { en } from './locales/en';
 import { eventBus } from '../events/EventBus';
 import { pluginManager } from '../plugins/PluginManager';
+import { safeStorageSet } from '../storage/safeStorage';
 
 const STORAGE_KEY = 'novelite_language';
 
@@ -45,30 +46,23 @@ export function getLanguage(): SupportedLanguage {
   return currentLanguage;
 }
 
-export function setLanguage(lang: SupportedLanguage, options: { autoManageTypography?: boolean } = { autoManageTypography: true }) {
+export function setLanguage(lang: SupportedLanguage) {
   if (currentLanguage === lang) return;
   currentLanguage = lang;
-  localStorage.setItem(STORAGE_KEY, lang);
+  safeStorageSet(STORAGE_KEY, lang);
 
-  // 联动机制：当切换为英文时，默认停用中文排版插件；切换回中文时重新启用
-  if (options.autoManageTypography) {
+  // 保障排版引擎激活状态
+  if (!pluginManager.isPluginEnabled('plugin-chinese-typography')) {
     try {
-      if (lang === 'en') {
-        if (pluginManager.isPluginEnabled('plugin-chinese-typography')) {
-          pluginManager.disablePlugin('plugin-chinese-typography');
-        }
-      } else if (lang === 'zh') {
-        if (!pluginManager.isPluginEnabled('plugin-chinese-typography')) {
-          pluginManager.enablePlugin('plugin-chinese-typography');
-        }
-      }
-    } catch (err) {
-      console.error('[i18n] Failed to auto-manage typography plugin:', err);
+      pluginManager.enablePlugin('plugin-chinese-typography');
+    } catch {
+      // ignore
     }
   }
 
   notify();
   eventBus.emit('language-changed', lang);
+  eventBus.emit('editor-extensions-changed');
 }
 
 /**
@@ -119,12 +113,17 @@ export function useTranslation() {
   };
 }
 
+export const useI18n = useTranslation;
+
 /**
- * 初始化检查（在 App 启动时调用，如果首开被判定为 en，则同步应用排版停用联动）
+ * 初始化检查（在 App 启动时调用，保障核心排版引擎正常载入）
  */
 export function initI18n() {
-  const initial = getLanguage();
-  if (initial === 'en' && pluginManager.isPluginEnabled('plugin-chinese-typography')) {
-    pluginManager.disablePlugin('plugin-chinese-typography');
+  if (!pluginManager.isPluginEnabled('plugin-chinese-typography')) {
+    try {
+      pluginManager.enablePlugin('plugin-chinese-typography');
+    } catch {
+      // ignore
+    }
   }
 }

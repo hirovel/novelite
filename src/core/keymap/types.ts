@@ -11,7 +11,9 @@ export type KeybindingScope = 'global' | 'editor';
 export interface KeybindingItem {
   id: string;
   title: string;
+  titleEn?: string;
   description: string;
+  descriptionEn?: string;
   category: KeybindingCategory;
   scope: KeybindingScope;
   defaultKey: string;           // e.g. "Ctrl+S", "Alt+1", "Ctrl+Shift+L"

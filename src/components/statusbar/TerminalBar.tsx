@@ -4,6 +4,7 @@ import { projectStore } from '../../core/storage/ProjectStore';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
 import { Settings, Maximize2, Minimize2, Sparkles, Sidebar as SidebarIcon } from 'lucide-react';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   theme: Theme;
@@ -26,7 +27,9 @@ export const TerminalBar: React.FC<Props> = ({
   onOpenSettings,
   onOpenCommandPalette,
 }) => {
-  const [activeChapTitle, setActiveChapTitle] = useState<string>('');
+  const { language } = useI18n();
+  const isEn = language === 'en';
+  const [activeChapTitle, setActiveChapTitle] = useState<string | null>(null);
   const [cursorPos, setCursorPos] = useState<{ line: number; col: number }>({ line: 1, col: 1 });
   const [statusBarItems, setStatusBarItems] = useState(pluginManager.getStatusBarItems());
   const [isSaved, setIsSaved] = useState<boolean>(true);
@@ -35,7 +38,7 @@ export const TerminalBar: React.FC<Props> = ({
   useEffect(() => {
     const updateChapter = () => {
       const chap = projectStore.getActiveChapter();
-      setActiveChapTitle(chap?.title || '无活跃章节');
+      setActiveChapTitle(chap?.title || null);
     };
 
     updateChapter();
@@ -70,9 +73,9 @@ export const TerminalBar: React.FC<Props> = ({
   }, []);
 
   const shapeLabels = {
-    beam: 'Live 光柱',
-    block: 'Live 色块',
-    underline: 'Live 下划线',
+    beam: isEn ? 'Live Beam' : 'Live 光柱',
+    block: isEn ? 'Live Block' : 'Live 色块',
+    underline: isEn ? 'Live Underline' : 'Live 下划线',
   };
 
   const pluginCtx = pluginManager.createPluginContext('terminal-bar');
@@ -98,12 +101,12 @@ export const TerminalBar: React.FC<Props> = ({
         {/* Toggle Sidebar */}
         <button
           onClick={onToggleSidebar}
-          title="切换侧边栏 (Ctrl+B)"
+          title={isEn ? "Toggle Sidebar (Ctrl+B)" : "切换侧边栏 (Ctrl+B)"}
           className="flex items-center gap-1 opacity-75 hover:opacity-100 px-1 py-0.5 rounded transition-all cursor-pointer"
         >
           <SidebarIcon className="h-3.5 w-3.5" />
           <span className="hidden sm:inline text-[10.5px]">
-            {isSidebarOpen ? '收起' : '展开'}
+            {isSidebarOpen ? (isEn ? 'Collapse' : '收起') : (isEn ? 'Expand' : '展开')}
           </span>
         </button>
 
@@ -112,7 +115,7 @@ export const TerminalBar: React.FC<Props> = ({
         {/* Current Active Chapter & Save Status Dot */}
         <div
           onClick={onOpenCommandPalette}
-          title="搜索章节 (Ctrl+P)"
+          title={isEn ? "Search Chapters & Commands (Ctrl+P)" : "搜索章节与指令 (Ctrl+P)"}
           className="flex items-center gap-1.5 cursor-pointer opacity-80 hover:opacity-100 transition-all truncate"
         >
           <span
@@ -128,7 +131,9 @@ export const TerminalBar: React.FC<Props> = ({
                 : undefined
             }
           />
-          <span className="truncate font-medium">{activeChapTitle}</span>
+          <span className="truncate font-medium">
+            {activeChapTitle || (isEn ? 'No Active Chapter' : '无活跃章节')}
+          </span>
         </div>
 
         {/* Dynamic Registered Left status items (Word Counter) */}
@@ -156,9 +161,9 @@ export const TerminalBar: React.FC<Props> = ({
 
         {/* Line & Column */}
         <div className="hidden sm:flex items-center gap-1 opacity-65 text-[10.5px]">
-          <span>Ln {cursorPos.line}</span>
+          <span>{isEn ? 'Ln' : '行'} {cursorPos.line}</span>
           <span className="opacity-40">:</span>
-          <span>Col {cursorPos.col}</span>
+          <span>{isEn ? 'Col' : '列'} {cursorPos.col}</span>
         </div>
 
         <span className="hidden sm:inline opacity-20">|</span>
@@ -166,30 +171,30 @@ export const TerminalBar: React.FC<Props> = ({
         {/* Cursor Shape Badge */}
         <button
           onClick={onOpenSettings}
-          title="Live 动态光标设置 (Ctrl+,)"
-          className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 transition-colors"
+          title={isEn ? "Live Cursor Preferences (Ctrl+,)" : "Live 动态光标设置 (Ctrl+,)"}
+          className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
         >
           <Sparkles className="h-3 w-3" style={{ color: theme.colors.accent }} />
-          <span className="text-[10px]">{shapeLabels[cursorShape] || 'Live 光标'}</span>
+          <span className="text-[10px]">{shapeLabels[cursorShape] || (isEn ? 'Live Cursor' : 'Live 光标')}</span>
         </button>
 
         {/* Theme pill */}
         <button
           onClick={onOpenSettings}
-          title="主题设置"
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 transition-colors"
+          title={isEn ? "Theme Preferences" : "主题设置"}
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
         >
           <span
             className="h-2 w-2 rounded-full shadow-xs"
             style={{ backgroundColor: theme.colors.accent }}
           />
-          <span className="hidden md:inline text-[10.5px]">{theme.name}</span>
+          <span className="hidden md:inline text-[10.5px]">{isEn ? theme.name : (theme.nameZh || theme.name)}</span>
         </button>
 
         {/* Zen Mode Button */}
         <button
           onClick={onToggleZenMode}
-          title="全屏模式 (F11)"
+          title={isEn ? "Zen Full Screen (F11)" : "全屏模式 (F11)"}
           className="p-1 rounded opacity-70 hover:opacity-100 transition-all cursor-pointer"
         >
           {isZenMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -198,7 +203,7 @@ export const TerminalBar: React.FC<Props> = ({
         {/* Settings button */}
         <button
           onClick={onOpenSettings}
-          title="偏好设置 (Ctrl+,)"
+          title={isEn ? "Settings & Preferences (Ctrl+,)" : "偏好设置 (Ctrl+,)"}
           className="p-1 rounded opacity-70 hover:opacity-100 transition-all cursor-pointer"
         >
           <Settings className="h-3.5 w-3.5" />

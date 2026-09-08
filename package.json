@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "专为长篇小说创作打造的极简终端美学写作工作室",
   "author": "hirovel",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "type": "module",
   "bin": {
     "novelite": "./bin/novelite.js"

@@ -15,6 +15,7 @@ import { projectStore } from '../../core/storage/ProjectStore';
 import { fileSystemStore } from '../../core/storage/FileSystemStore';
 import { exportNovelService } from '../../core/storage/ExportNovelService';
 import { eventBus } from '../../core/events/EventBus';
+import { useI18n } from '../../core/i18n';
 import type { Theme } from '../../core/themes/types';
 
 interface Props {
@@ -24,6 +25,8 @@ interface Props {
 }
 
 export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [, setTick] = useState(0);
   useEffect(() => {
     return eventBus.on('project-tree-changed', () => setTick((t) => t + 1));
@@ -42,7 +45,10 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
     const proj = projectStore.createProject(newTitle.trim(), '');
-    eventBus.emit('show-toast', { message: `已创建《${proj.title}》`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Created "${proj.title}"` : `已创建《${proj.title}》`,
+      type: 'success',
+    });
     setIsCreating(false);
     setNewTitle('');
     onClose();
@@ -79,26 +85,38 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
     }
     projectStore.switchProject(id);
     const proj = projectStore.getProject();
-    eventBus.emit('show-toast', { message: `已切换至《${proj.title}》`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Switched to "${proj.title}"` : `已切换至《${proj.title}》`,
+      type: 'success',
+    });
     onClose();
   };
 
   const handleDeleteBook = (e: React.MouseEvent, id: string, title: string) => {
     e.stopPropagation();
     if (library.length <= 1) {
-      eventBus.emit('show-toast', { message: '书架中至少需保留一部作品', type: 'warning' });
+      eventBus.emit('show-toast', {
+        message: isEn ? 'At least one novel must be kept in bookshelf' : '书架中至少需保留一部作品',
+        type: 'warning',
+      });
       return;
     }
     const ok = projectStore.deleteProject(id);
     if (ok) {
-      eventBus.emit('show-toast', { message: `已从书架移除《${title}》`, type: 'info' });
+      eventBus.emit('show-toast', {
+        message: isEn ? `Removed "${title}" from bookshelf` : `已从书架移除《${title}》`,
+        type: 'info',
+      });
     }
   };
 
   const handleSaveRename = (id: string) => {
     if (editTitle.trim()) {
       projectStore.renameProject(id, editTitle.trim());
-      eventBus.emit('show-toast', { message: '书名修改成功', type: 'success' });
+      eventBus.emit('show-toast', {
+        message: isEn ? 'Novel title updated' : '书名修改成功',
+        type: 'success',
+      });
     }
     setEditingId(null);
   };
@@ -126,9 +144,11 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
             <Library className="h-4 w-4 opacity-50 text-white" />
             <div>
               <h3 className="font-semibold text-xs tracking-wide" style={{ color: theme.colors.text }}>
-                作品书架
+                {isEn ? 'Manuscript Bookshelf' : '作品书架'}
               </h3>
-              <p className="text-[10px] opacity-40 font-mono">共 {library.length} 部作品</p>
+              <p className="text-[10px] opacity-40 font-mono">
+                {isEn ? `${library.length} Manuscripts` : `共 ${library.length} 部作品`}
+              </p>
             </div>
           </div>
 
@@ -137,22 +157,22 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
             <button
               onClick={handleOpenLocalDirectory}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs opacity-70 hover:opacity-100 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-all cursor-pointer"
-              title="打开本地文件夹 (自动识别分卷与章节)"
+              title={isEn ? 'Open Local Folder (Auto-detect volumes & chapters)' : '打开本地文件夹 (自动识别分卷与章节)'}
               style={{ color: theme.colors.text }}
             >
               <FolderOpen className="h-3.5 w-3.5 opacity-60" />
-              <span>打开本地目录</span>
+              <span>{isEn ? 'Local Folder' : '打开本地目录'}</span>
             </button>
 
             {/* Import TXT */}
             <button
               onClick={handleOpenImport}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs opacity-70 hover:opacity-100 bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-all cursor-pointer"
-              title="导入本地 .txt 或 .md 小说手稿 (自动识别分卷与章节)"
+              title={isEn ? 'Import local .txt or .md manuscript' : '导入本地 .txt 或 .md 小说手稿 (自动识别分卷与章节)'}
               style={{ color: theme.colors.text }}
             >
               <UploadCloud className="h-3.5 w-3.5 opacity-60" />
-              <span>导入 TXT</span>
+              <span>{isEn ? 'Import TXT' : '导入 TXT'}</span>
             </button>
 
             {/* Create New Book */}
@@ -161,13 +181,14 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-white/[0.08] hover:bg-white/[0.14] border border-white/10 text-white/90 transition-all cursor-pointer shadow-xs"
             >
               <Plus className="h-3.5 w-3.5 opacity-70" />
-              <span>新建作品</span>
+              <span>{isEn ? 'New Novel' : '新建作品'}</span>
             </button>
 
             <button
               onClick={onClose}
               className="p-1 rounded-md opacity-40 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer ml-1"
               style={{ color: theme.colors.text }}
+              title={isEn ? 'Close (Esc)' : '关闭 (Esc)'}
             >
               <X className="h-4 w-4" />
             </button>
@@ -181,13 +202,13 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
             className="p-4 border-b border-white/[0.06] bg-white/[0.02] space-y-3 shrink-0"
           >
             <div className="text-xs font-medium opacity-80 flex items-center justify-between">
-              <span>新建小说作品</span>
+              <span>{isEn ? 'Create Novel Manuscript' : '新建小说作品'}</span>
               <button
                 type="button"
                 onClick={() => setIsCreating(false)}
-                className="text-[10px] opacity-40 hover:opacity-100"
+                className="text-[10px] opacity-40 hover:opacity-100 cursor-pointer"
               >
-                取消
+                {isEn ? 'Cancel' : '取消'}
               </button>
             </div>
 
@@ -196,7 +217,7 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                 type="text"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="输入小说书名，例如：《剑起遮天》..."
+                placeholder={isEn ? 'Enter novel title, e.g.: The Silent Sea...' : '输入小说书名，例如：《剑起遮天》...'}
                 autoFocus
                 className="w-full bg-black/30 border border-white/15 focus:border-white/40 rounded-lg px-3 py-1.5 text-xs outline-none transition-colors"
                 style={{ color: theme.colors.text }}
@@ -208,7 +229,7 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                 type="submit"
                 className="px-3 py-1 rounded-lg text-xs font-medium bg-white/15 hover:bg-white/25 text-white cursor-pointer shadow-xs transition-colors"
               >
-                创建
+                {isEn ? 'Create' : '创建'}
               </button>
             </div>
           </form>
@@ -261,25 +282,27 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                     {isCur && (
                       <span className="flex items-center gap-1 text-[9px] font-mono opacity-60 px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: `${theme.colors.accent}20`, color: theme.colors.accent }}>
                         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: theme.colors.accent }} />
-                        当前作品
+                        {isEn ? 'Active' : '当前作品'}
                       </span>
                     )}
                   </div>
 
                   <p className="text-[10px] opacity-50 mt-1" style={{ color: theme.colors.textMuted }}>
-                    {book.chapterCount} 章节 · {book.wordCount.toLocaleString()} 字
+                    {isEn
+                      ? `${book.chapterCount} Chapters · ${book.wordCount.toLocaleString()} words`
+                      : `${book.chapterCount} 章节 · ${book.wordCount.toLocaleString()} 字`}
                   </p>
                 </div>
 
                 <div className="flex items-center justify-between pt-2.5 mt-2 border-t text-[9.5px] font-mono opacity-50" style={{ borderColor: `${theme.colors.border}30`, color: theme.colors.textMuted }}>
-                  <span>更新于 {updatedStr}</span>
+                  <span>{isEn ? `Updated ${updatedStr}` : `更新于 ${updatedStr}`}</span>
 
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={(e) => handleExportBookTxt(e, book.id)}
                       className="p-1 rounded opacity-70 hover:opacity-100 hover:bg-white/10 transition-all cursor-pointer"
                       style={{ color: theme.colors.text }}
-                      title="导出全本 TXT (所见即所得)"
+                      title={isEn ? 'Export Full Manuscript to TXT' : '导出全本 TXT (所见即所得)'}
                     >
                       <FileDown className="h-3 w-3" />
                     </button>
@@ -291,7 +314,7 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                       }}
                       className="p-1 rounded opacity-70 hover:opacity-100 transition-all cursor-pointer"
                       style={{ color: theme.colors.text }}
-                      title="重命名书名"
+                      title={isEn ? 'Rename Manuscript' : '重命名书名'}
                     >
                       <Edit3 className="h-3 w-3" />
                     </button>
@@ -299,7 +322,7 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
                       <button
                         onClick={(e) => handleDeleteBook(e, book.id, book.title)}
                         className="p-1 hover:text-red-400 hover:bg-red-500/10 rounded cursor-pointer"
-                        title="从书架移除"
+                        title={isEn ? 'Remove from Bookshelf' : '从书架移除'}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -317,15 +340,15 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
           style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}30`, color: theme.colors.textMuted }}
         >
           <div className="flex items-center gap-3">
-            <span>点击作品卡片快速切换</span>
+            <span>{isEn ? 'Click card to switch novel' : '点击作品卡片快速切换'}</span>
             <button
               onClick={() => exportNovelService.exportProjectToTxt(currentProject)}
               className="hover:underline flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
               style={{ color: theme.colors.text }}
-              title="全本纯文本导出 (所见即所得，Ctrl+Shift+E)"
+              title={isEn ? 'Export Full Manuscript to TXT (Ctrl+Shift+E)' : '全本纯文本导出 (所见即所得，Ctrl+Shift+E)'}
             >
               <FileDown className="h-3 w-3" />
-              <span>导出当前全本 TXT</span>
+              <span>{isEn ? 'Export Current to TXT' : '导出当前全本 TXT'}</span>
             </button>
             <button
               onClick={handleExportToLocalDirectory}
@@ -333,10 +356,10 @@ export const BookshelfModal: React.FC<Props> = ({ isOpen, onClose, theme }) => {
               style={{ color: theme.colors.text }}
             >
               <Download className="h-2.5 w-2.5" />
-              <span>导出到本地目录</span>
+              <span>{isEn ? 'Export to Local Folder' : '导出到本地目录'}</span>
             </button>
           </div>
-          <span>分卷大纲与字数自动统计</span>
+          <span>{isEn ? 'Volume outline & word stats' : '分卷大纲与字数自动统计'}</span>
         </div>
       </div>
     </div>

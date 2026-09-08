@@ -5,6 +5,7 @@ import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/c
 import { markdown } from '@codemirror/lang-markdown';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import { fileSystemStore } from '../../core/storage/FileSystemStore';
+import { safeStorageSet } from '../../core/storage/safeStorage';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
@@ -242,6 +243,10 @@ export const NovelEditor: React.FC<Props> = ({
   const typingTimerRef = useRef<any>(null);
   const saveDebounceTimerRef = useRef<any>(null);
   const { t, language } = useTranslation();
+  const languageRef = useRef(language);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
 
   // 🌟 Secondary Pane Autonomous Chapter ID
   const [secondaryChapterId, setSecondaryChapterId] = useState<string | null>(() => {
@@ -388,7 +393,7 @@ export const NovelEditor: React.FC<Props> = ({
     if (!editorRef.current) return;
 
     let initialContent = '';
-    let initialTitle = '未命名章节';
+    let initialTitle = languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节';
 
     if (paneId === 'secondary') {
       const project = projectStore.getProject();
@@ -398,7 +403,7 @@ export const NovelEditor: React.FC<Props> = ({
           const found = vol.chapters.find((c) => c.id === initTargetId);
           if (found) {
             initialContent = found.content || '';
-            initialTitle = found.title || '未命名章节';
+            initialTitle = found.title || (languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节');
             break;
           }
         }
@@ -406,7 +411,7 @@ export const NovelEditor: React.FC<Props> = ({
     } else {
       const activeChap = projectStore.getActiveChapter();
       initialContent = activeChap?.content || '';
-      initialTitle = activeChap?.title || '未命名章节';
+      initialTitle = activeChap?.title || (languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节');
     }
 
     setActiveChapterTitle(initialTitle);
@@ -508,7 +513,7 @@ export const NovelEditor: React.FC<Props> = ({
       if (!chapter) return;
 
       isUpdatingRef.current = true;
-      setActiveChapterTitle(chapter.title || '未命名章节');
+      setActiveChapterTitle(chapter.title || (languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节'));
       const text = chapter.content || '';
       const wCount = countWordsFast(text);
       setCharCount(wCount);
@@ -641,9 +646,19 @@ export const NovelEditor: React.FC<Props> = ({
           projectStore.updateChapterContent(curTargetId, formatted);
           fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
         }
-        eventBus.emit('show-toast', { message: `已规范本章 ${count} 处段落（段首缩进两格）`, type: 'success' });
+        eventBus.emit('show-toast', {
+          message: languageRef.current === 'en'
+            ? `Formatted ${count} paragraphs (2-space indent)`
+            : `已规范本章 ${count} 处段落（段首缩进两格）`,
+          type: 'success',
+        });
       } else {
-        eventBus.emit('show-toast', { message: '本章段首已全部规范（每段均已缩进两格）', type: 'info' });
+        eventBus.emit('show-toast', {
+          message: languageRef.current === 'en'
+            ? 'All paragraphs already properly indented'
+            : '本章段首已全部规范（每段均已缩进两格）',
+          type: 'info',
+        });
       }
     });
 
@@ -661,9 +676,19 @@ export const NovelEditor: React.FC<Props> = ({
           projectStore.updateChapterContent(curTargetId, formatted);
           fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
         }
-        eventBus.emit('show-toast', { message: `已清除本章 ${count} 处段落缩进，恢复顶格`, type: 'success' });
+        eventBus.emit('show-toast', {
+          message: languageRef.current === 'en'
+            ? `Cleared indent for ${count} paragraphs`
+            : `已清除本章 ${count} 处段落缩进，恢复顶格`,
+          type: 'success',
+        });
       } else {
-        eventBus.emit('show-toast', { message: '本章段落已全部顶格', type: 'info' });
+        eventBus.emit('show-toast', {
+          message: languageRef.current === 'en'
+            ? 'All paragraphs are already flush-left'
+            : '本章段落已全部顶格',
+          type: 'info',
+        });
       }
     };
 
@@ -696,9 +721,19 @@ export const NovelEditor: React.FC<Props> = ({
           projectStore.updateChapterContent(curTargetId, formatted);
           fileSystemStore.writeChapterDirectToDisk(curTargetId, formatted);
         }
-        eventBus.emit('show-toast', { message: `已规范本章 ${count} 处中文标点与引号配对`, type: 'success' });
+        eventBus.emit('show-toast', {
+          message: languageRef.current === 'en'
+            ? `Normalized ${count} punctuation marks and quotes`
+            : `已规范本章 ${count} 处中文标点与引号配对`,
+          type: 'success',
+        });
       } else {
-        eventBus.emit('show-toast', { message: '本章标点符号已全部规范', type: 'info' });
+        eventBus.emit('show-toast', {
+          message: languageRef.current === 'en'
+            ? 'All punctuation marks are already normalized'
+            : '本章标点符号已全部规范',
+          type: 'info',
+        });
       }
     });
 
@@ -776,7 +811,7 @@ export const NovelEditor: React.FC<Props> = ({
       const found = vol.chapters.find((c) => c.id === secondaryChapterId);
       if (found) {
         isUpdatingRef.current = true;
-        const title = found.title || '未命名章节';
+        const title = found.title || (languageRef.current === 'en' ? 'Untitled Chapter' : '未命名章节');
         const text = found.content || '';
         const wCount = countWordsFast(text);
         queueMicrotask(() => {
@@ -789,7 +824,7 @@ export const NovelEditor: React.FC<Props> = ({
           scrollIntoView: true,
         });
         isUpdatingRef.current = false;
-        localStorage.setItem('novelite_split_secondary_chapter', secondaryChapterId);
+        safeStorageSet('novelite_split_secondary_chapter', secondaryChapterId);
         break;
       }
     }
@@ -1031,7 +1066,7 @@ export const NovelEditor: React.FC<Props> = ({
               {onSwapPanes && (
                 <button
                   onClick={onSwapPanes}
-                  title="左右/上下对调窗格章节 (Alt+X)"
+                  title={language === 'en' ? 'Swap Panes (Alt+X)' : '左右/上下对调窗格章节 (Alt+X)'}
                   className="p-1 rounded-md transition-all opacity-60 hover:opacity-100 cursor-pointer"
                   style={{ color: theme.colors.text }}
                 >
@@ -1041,7 +1076,11 @@ export const NovelEditor: React.FC<Props> = ({
               {onToggleSplitDirection && (
                 <button
                   onClick={onToggleSplitDirection}
-                  title={`切换为${splitDirection === 'vertical' ? '水平上下' : '垂直左右'}分屏`}
+                  title={
+                    language === 'en'
+                      ? `Switch to ${splitDirection === 'vertical' ? 'Horizontal' : 'Vertical'} Split`
+                      : `切换为${splitDirection === 'vertical' ? '水平上下' : '垂直左右'}分屏`
+                  }
                   className="p-1 rounded-md transition-all opacity-60 hover:opacity-100 cursor-pointer"
                   style={{ color: theme.colors.text }}
                 >
@@ -1055,7 +1094,7 @@ export const NovelEditor: React.FC<Props> = ({
               {onClosePane && (
                 <button
                   onClick={onClosePane}
-                  title="关闭对照分屏 (Alt+S)"
+                  title={language === 'en' ? 'Close Split View (Alt+S)' : '关闭对照分屏 (Alt+S)'}
                   className="p-1 hover:text-red-400 rounded-md hover:bg-red-500/10 transition-all opacity-50 hover:opacity-100 cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />

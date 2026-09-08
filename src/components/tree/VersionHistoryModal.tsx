@@ -4,6 +4,7 @@ import type { ChapterSnapshot } from '../../core/storage/types';
 import { projectStore } from '../../core/storage/ProjectStore';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -20,6 +21,8 @@ export const VersionHistoryModal: React.FC<Props> = ({
   chapterTitle,
   theme,
 }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const snapshots = projectStore.getSnapshots(chapterId);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(() => snapshots[0]?.id || null);
 
@@ -31,7 +34,9 @@ export const VersionHistoryModal: React.FC<Props> = ({
     const ok = projectStore.restoreSnapshot(chapterId, snap.id);
     if (ok) {
       eventBus.emit('show-toast', {
-        message: `已成功回滚至 ${new Date(snap.timestamp).toLocaleTimeString()} 版本`,
+        message: isEn
+          ? `Successfully restored to ${new Date(snap.timestamp).toLocaleTimeString(isEn ? 'en-US' : 'zh-CN')} snapshot`
+          : `已成功回滚至 ${new Date(snap.timestamp).toLocaleTimeString()} 版本`,
         type: 'success',
       });
       onClose();
@@ -61,9 +66,11 @@ export const VersionHistoryModal: React.FC<Props> = ({
             <History className="h-4 w-4 opacity-60" style={{ color: theme.colors.accent || '#38bdf8' }} />
             <div>
               <h3 className="font-semibold text-xs tracking-wide" style={{ color: theme.colors.text }}>
-                版本历史快照 · 《{chapterTitle}》
+                {isEn ? `Version History Snapshots · "${chapterTitle}"` : `版本历史快照 · 《${chapterTitle}》`}
               </h3>
-              <p className="text-[10px] opacity-40 font-mono">共 {snapshots.length} 个历史还原点</p>
+              <p className="text-[10px] opacity-40 font-mono">
+                {isEn ? `${snapshots.length} restore point(s) total` : `共 ${snapshots.length} 个历史还原点`}
+              </p>
             </div>
           </div>
 
@@ -84,13 +91,15 @@ export const VersionHistoryModal: React.FC<Props> = ({
             style={{ borderColor: `${theme.colors.border}30` }}
           >
             {snapshots.length === 0 ? (
-              <div className="py-12 text-center text-xs opacity-30 font-mono">暂无历史快照</div>
+              <div className="py-12 text-center text-xs opacity-30 font-mono">
+                {isEn ? 'No snapshots available' : '暂无历史快照'}
+              </div>
             ) : (
               snapshots.map((snap) => {
                 const isSelected = snap.id === (selectedSnapshot?.id || '');
                 const date = new Date(snap.timestamp);
-                const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                const dateStr = date.toLocaleDateString([], { month: '2-digit', day: '2-digit' });
+                const timeStr = date.toLocaleTimeString(isEn ? 'en-US' : [], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const dateStr = date.toLocaleDateString(isEn ? 'en-US' : [], { month: '2-digit', day: '2-digit' });
 
                 return (
                   <div
@@ -108,7 +117,9 @@ export const VersionHistoryModal: React.FC<Props> = ({
                         <Clock className="h-3 w-3 opacity-40" />
                         {dateStr} {timeStr}
                       </span>
-                      <span className="text-[10px] font-mono opacity-50">{snap.wordCount} 字</span>
+                      <span className="text-[10px] font-mono opacity-50">
+                        {snap.wordCount} {isEn ? 'words' : '字'}
+                      </span>
                     </div>
                     {snap.summary && (
                       <p className="text-[10px] opacity-40 truncate mt-0.5 font-sans">{snap.summary}</p>
@@ -125,7 +136,8 @@ export const VersionHistoryModal: React.FC<Props> = ({
               <>
                 <div className="flex items-center justify-between pb-2 border-b border-white/5 shrink-0 text-xs">
                   <span className="font-mono text-[11px] opacity-60">
-                    快照时间：{new Date(selectedSnapshot.timestamp).toLocaleString()} ({selectedSnapshot.wordCount} 字)
+                    {isEn ? 'Snapshot Time: ' : '快照时间：'}
+                    {new Date(selectedSnapshot.timestamp).toLocaleString(isEn ? 'en-US' : 'zh-CN')} ({selectedSnapshot.wordCount} {isEn ? 'words' : '字'})
                   </span>
 
                   <button
@@ -138,7 +150,7 @@ export const VersionHistoryModal: React.FC<Props> = ({
                     }}
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
-                    <span>恢复此版本</span>
+                    <span>{isEn ? 'Restore This Version' : '恢复此版本'}</span>
                   </button>
                 </div>
 
@@ -151,7 +163,7 @@ export const VersionHistoryModal: React.FC<Props> = ({
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center text-xs opacity-30 font-mono">
-                选择左侧快照以预览正文
+                {isEn ? 'Select a snapshot on the left to preview content' : '选择左侧快照以预览正文'}
               </div>
             )}
           </div>

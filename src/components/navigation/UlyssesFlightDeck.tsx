@@ -14,6 +14,7 @@ import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import type { NovelProject, Chapter } from '../../core/storage/types';
 import { eventBus } from '../../core/events/EventBus';
 import type { Theme } from '../../core/themes/types';
+import { useI18n } from '../../core/i18n';
 
 interface Props {
   isOpen: boolean;
@@ -30,6 +31,8 @@ interface ContextMenuState {
 }
 
 export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) => {
+  const { language } = useI18n();
+  const isEn = language === 'en';
   const [project, setProject] = useState<NovelProject>(() => projectStore.getProject());
   const [selectedVolId, setSelectedVolId] = useState<string>(() => {
     return projectStore.getProject().volumes[0]?.id || '';
@@ -134,7 +137,8 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
     const vol = project.volumes.find((v) => v.id === inlineNewChap.volId) || project.volumes[0];
     if (!vol) return;
     const count = vol.chapters.length + 1;
-    const title = newChapTitle.trim() || `第 ${count} 章`;
+    const defaultTitle = isEn ? `Chapter ${count}` : `第 ${count} 章`;
+    const title = newChapTitle.trim() || defaultTitle;
 
     const newChap = projectStore.insertChapter(vol.id, title, inlineNewChap.index);
     setActiveChapterId(newChap.id);
@@ -144,7 +148,9 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
   };
 
   const handleCreateVolumeSubmit = () => {
-    const title = newVolTitle.trim() || `第 ${project.volumes.length + 1} 卷`;
+    const count = project.volumes.length + 1;
+    const defaultTitle = isEn ? `Volume ${count}` : `第 ${count} 卷`;
+    const title = newVolTitle.trim() || defaultTitle;
     const newVol = projectStore.addVolume(title);
     setSelectedVolId(newVol.id);
     setNewVolTitle('');
@@ -173,7 +179,10 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
     setContextMenu(null);
     const copy = projectStore.duplicateChapter(chapId);
     if (copy) {
-      eventBus.emit('show-toast', { message: `已创建副本《${copy.title}》`, type: 'success' });
+      eventBus.emit('show-toast', {
+        message: isEn ? `Created copy "${copy.title}"` : `已创建副本《${copy.title}》`,
+        type: 'success',
+      });
     }
   };
 
@@ -181,12 +190,18 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
     e.stopPropagation();
     setContextMenu(null);
     projectStore.deleteChapter(chapId);
-    eventBus.emit('show-toast', { message: `已删除《${chapTitle}》`, type: 'info' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Deleted "${chapTitle}"` : `已删除《${chapTitle}》`,
+      type: 'info',
+    });
   };
 
   const handleAutoNumber = () => {
     const count = projectStore.autoNumberChapters();
-    eventBus.emit('show-toast', { message: `已规范全书 ${count} 章节序号`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Renumbered ${count} chapters` : `已规范全书 ${count} 章节序号`,
+      type: 'success',
+    });
   };
 
   const handleExportChapter = (chap: Chapter, format: 'txt' | 'md' = 'txt') => {
@@ -210,7 +225,10 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    eventBus.emit('show-toast', { message: `已导出《${chap.title}.${format}》`, type: 'success' });
+    eventBus.emit('show-toast', {
+      message: isEn ? `Exported "${chap.title}.${format}"` : `已导出《${chap.title}.${format}》`,
+      type: 'success',
+    });
   };
 
   const handleContextMenu = (e: React.MouseEvent, chap: Chapter, volId: string) => {
@@ -231,7 +249,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
 
   const getFirstSentence = (content = '') => {
     const clean = content.replace(/^#+\s+.*$/gm, '').trim();
-    if (!clean) return '暂无正文内容……';
+    if (!clean) return isEn ? 'No content yet...' : '暂无正文内容……';
     const firstLine = clean.split('\n')[0].trim();
     return firstLine.slice(0, 42) + (firstLine.length > 42 ? '…' : '');
   };
@@ -269,7 +287,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索全书章节、关键词..."
+              placeholder={isEn ? "Search chapters, keywords..." : "搜索全书章节、关键词..."}
               className="w-full bg-transparent text-xs outline-none placeholder:opacity-35 font-sans"
               style={{ color: theme.colors.text }}
             />
@@ -289,15 +307,15 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                     setSelectedVolId(targetVol.id);
                   }
                   setInlineNewChap({ volId: targetVol.id });
-                  setNewChapTitle(`第 ${targetVol.chapters.length + 1} 章`);
+                  setNewChapTitle(isEn ? `Chapter ${targetVol.chapters.length + 1}` : `第 ${targetVol.chapters.length + 1} 章`);
                 }
               }}
               className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium opacity-80 hover:opacity-100 hover:bg-white/10 transition-colors cursor-pointer"
               style={{ color: theme.colors.text }}
-              title="新建章节"
+              title={isEn ? "New Chapter" : "新建章节"}
             >
               <Plus className="h-3.5 w-3.5" style={{ color: theme.colors.accent }} />
-              <span>新章</span>
+              <span>{isEn ? "New Chapter" : "新章"}</span>
             </button>
 
             <button
@@ -317,7 +335,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
             className="w-48 border-r overflow-y-auto p-2 space-y-1 bg-black/10 shrink-0"
             style={{ borderColor: `${theme.colors.border}30` }}
           >
-            <div className="px-2 py-1 text-[10px] font-mono opacity-35">全书分卷</div>
+            <div className="px-2 py-1 text-[10px] font-mono opacity-35">{isEn ? "Volumes" : "全书分卷"}</div>
             {project.volumes.map((vol) => {
               const isSelected = selectedVolId === vol.id;
               const volWordCount = vol.chapters.reduce(
@@ -343,7 +361,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                   <div className="truncate flex-1 pr-1">
                     <div>{vol.title}</div>
                     <div className="text-[9.5px] font-mono opacity-40 font-normal">
-                      {vol.chapters.length} 章 · {volWordCount.toLocaleString()} 字
+                      {vol.chapters.length} {isEn ? 'chs' : '章'} · {volWordCount.toLocaleString()} {isEn ? 'words' : '字'}
                     </div>
                   </div>
                 </div>
@@ -363,7 +381,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                   type="text"
                   value={newVolTitle}
                   onChange={(e) => setNewVolTitle(e.target.value)}
-                  placeholder="输入分卷名，敲回车..."
+                  placeholder={isEn ? "Enter volume title, press Enter..." : "输入分卷名，敲回车..."}
                   onBlur={handleCreateVolumeSubmit}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreateVolumeSubmit();
@@ -378,17 +396,17 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
             <button
               onClick={() => {
                 setInlineNewVol(true);
-                setNewVolTitle(`第 ${project.volumes.length + 1} 卷`);
+                setNewVolTitle(isEn ? `Volume ${project.volumes.length + 1}` : `第 ${project.volumes.length + 1} 卷`);
               }}
               className="w-full py-1.5 mt-1 rounded-lg text-xs opacity-40 hover:opacity-100 hover:bg-white/5 text-center transition-all cursor-pointer"
               style={{ color: theme.colors.text }}
             >
-              + 新建分卷
+              {isEn ? "+ New Volume" : "+ 新建分卷"}
             </button>
 
             {/* 设定与灵感备忘录 */}
             <div className="pt-2.5 mt-2 border-t" style={{ borderColor: `${theme.colors.border}25` }}>
-              <div className="px-2 py-1 text-[10px] font-mono opacity-35">设定与随笔</div>
+              <div className="px-2 py-1 text-[10px] font-mono opacity-35">{isEn ? "Notes & Lore" : "设定与随笔"}</div>
               <div
                 onClick={() => setSelectedVolId('__scratchpad__')}
                 className={`group flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition-all border ${
@@ -404,10 +422,10 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
               >
                 <div className="truncate flex-1 pr-1 flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5 shrink-0" style={{ color: selectedVolId === '__scratchpad__' ? theme.colors.accent : undefined }} />
-                  <span>灵感备忘录</span>
+                  <span>{isEn ? "Scratchpad" : "灵感备忘录"}</span>
                 </div>
                 <span className="text-[9.5px] font-mono opacity-40 font-normal shrink-0">
-                  {scratchpadText.length} 字
+                  {scratchpadText.length} {isEn ? 'words' : '字'}
                 </span>
               </div>
             </div>
@@ -419,9 +437,9 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
               <div className="flex items-center justify-between pb-2 border-b mb-2" style={{ borderColor: `${theme.colors.border}25` }}>
                 <div className="flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" style={{ color: theme.colors.accent }} />
-                  <span className="text-xs font-semibold" style={{ color: theme.colors.text }}>灵感备忘录 (全书设定与随笔)</span>
+                  <span className="text-xs font-semibold" style={{ color: theme.colors.text }}>{isEn ? "Inspiration Scratchpad (Lore & Notes)" : "灵感备忘录 (全书设定与随笔)"}</span>
                 </div>
-                <span className="text-[10px] font-mono opacity-40">已自动同步至作品库</span>
+                <span className="text-[10px] font-mono opacity-40">{isEn ? "Auto-synced to project" : "已自动同步至作品库"}</span>
               </div>
               <textarea
                 value={scratchpadText}
@@ -430,7 +448,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                   setScratchpadText(val);
                   projectStore.updateScratchpad(val);
                 }}
-                placeholder="在此记录本书的核心伏笔、人物关系、世界观设定与灵感随笔..."
+                placeholder={isEn ? "Record worldbuilding, character profiles, plot outlines, and notes here..." : "在此记录本书的核心伏笔、人物关系、世界观设定与灵感随笔..."}
                 className="flex-1 w-full p-2.5 rounded-xl bg-black/20 text-xs leading-relaxed outline-none resize-none border font-sans"
                 style={{
                   color: theme.colors.text,
@@ -448,13 +466,13 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                     borderColor: `${theme.colors.accent || '#38bdf8'}50`,
                   }}
                 >
-                  <div className="text-xs font-semibold" style={{ color: theme.colors.accent }}>新建章节</div>
+                  <div className="text-xs font-semibold" style={{ color: theme.colors.accent }}>{isEn ? "New Chapter" : "新建章节"}</div>
                   <input
                     ref={newChapInputRef}
                     type="text"
                     value={newChapTitle}
                     onChange={(e) => setNewChapTitle(e.target.value)}
-                    placeholder="输入章节名，按 Enter 确认..."
+                    placeholder={isEn ? "Chapter title, press Enter to confirm..." : "输入章节名，按 Enter 确认..."}
                     onBlur={handleCreateChapterSubmit}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') handleCreateChapterSubmit();
@@ -467,7 +485,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
               )}
 
               {filteredChapters.length === 0 && !inlineNewChap ? (
-                <div className="py-16 text-center text-xs opacity-30 font-mono">该分卷暂无章节</div>
+                <div className="py-16 text-center text-xs opacity-30 font-mono">{isEn ? "No chapters in this volume" : "该分卷暂无章节"}</div>
               ) : (
                 filteredChapters.map((chap) => {
                   const isCur = chap.id === activeChapterId;
@@ -505,7 +523,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                             {chap.title}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono opacity-40 shrink-0">{wordCount} 字</span>
+                        <span className="text-[10px] font-mono opacity-40 shrink-0">{wordCount} {isEn ? 'words' : '字'}</span>
                       </div>
                       <p className="text-[10.5px] opacity-45 line-clamp-1 leading-relaxed font-sans select-none">
                         {snippet}
@@ -523,8 +541,8 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
           className="p-2.5 px-4 border-t flex items-center justify-between text-[10px] font-mono opacity-40 bg-black/10 shrink-0"
           style={{ borderColor: `${theme.colors.border}30` }}
         >
-          <span>{totalChapters} 章 · 全书 {totalWords.toLocaleString()} 字</span>
-          <span>按 ↑ ↓ 选章 · Enter 打开章节</span>
+          <span>{totalChapters} {isEn ? 'chs' : '章'} · {isEn ? 'Total ' : '全书 '}{totalWords.toLocaleString()} {isEn ? 'words' : '字'}</span>
+          <span>{isEn ? "↑ ↓ Select · Enter to open" : "按 ↑ ↓ 选章 · Enter 打开章节"}</span>
         </div>
 
         {/* 4. Context Menu */}
@@ -540,34 +558,34 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-2 py-1 text-[9.5px] font-mono opacity-40 border-b border-white/5 truncate">
-              《{contextMenu.chapTitle}》
+              {isEn ? `"${contextMenu.chapTitle}"` : `《${contextMenu.chapTitle}》`}
             </div>
 
             <button
               onClick={() => handleStartRename(null as any, contextMenu.chapId, contextMenu.chapTitle)}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <Edit3 className="h-3 w-3 opacity-50" />
-              <span>重命名 (F2)</span>
+              <span>{isEn ? "Rename (F2)" : "重命名 (F2)"}</span>
             </button>
 
             <button
               onClick={() => handleDuplicateChapter(contextMenu.chapId)}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <Copy className="h-3 w-3 opacity-50" />
-              <span>创建副本</span>
+              <span>{isEn ? "Duplicate" : "创建副本"}</span>
             </button>
 
             <button
               onClick={handleAutoNumber}
-              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
               style={{ color: theme.colors.text }}
             >
               <Hash className="h-3 w-3 opacity-50" />
-              <span>全书规范重编号</span>
+              <span>{isEn ? "Renumber Chapters" : "全书规范重编号"}</span>
             </button>
 
             <div className="pt-1 mt-1 border-t border-white/5 space-y-0.5">
@@ -576,19 +594,19 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
                   const chap = projectStore.findChapter(contextMenu.chapId);
                   if (chap) handleExportChapter(chap, 'txt');
                 }}
-                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md hover:bg-white/5 transition-colors text-left cursor-pointer"
                 style={{ color: theme.colors.text }}
               >
                 <Download className="h-3 w-3 opacity-50" />
-                <span>导出 TXT</span>
+                <span>{isEn ? "Export TXT" : "导出 TXT"}</span>
               </button>
 
               <button
                 onClick={(e) => handleDeleteChapter(e, contextMenu.chapId, contextMenu.chapTitle)}
-                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-2 py-1.2 rounded-md text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-colors text-left cursor-pointer"
               >
                 <Trash2 className="h-3 w-3" />
-                <span>删除章节</span>
+                <span>{isEn ? "Delete Chapter" : "删除章节"}</span>
               </button>
             </div>
           </div>
@@ -604,7 +622,7 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
               className="w-72 p-3 rounded-xl border bg-black/90 backdrop-blur-2xl space-y-2 border-white/20 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-xs font-semibold text-white">重命名</div>
+              <div className="text-xs font-semibold text-white">{isEn ? "Rename" : "重命名"}</div>
               <input
                 ref={editInputRef}
                 type="text"
@@ -620,16 +638,16 @@ export const UlyssesFlightDeck: React.FC<Props> = ({ isOpen, onClose, theme }) =
               <div className="flex justify-end gap-1.5 text-xs">
                 <button
                   onClick={() => setEditingId(null)}
-                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white"
+                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white cursor-pointer"
                 >
-                  取消
+                  {isEn ? "Cancel" : "取消"}
                 </button>
                 <button
                   onClick={() => handleSaveRename('chap', editingId)}
                   className="px-2.5 py-1 rounded-lg text-white font-medium cursor-pointer"
                   style={{ backgroundColor: theme.colors.accent || '#38bdf8' }}
                 >
-                  保存
+                  {isEn ? "Save" : "保存"}
                 </button>
               </div>
             </div>

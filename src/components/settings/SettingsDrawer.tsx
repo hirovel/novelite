@@ -4,7 +4,6 @@ import {
   Sparkles,
   Palette,
   Type,
-  Puzzle,
   RotateCcw,
   Image,
   Check,
@@ -43,10 +42,10 @@ import type { BackgroundEffect } from '../editor/EditorBackground';
 import type { FocusScope } from '../../plugins/immersion/focusExtension';
 import { type DialogueColorPreset, DIALOGUE_COLOR_MAP } from '../../plugins/immersion/dialogueExtension';
 import { eventBus } from '../../core/events/EventBus';
-import { BrandIcon } from '../common/BrandIcon';
 import { keymapRegistry } from '../../core/keymap/KeymapRegistry';
 import type { KeybindingCategory, KeybindingItem } from '../../core/keymap/types';
 import { useTranslation } from '../../core/i18n';
+import { safeStorageSet } from '../../core/storage/safeStorage';
 
 
 
@@ -151,6 +150,9 @@ const PLUGIN_RICH_INFO: Record<
   string,
   {
     category: string;
+    categoryEn?: string;
+    nameEn?: string;
+    descEn?: string;
     icon: any;
     targetTab?: 'cursor' | 'background' | 'typography' | 'themes' | 'keymap';
     author?: string;
@@ -158,43 +160,88 @@ const PLUGIN_RICH_INFO: Record<
 > = {
   'plugin-chinese-typography': {
     category: '排版系统',
+    categoryEn: 'Typography',
+    nameEn: 'Chinese & Western Typography',
+    descEn: 'Typesetting toolkit: punctuation spacing, first-line indent, and paired quote normalization.',
     icon: Type,
     author: 'hirovel',
     targetTab: 'typography',
   },
   'plugin-immersion': {
     category: '沉浸写作',
+    categoryEn: 'Immersion',
+    nameEn: 'Immersion Writing',
+    descEn: 'Focus spotlight dimming, typewriter scrolling, and dialogue quotation mark highlights.',
     icon: Focus,
     author: 'hirovel',
     targetTab: 'typography',
   },
   'plugin-novel-files': {
     category: '大纲与文件',
+    categoryEn: 'Outline & Files',
+    nameEn: 'Novel Volumes & Chapter Outline',
+    descEn: 'Volume and chapter structure management, real-time metrics, and full TXT export.',
     icon: FolderTree,
     author: 'hirovel',
   },
   'plugin-background-atmosphere': {
     category: '背景与氛围',
+    categoryEn: 'Atmosphere',
+    nameEn: 'Background Atmosphere',
+    descEn: 'Custom wallpapers, Gaussian blur, dimming overlays, and atmospheric background effects.',
     icon: Image,
     author: 'hirovel',
     targetTab: 'background',
   },
   'plugin-live-cursor': {
     category: '灵感光标',
+    categoryEn: 'Live Cursor',
+    nameEn: 'Inspiration Live Cursor',
+    descEn: 'Physics-driven smooth cursor trails, particle sparks, and breathing idle animation.',
     icon: Sparkles,
     author: 'hirovel',
     targetTab: 'cursor',
   },
   'plugin-split-view': {
     category: '分屏对照',
+    categoryEn: 'Split View',
+    nameEn: 'Dual Split View',
+    descEn: 'Side-by-side or stacked dual editor panes for cross-chapter reference writing.',
     icon: Columns,
     author: 'hirovel',
   },
   'plugin-keymap': {
     category: '快捷键管理',
+    categoryEn: 'Keymap',
+    nameEn: 'Keymap Manager',
+    descEn: 'Full-keyboard shortcut router, custom key recording, and floating cheatsheet.',
     icon: Keyboard,
     author: 'hirovel',
     targetTab: 'keymap',
+  },
+  'plugin-global-search': {
+    category: '全局搜索',
+    categoryEn: 'Search',
+    nameEn: 'Global Full-text Search',
+    descEn: 'Full-text keyword indexing and chapter jump across your entire novel manuscript.',
+    icon: Search,
+    author: 'hirovel',
+  },
+  'plugin-novel-import': {
+    category: '稿件导入',
+    categoryEn: 'Import',
+    nameEn: 'Manuscript Importer',
+    descEn: 'Import external TXT/Markdown novels with smart volume & chapter outline detection.',
+    icon: Upload,
+    author: 'hirovel',
+  },
+  'plugin-auto-updater': {
+    category: '系统更新',
+    categoryEn: 'System',
+    nameEn: 'Auto Updater',
+    descEn: 'Check for novelite version updates and release announcements automatically.',
+    icon: RefreshCw,
+    author: 'hirovel',
   },
 };
 
@@ -311,7 +358,31 @@ export const SettingsDrawer: React.FC<Props> = ({
   const [pluginFilter, setPluginFilter] = useState<'all' | 'enabled' | 'disabled'>('all');
   const [isRefreshingRegistry, setIsRefreshingRegistry] = useState<boolean>(false);
   const [isCustomScriptModalOpen, setIsCustomScriptModalOpen] = useState<boolean>(false);
-  const [customScriptCode, setCustomScriptCode] = useState<string>(`// Novelite 自定义插件模板
+  const [customScriptCode, setCustomScriptCode] = useState<string>(() => {
+    const isEn = language === 'en';
+    return isEn
+      ? `// Novelite Custom Plugin Template
+return {
+  metadata: {
+    id: 'plugin-my-custom-tool',
+    name: 'My Custom Creative Tool',
+    version: '1.0.0',
+    description: 'Quickly insert plot notes and character memos',
+    author: 'Custom Author',
+  },
+  init(ctx) {
+    ctx.registerCommand({
+      id: 'custom.insert-memo',
+      title: 'Insert Creative Memo',
+      shortcut: 'Alt+M',
+      run(c) {
+        c.insertText('\\n> [Plot Memo]: Plant foreshadowing here\\n');
+        c.showToast('Creative memo inserted', 'success');
+      }
+    });
+  }
+};`
+      : `// Novelite 自定义插件模板
 return {
   metadata: {
     id: 'plugin-my-custom-tool',
@@ -331,7 +402,8 @@ return {
       }
     });
   }
-};`);
+};`;
+  });
   const [customScriptError, setCustomScriptError] = useState<string | null>(null);
 
   const handleRefreshRegistry = () => {
@@ -346,7 +418,7 @@ return {
     setCustomScriptError(null);
     const res = dynamicPluginLoader.executeAndRegisterCustomPlugin(customScriptCode);
     if (!res.success) {
-      setCustomScriptError(res.error || '执行出错');
+      setCustomScriptError(res.error || (language === 'en' ? 'Execution error' : '执行出错'));
       return;
     }
     setIsCustomScriptModalOpen(false);
@@ -355,8 +427,22 @@ return {
 
   // 🌟 Current Body Font Family Resolver for Live Typography Previews
   const currentFontFamily = useMemo(() => {
+    const isEn = language === 'en';
     if (fontPreset === 'custom' && customFontName?.trim()) {
       return `"${customFontName.trim()}", "PingFang SC", "Microsoft YaHei", "微软雅黑", sans-serif`;
+    }
+    if (isEn) {
+      switch (fontPreset) {
+        case 'lxgw':
+          return `"Georgia", "Baskerville", "Palatino Linotype", "Book Antiqua", "Times New Roman", serif`;
+        case 'songti':
+          return `"Garamond", "EB Garamond", "Times New Roman", "Baskerville", serif`;
+        case 'mono':
+          return `"Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace`;
+        case 'sans':
+        default:
+          return `system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, Helvetica, Arial, sans-serif`;
+      }
     }
     switch (fontPreset) {
       case 'lxgw':
@@ -369,7 +455,7 @@ return {
       default:
         return `system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Noto Sans SC", sans-serif`;
     }
-  }, [fontPreset, customFontName]);
+  }, [fontPreset, customFontName, language]);
 
   // 🌟 Keymap Management State
   const [keymapSearch, setKeymapSearch] = useState<string>('');
@@ -433,6 +519,8 @@ return {
       return (
         item.title.toLowerCase().includes(q) ||
         item.description.toLowerCase().includes(q) ||
+        Boolean(item.titleEn && item.titleEn.toLowerCase().includes(q)) ||
+        Boolean(item.descriptionEn && item.descriptionEn.toLowerCase().includes(q)) ||
         item.currentKey.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q)
       );
@@ -442,7 +530,10 @@ return {
   const handleSaveKeymapRecording = (id: string) => {
     if (recordedKeymapStr) {
       keymapRegistry.updateBinding(id, recordedKeymapStr);
-      eventBus.emit('show-toast', { message: `快捷键已修改为 ${recordedKeymapStr}`, type: 'success' });
+      eventBus.emit('show-toast', {
+        message: language === 'en' ? `Shortcut updated to ${recordedKeymapStr}` : `快捷键已修改为 ${recordedKeymapStr}`,
+        type: 'success',
+      });
     }
     setRecordingKeymapId(null);
     setRecordedKeymapStr('');
@@ -451,7 +542,10 @@ return {
 
   const handleResetSingleKeymap = (id: string) => {
     keymapRegistry.resetBinding(id);
-    eventBus.emit('show-toast', { message: '已恢复默认按键', type: 'info' });
+    eventBus.emit('show-toast', {
+      message: language === 'en' ? 'Restored default shortcut' : '已恢复默认按键',
+      type: 'info',
+    });
     setRecordingKeymapId(null);
     setRecordedKeymapStr('');
     setConflictKeymapItem(null);
@@ -747,7 +841,7 @@ return {
     },
     typography: {
       title: t('settings.tabs.typography'),
-      desc: (isChineseTypographyEnabled || isImmersionEnabled) ? t('settings.tabDesc.typography') : t('settings.tabDesc.typographyDisabled'),
+      desc: t('settings.tabDesc.typography'),
       onReset: handleResetTypography,
     },
     themes: {
@@ -761,135 +855,134 @@ return {
     keymap: {
       title: t('settings.tabs.keymap'),
       desc: t('settings.tabDesc.keymap'),
-      onReset: () => {
-        keymapRegistry.resetAll();
-        eventBus.emit('show-toast', { message: '所有快捷键已恢复默认设置', type: 'success' });
-      },
     },
   };
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center select-none p-4 sm:p-6 transition-all duration-200 ease-out ${
-        isAnimatingIn
-          ? 'bg-black/80 backdrop-blur-xl opacity-100'
-          : 'bg-black/0 backdrop-blur-none opacity-0 pointer-events-none'
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300 ${
+        isAnimatingIn ? 'opacity-100 backdrop-blur-md' : 'opacity-0 backdrop-blur-none'
       }`}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.65)' }}
       onClick={onClose}
     >
       <div
-        className={`flex h-[86vh] w-full max-w-4xl rounded-3xl border shadow-2xl overflow-hidden transition-all duration-250 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-          isAnimatingIn
-            ? 'opacity-100 scale-100 translate-y-0'
-            : 'opacity-0 scale-95 translate-y-4'
+        className={`relative w-full max-w-4xl h-[88vh] rounded-3xl border shadow-2xl flex overflow-hidden transition-all duration-300 transform ${
+          isAnimatingIn ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'
         }`}
         style={{
-          backgroundColor: theme.colors.bgSecondary,
-          borderColor: `${theme.colors.border}cc`,
-          boxShadow: `0 30px 80px -15px rgba(0, 0, 0, 0.85), 0 0 50px ${theme.colors.accentGlow}`,
+          backgroundColor: theme.colors.bg,
+          borderColor: `${theme.colors.border}80`,
+          boxShadow: `0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px ${theme.colors.border}`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 🌟 Left Master Navigation Sidebar */}
+        {/* 🌟 Left Sidebar Navigation */}
         <div
-          className="w-56 sm:w-64 border-r flex flex-col justify-between p-4 shrink-0"
-          style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}70` }}
+          className="w-56 border-r flex flex-col justify-between shrink-0 select-none p-4"
+          style={{ backgroundColor: theme.colors.bgSecondary, borderColor: `${theme.colors.border}60` }}
         >
-          <div className="space-y-4">
+          <div className="space-y-6">
             {/* Logo / Header */}
-            <div className="flex items-center gap-2.5 px-3 py-2">
-              <BrandIcon size={24} className="shrink-0 drop-shadow-sm" />
-              <div>
-                <h2 className="text-xs font-bold tracking-tight" style={{ color: theme.colors.text }}>
+            <div className="px-3 pt-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold tracking-tight" style={{ color: theme.colors.text }}>
                   {t('settings.title')}
-                </h2>
-                <span className="text-[10px] opacity-40 font-mono">{t('settings.preferences')}</span>
+                </span>
               </div>
+              <span className="text-[10px] opacity-40 font-mono tracking-wider uppercase">
+                {t('settings.preferences')}
+              </span>
             </div>
 
-            {/* Navigation Tab Pills */}
-            <nav className="space-y-1">
-              {[
-                { id: 'cursor', label: t('settings.tabs.cursor'), icon: Sparkles, badge: !isLiveCursorEnabled ? t('common.disabled') : undefined, isOff: !isLiveCursorEnabled },
-                { id: 'background', label: t('settings.tabs.background'), icon: Image, badge: !isBackgroundEnabled ? t('common.disabled') : undefined, isOff: !isBackgroundEnabled },
-                { id: 'typography', label: t('settings.tabs.typography'), icon: Type, badge: (!isChineseTypographyEnabled && !isImmersionEnabled) ? t('common.disabled') : undefined, isOff: (!isChineseTypographyEnabled && !isImmersionEnabled) },
-                { id: 'themes', label: t('settings.tabs.themes'), icon: Palette },
-                { id: 'plugins', label: t('settings.tabs.plugins'), icon: Puzzle },
-                { id: 'keymap', label: t('settings.tabs.keymap'), icon: Keyboard },
-              ].map((tab) => {
+            {/* Nav Tabs */}
+            <div className="space-y-1">
+              {(
+                [
+                  { id: 'cursor', label: t('settings.tabs.cursor'), icon: Sparkles },
+                  { id: 'background', label: t('settings.tabs.background'), icon: Image },
+                  { id: 'typography', label: t('settings.tabs.typography'), icon: Type },
+                  { id: 'themes', label: t('settings.tabs.themes'), icon: Palette },
+                  { id: 'plugins', label: t('settings.tabs.plugins'), icon: SlidersHorizontal },
+                  { id: 'keymap', label: t('settings.tabs.keymap'), icon: Keyboard },
+                ] as const
+              ).map((tab) => {
+                const isCur = activeTab === tab.id;
                 const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-medium transition-all duration-150 cursor-pointer ${
-                      isActive
-                        ? 'shadow-md font-semibold scale-[1.02]'
-                        : tab.isOff
-                        ? 'opacity-45 hover:opacity-80 hover:bg-white/5'
-                        : 'opacity-65 hover:opacity-100 hover:bg-white/5'
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
+                      isCur ? 'shadow-sm font-semibold' : 'opacity-70 hover:opacity-100 hover:bg-white/5'
                     }`}
                     style={{
-                      backgroundColor: isActive ? theme.colors.bgHover : 'transparent',
-                      color: isActive ? textAccentColor : tab.isOff ? theme.colors.textMuted : theme.colors.text,
-                      boxShadow: isActive ? `inset 0 0 0 1px ${accentColor}30` : 'none',
+                      backgroundColor: isCur ? `${accentColor}18` : 'transparent',
+                      color: isCur ? textAccentColor : theme.colors.text,
+                      border: isCur ? `1px solid ${accentColor}35` : '1px solid transparent',
                     }}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <Icon className={`h-4 w-4 ${isActive ? 'opacity-100' : 'opacity-60'}`} />
-                      <span>{tab.label}</span>
-                    </div>
-                    {tab.badge && (
-                      <span
-                        className="text-[9px] font-mono px-1.5 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: isActive ? `${accentColor}20` : tab.isOff ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)',
-                          color: isActive ? textAccentColor : tab.isOff ? '#fca5a5' : theme.colors.textMuted,
-                        }}
-                      >
-                        {tab.badge}
-                      </span>
-                    )}
+                    <Icon className="h-4 w-4 shrink-0" style={{ color: isCur ? textAccentColor : theme.colors.textMuted }} />
+                    <span>{tab.label}</span>
                   </button>
                 );
               })}
-            </nav>
+            </div>
           </div>
 
-          {/* Footer Shortcuts & Version Info */}
-          <div className="px-3 py-2.5 border-t border-white/5 space-y-2">
-            {/* Language Selection */}
-            <div className="flex items-center justify-between text-xs pb-1.5 border-b border-white/5">
-              <div className="flex items-center gap-1.5 opacity-60">
-                <Globe className="h-3.5 w-3.5" />
-                <span className="text-[11px]">{t('settings.language')}</span>
+          {/* Footer Version & Shortcuts */}
+          <div className="px-3 py-2 border-t space-y-3" style={{ borderColor: `${theme.colors.border}40` }}>
+            {/* 🌐 界面语言切换器 (Language Switcher) */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between text-[11px] mb-1.5 opacity-70">
+                <span className="flex items-center gap-1.5 font-medium" style={{ color: theme.colors.text }}>
+                  <Globe className="h-3.5 w-3.5 opacity-70" />
+                  <span>{t('settings.language')}</span>
+                </span>
               </div>
-              <select
-                value={language}
-                onChange={(e) => {
-                  const nextLang = e.target.value as 'zh' | 'en';
-                  setLanguage(nextLang);
-                  eventBus.emit('show-toast', {
-                    message: nextLang === 'en' ? t('commands.switchedToEnglish') : t('commands.switchedToChinese'),
-                    type: 'info',
-                  });
-                }}
-                className="text-[11px] bg-white/5 hover:bg-white/10 border border-white/10 rounded px-1.5 py-0.5 outline-none cursor-pointer transition-colors"
-                style={{ color: theme.colors.text }}
+              <div
+                className="grid grid-cols-2 p-0.5 rounded-xl border text-[11px] font-medium"
+                style={{ backgroundColor: theme.colors.bg, borderColor: `${theme.colors.border}80` }}
               >
-                <option value="zh" style={{ backgroundColor: theme.colors.bgSecondary, color: theme.colors.text }}>简体中文</option>
-                <option value="en" style={{ backgroundColor: theme.colors.bgSecondary, color: theme.colors.text }}>English</option>
-              </select>
+                <button
+                  onClick={() => setLanguage('zh')}
+                  className={`py-1 rounded-lg transition-all cursor-pointer text-center ${
+                    language === 'zh' ? 'shadow-xs font-bold' : 'opacity-60 hover:opacity-100'
+                  }`}
+                  style={{
+                    backgroundColor: language === 'zh' ? `${accentColor}25` : 'transparent',
+                    color: language === 'zh' ? textAccentColor : theme.colors.text,
+                  }}
+                >
+                  简体中文
+                </button>
+                <button
+                  onClick={() => setLanguage('en')}
+                  className={`py-1 rounded-lg transition-all cursor-pointer text-center ${
+                    language === 'en' ? 'shadow-xs font-bold' : 'opacity-60 hover:opacity-100'
+                  }`}
+                  style={{
+                    backgroundColor: language === 'en' ? `${accentColor}25` : 'transparent',
+                    color: language === 'en' ? textAccentColor : theme.colors.text,
+                  }}
+                >
+                  English
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center justify-between text-[10px] font-mono">
-              <span className="opacity-50">Novelite v1.0.0</span>
+            <div className="flex items-center justify-between text-[10px] font-mono opacity-50">
+              <span>Novelite</span>
+              <span>v1.0.0</span>
+            </div>
+            <div className="flex items-center justify-between">
               <button
-                onClick={() => eventBus.emit('check-for-updates')}
+                onClick={() => {
+                  eventBus.emit('open-update-modal');
+                }}
                 className="hover:underline text-[10.5px] cursor-pointer hover:opacity-100 flex items-center gap-1 font-medium transition-opacity"
                 style={{ color: textAccentColor }}
-                title="检查 GitHub Releases 软件最新版本"
+                title={language === 'en' ? 'GitHub Releases & Changelog' : 'GitHub 发行版与更新日志'}
               >
                 <span>{t('settings.checkUpdates')}</span>
               </button>
@@ -927,19 +1020,19 @@ return {
               {tabMeta[activeTab].onReset && (
                 <button
                   onClick={tabMeta[activeTab].onReset}
-                  className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg opacity-60 hover:opacity-100 hover:bg-white/10 transition-all font-mono"
+                  className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg opacity-60 hover:opacity-100 hover:bg-white/10 transition-all font-mono cursor-pointer"
                   style={{ color: theme.colors.accent }}
-                  title="恢复当前标签页默认配置"
+                  title={t('settings.resetTab')}
                 >
                   <RotateCcw className="h-3 w-3" />
-                  <span>恢复默认</span>
+                  <span>{t('settings.resetTab')}</span>
                 </button>
               )}
               <button
                 onClick={onClose}
                 className="rounded-xl p-1.5 opacity-60 hover:opacity-100 hover:bg-white/10 transition-all"
                 style={{ color: theme.colors.text }}
-                title="关闭设置 (Esc)"
+                title={language === 'en' ? "Close settings (Esc)" : "关闭设置 (Esc)"}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -956,8 +1049,14 @@ return {
                     <div className="flex items-center gap-2.5">
                       <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
                       <div>
-                        <span className="font-semibold text-xs">「灵感光标」插件当前处于禁用状态</span>
-                        <p className="text-[10px] opacity-80 mt-0.5">平滑光标动力学跟随、拖尾与呼吸动效暂未在编辑器中生效。</p>
+                        <span className="font-semibold text-xs">
+                          {language === 'en' ? '"Live Cursor" plugin is disabled' : '「灵感光标」插件当前处于禁用状态'}
+                        </span>
+                        <p className="text-[10px] opacity-80 mt-0.5">
+                          {language === 'en'
+                            ? 'Smooth cursor dynamics, trails, and breathing animations are currently disabled in editor.'
+                            : '平滑光标动力学跟随、拖尾与呼吸动效暂未在编辑器中生效。'}
+                        </p>
                       </div>
                     </div>
                     <button
@@ -967,7 +1066,7 @@ return {
                       }}
                       className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
                     >
-                      一键启用插件
+                      {language === 'en' ? 'Enable Plugin' : '一键启用插件'}
                     </button>
                   </div>
                 )}
@@ -1015,8 +1114,14 @@ return {
                     <div className="flex items-center gap-2.5">
                       <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
                       <div>
-                        <span className="font-semibold text-xs">「背景与氛围」插件当前处于禁用状态</span>
-                        <p className="text-[10px] opacity-80 mt-0.5">自定义背景图片、高斯模糊与暗化遮罩暂未在编辑器中生效。</p>
+                        <span className="font-semibold text-xs">
+                          {language === 'en' ? '"Background Atmosphere" plugin is disabled' : '「背景与氛围」插件当前处于禁用状态'}
+                        </span>
+                        <p className="text-[10px] opacity-80 mt-0.5">
+                          {language === 'en'
+                            ? 'Custom background images, Gaussian blur, and dimming overlays are currently disabled in editor.'
+                            : '自定义背景图片、高斯模糊与暗化遮罩暂未在编辑器中生效。'}
+                        </p>
                       </div>
                     </div>
                     <button
@@ -1026,7 +1131,7 @@ return {
                       }}
                       className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
                     >
-                      一键启用插件
+                      {language === 'en' ? 'Enable Plugin' : '一键启用插件'}
                     </button>
                   </div>
                 )}
@@ -1049,10 +1154,12 @@ return {
                       </div>
                       <div>
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          自定义背景图片
+                          {language === 'en' ? 'Custom Background Image' : '自定义背景图片'}
                         </span>
                         <span className="text-[10px] opacity-40 ml-2 font-mono">
-                          {customImage ? '已设置自定义背景' : '支持上传并裁剪本地图片'}
+                          {customImage
+                            ? (language === 'en' ? 'Custom background active' : '已设置自定义背景')
+                            : (language === 'en' ? 'Upload and crop local image' : '支持上传并裁剪本地图片')}
                         </span>
                       </div>
                     </div>
@@ -1069,7 +1176,7 @@ return {
                               borderColor: `${accentColor}40`,
                             }}
                           >
-                            应用背景
+                            {language === 'en' ? 'Apply' : '应用背景'}
                           </button>
                         ) : (
                           <span
@@ -1081,7 +1188,7 @@ return {
                             }}
                           >
                             <Check className="h-3 w-3" />
-                            <span>生效中</span>
+                            <span>{language === 'en' ? 'Active' : '生效中'}</span>
                           </span>
                         )}
                       </div>
@@ -1119,7 +1226,7 @@ return {
                           }}
                         />
                         <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-white/90 drop-shadow">
-                          <span>效果预览</span>
+                          <span>{language === 'en' ? 'Live Preview' : '效果预览'}</span>
                         </div>
                       </div>
 
@@ -1127,26 +1234,26 @@ return {
                       <div className="flex-1 flex flex-wrap sm:flex-col gap-2 w-full">
                         <button
                           onClick={handleTriggerCropExisting}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono transition-all"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono transition-all cursor-pointer"
                           style={{ color: theme.colors.text }}
                         >
                           <Crop className="h-3.5 w-3.5" style={{ color: textAccentColor }} />
-                          <span>调整位置与裁剪</span>
+                          <span>{language === 'en' ? 'Position & Crop' : '调整位置与裁剪'}</span>
                         </button>
                         <button
                           onClick={() => fileInputRef.current?.click()}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono transition-all"
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-xs font-mono transition-all cursor-pointer"
                           style={{ color: theme.colors.text }}
                         >
                           <Upload className="h-3.5 w-3.5 opacity-60" />
-                          <span>更换图片</span>
+                          <span>{language === 'en' ? 'Change Image' : '更换图片'}</span>
                         </button>
                         <button
                           onClick={handleClearCustomImage}
-                          className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-500/20 text-red-400 bg-red-500/5 hover:bg-red-500/15 text-xs font-mono transition-all"
+                          className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-500/20 text-red-400 bg-red-500/5 hover:bg-red-500/15 text-xs font-mono transition-all cursor-pointer"
                         >
                           <Trash2 className="h-3 w-3" />
-                          <span>移除背景</span>
+                          <span>{language === 'en' ? 'Remove Background' : '移除背景'}</span>
                         </button>
                       </div>
                     </div>
@@ -1164,10 +1271,10 @@ return {
                         <Upload className="h-5 w-5 opacity-60 group-hover:opacity-100 transition-colors" style={{ color: textAccentColor }} />
                       </div>
                       <span className="font-semibold text-xs transition-colors" style={{ color: theme.colors.text }}>
-                        选择或上传本地图片
+                        {language === 'en' ? 'Select or Upload Local Image' : '选择或上传本地图片'}
                       </span>
                       <span className="text-[10px] font-mono opacity-40" style={{ color: theme.colors.textMuted }}>
-                        支持 PNG、JPG、WebP 格式
+                        {language === 'en' ? 'Supports PNG, JPG, WebP formats' : '支持 PNG、JPG、WebP 格式'}
                       </span>
                     </button>
                   )}
@@ -1179,7 +1286,7 @@ return {
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
                           <span className="text-[11px] font-medium opacity-75" style={{ color: theme.colors.text }}>
-                            暗化遮罩
+                            {language === 'en' ? 'Dimming Mask' : '暗化遮罩'}
                           </span>
                           <span className="font-mono text-[10px] font-bold" style={{ color: textAccentColor }}>
                             {Math.round(customImageDim * 100)}%
@@ -1201,7 +1308,7 @@ return {
                       <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
                           <span className="text-[11px] font-medium opacity-75" style={{ color: theme.colors.text }}>
-                            模糊程度
+                            {language === 'en' ? 'Gaussian Blur' : '模糊程度'}
                           </span>
                           <span className="font-mono text-[10px] font-bold" style={{ color: textAccentColor }}>
                             {customImageBlur} px
@@ -1225,13 +1332,13 @@ return {
                 {/* 🌟 2. 预设背景效果 (Presets) */}
                 <div>
                   <label className="font-medium text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
-                    预设背景效果
+                    {language === 'en' ? 'Preset Background Atmosphere' : '预设背景效果'}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     {[
-                      { id: 'aurora', name: '极光流云', desc: '柔和渐变流动氛围' },
-                      { id: 'ruled', name: '信纸横线', desc: '文本真实对齐横线' },
-                      { id: 'solid', name: '纯色背景', desc: '无纹理纯色底板' },
+                      { id: 'aurora', name: language === 'en' ? 'Aurora Glow' : '极光流云', desc: language === 'en' ? 'Soft flowing atmospheric gradient' : '柔和渐变流动氛围' },
+                      { id: 'ruled', name: language === 'en' ? 'Ruled Manuscript' : '信纸横线', desc: language === 'en' ? 'Stationery lined page layout' : '文本真实对齐横线' },
+                      { id: 'solid', name: language === 'en' ? 'Solid Studio' : '纯色背景', desc: language === 'en' ? 'Clean texture-free minimalist canvas' : '无纹理纯色底板' },
                     ].map((bg) => {
                       const isCur = backgroundEffect === bg.id;
                       return (
@@ -1267,7 +1374,7 @@ return {
                   >
                     <div className="flex justify-between items-center">
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        效果强度
+                        {language === 'en' ? 'Effect Intensity' : '效果强度'}
                       </span>
                       <span
                         className="font-mono font-bold px-2 py-0.5 rounded"
@@ -1287,8 +1394,8 @@ return {
                       style={{ accentColor: accentColor }}
                     />
                     <div className="flex justify-between text-[10px] opacity-40 font-mono">
-                      <span>较弱 (10%)</span>
-                      <span>较强 (100%)</span>
+                      <span>{language === 'en' ? 'Subtle (10%)' : '较弱 (10%)'}</span>
+                      <span>{language === 'en' ? 'Vivid (100%)' : '较强 (100%)'}</span>
                     </div>
                   </div>
                 )}
@@ -1299,13 +1406,13 @@ return {
             {/* TAB 3: TYPOGRAPHY */}
             {activeTab === 'typography' && (
               <div className="space-y-6">
-                {!isChineseTypographyEnabled && (
+                {language === 'zh' && !isChineseTypographyEnabled && (
                   <div className="flex items-center justify-between p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-200">
                     <div className="flex items-center gap-2.5">
                       <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
                       <div>
-                        <span className="font-semibold text-xs">「中文排版」插件当前处于禁用状态</span>
-                        <p className="text-[10px] opacity-80 mt-0.5">段首全角缩进、GB/T 15834 标点避头尾与挤压规则暂未在手稿中生效。</p>
+                        <span className="font-semibold text-xs">{t('typography.pluginDisabledTitle')}</span>
+                        <p className="text-[10px] opacity-80 mt-0.5">{t('typography.pluginDisabledDesc')}</p>
                       </div>
                     </div>
                     <button
@@ -1315,23 +1422,23 @@ return {
                       }}
                       className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
                     >
-                      一键启用插件
+                      {t('typography.enablePlugin')}
                     </button>
                   </div>
                 )}
 
-                <div className={!isChineseTypographyEnabled ? 'opacity-40 pointer-events-none space-y-6' : 'space-y-6'}>
+                <div className="space-y-6">
                 <div>
                   <label className="font-semibold text-xs opacity-80 block mb-2" style={{ color: theme.colors.text }}>
-                    字体设置
+                    {t('typography.fontsTitle')}
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {[
-                      { id: 'lxgw', name: '霞鹜文楷 / 楷体', desc: '中文楷体字形' },
-                      { id: 'songti', name: '思源宋体 / 明体', desc: '印刷宋体字形' },
-                      { id: 'sans', name: '苹方 / 微软雅黑', desc: '标准无衬线黑体' },
-                      { id: 'mono', name: '等宽字体', desc: '固定字符宽度' },
-                      { id: 'custom', name: '自定义字体', desc: '输入系统已安装的字体名称' },
+                      { id: 'lxgw', name: t('typography.fonts.lxgwName'), desc: t('typography.fonts.lxgwDesc') },
+                      { id: 'songti', name: t('typography.fonts.songtiName'), desc: t('typography.fonts.songtiDesc') },
+                      { id: 'sans', name: t('typography.fonts.sansName'), desc: t('typography.fonts.sansDesc') },
+                      { id: 'mono', name: t('typography.fonts.monoName'), desc: t('typography.fonts.monoDesc') },
+                      { id: 'custom', name: t('typography.fonts.customName'), desc: t('typography.fonts.customDesc') },
                     ].map((f) => {
                       const isCur = fontPreset === f.id;
                       return (
@@ -1365,13 +1472,13 @@ return {
                     style={{ borderColor: accentColor, backgroundColor: `${theme.colors.bgHover}40` }}
                   >
                     <label className="block font-medium text-[11px]" style={{ color: theme.colors.text }}>
-                      输入系统已安装的自定义字体名称 (Font Family Name)
+                      {t('typography.customFontLabel')}
                     </label>
                     <input
                       type="text"
                       value={customFontName}
                       onChange={(e) => onChangeCustomFontName(e.target.value)}
-                      placeholder="例如: 方正兰亭黑, Noto Serif CJK SC, Georgia, 汉仪中宋..."
+                      placeholder={t('typography.customFontPlaceholder')}
                       className="w-full rounded-xl border p-2.5 text-xs outline-none font-mono"
                       style={{
                         backgroundColor: theme.colors.bg,
@@ -1390,7 +1497,7 @@ return {
                   <div className="flex items-center justify-between pb-3 border-b" style={{ borderColor: `${theme.colors.border}40` }}>
                     <div className="flex items-center gap-2.5">
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        正文字体颜色
+                        {t('typography.textColorTitle')}
                       </span>
                       <div
                         className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-mono"
@@ -1416,7 +1523,7 @@ return {
                             color: editorTextColor === 'auto' || !editorTextColor ? textAccentColor : theme.colors.textMuted,
                           }}
                         >
-                          {editorTextColor === 'auto' || !editorTextColor ? '跟随主题' : '自定义'}
+                          {editorTextColor === 'auto' || !editorTextColor ? t('typography.followTheme') : t('typography.customColor')}
                         </span>
                       </div>
                     </div>
@@ -1432,7 +1539,7 @@ return {
                           color: textAccentColor,
                         }}
                       >
-                        恢复跟随主题
+                        {t('typography.followTheme')}
                       </button>
                     )}
                   </div>
@@ -1448,7 +1555,7 @@ return {
                       }}
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <span className="text-[10px] opacity-50 shrink-0 font-mono">预览效果:</span>
+                        <span className="text-[10px] opacity-50 shrink-0 font-mono">{t('typography.previewLabel')}</span>
                         <span
                           className="font-medium text-xs truncate tracking-wide"
                           style={{
@@ -1458,7 +1565,7 @@ return {
                               : editorTextColor,
                           }}
                         >
-                          这是一段正文测试文本+——+！
+                          {t('typography.previewText')}
                         </span>
                       </div>
                       <span className="text-[10px] font-mono opacity-50 shrink-0">
@@ -1487,10 +1594,10 @@ return {
                         />
                         <div>
                           <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
-                            跟随当前主题 ({theme.nameZh})
+                            {t('typography.followTheme')} ({language === 'en' ? theme.name : theme.nameZh})
                           </div>
                           <span className="text-[10px] opacity-50 font-mono" style={{ color: theme.colors.textMuted }}>
-                            默认字色: {theme.colors.editorText}
+                            {language === 'en' ? 'Default: ' : '默认字色: '}{theme.colors.editorText}
                           </span>
                         </div>
                       </div>
@@ -1503,14 +1610,14 @@ return {
                     <div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {[
-                          { id: '#ffffff', name: '纯白高光', desc: '纯净清晰' },
-                          { id: '#e1e3e8', name: '晨雾银灰', desc: '素雅舒适' },
-                          { id: '#d1d5db', name: '素灰微润', desc: '低眩光' },
-                          { id: '#fef3c7', name: '羊皮暖白', desc: '温暖柔和' },
-                          { id: '#bbf7d0', name: '护眼薄荷', desc: '青翠静心' },
-                          { id: '#bae6fd', name: '冰霜微蓝', desc: '冷峻透亮' },
-                          { id: '#1c1917', name: '水墨沉黑', desc: '浅色主题' },
-                          { id: '#374151', name: '玄灰典雅', desc: '墨韵灰调' },
+                          { id: '#ffffff', name: language === 'en' ? 'Pure White' : '纯白高光', desc: language === 'en' ? 'Clean & crisp' : '纯净清晰' },
+                          { id: '#e1e3e8', name: language === 'en' ? 'Misty Silver' : '晨雾银灰', desc: language === 'en' ? 'Subtle elegance' : '素雅舒适' },
+                          { id: '#d1d5db', name: language === 'en' ? 'Soft Gray' : '素灰微润', desc: language === 'en' ? 'Low glare' : '低眩光' },
+                          { id: '#fef3c7', name: language === 'en' ? 'Warm Parchment' : '羊皮暖白', desc: language === 'en' ? 'Warm paper tone' : '温暖柔和' },
+                          { id: '#bbf7d0', name: language === 'en' ? 'Eye Mint' : '护眼薄荷', desc: language === 'en' ? 'Calming green' : '青翠静心' },
+                          { id: '#bae6fd', name: language === 'en' ? 'Frost Blue' : '冰霜微蓝', desc: language === 'en' ? 'Crisp & cool' : '冷峻透亮' },
+                          { id: '#1c1917', name: language === 'en' ? 'Ink Black' : '水墨沉黑', desc: language === 'en' ? 'Light themes' : '浅色主题' },
+                          { id: '#374151', name: language === 'en' ? 'Deep Slate' : '玄灰典雅', desc: language === 'en' ? 'Dark slate' : '墨韵灰调' },
                         ].map((swatch) => {
                           const isCur = editorTextColor === swatch.id;
                           return (
@@ -1556,7 +1663,7 @@ return {
                           className="h-6 w-6 rounded-lg border-0 cursor-pointer bg-transparent"
                         />
                         <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
-                          自定义字色 (取色器)
+                          {language === 'en' ? 'Custom Text Color (Eyedropper)' : '自定义字色 (取色器)'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1586,7 +1693,7 @@ return {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          对白引号“”特殊配色
+                          {language === 'en' ? 'Dialogue Quote Highlight Color' : '对白引号“”特殊配色'}
                         </span>
                         <span
                           className="text-[9.5px] px-2 py-0.5 rounded-full font-mono font-medium"
@@ -1597,12 +1704,12 @@ return {
                           }}
                         >
                           {!isDialogueActive
-                            ? '已关闭高亮'
-                            : (dialogueColor === 'auto' || !dialogueColor ? '跟随主题自适应' : '自定义配色')}
+                            ? (language === 'en' ? 'Highlight Disabled' : '已关闭高亮')
+                            : (dialogueColor === 'auto' || !dialogueColor ? (language === 'en' ? 'Adaptive Theme' : '跟随主题自适应') : (language === 'en' ? 'Custom Color' : '自定义配色'))}
                         </span>
                       </div>
                       <p className="text-[10px] opacity-60 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        设置双引号（“……”）与直角引号（『……』）内人物对白的高亮色彩
+                        {language === 'en' ? 'Highlight character dialogues wrapped in quotation marks (“...”, \'...\', or 『...』)' : '设置双引号（“……”）与直角引号（『……』）内人物对白的高亮色彩'}
                       </p>
                     </div>
 
@@ -1617,7 +1724,7 @@ return {
                       }}
                     >
                       {isDialogueActive && <Check className="h-3 w-3" />}
-                      <span>{isDialogueActive ? '已开启' : '已关闭'}</span>
+                      <span>{isDialogueActive ? (language === 'en' ? 'Enabled' : '已开启') : (language === 'en' ? 'Disabled' : '已关闭')}</span>
                     </button>
                   </div>
 
@@ -1629,7 +1736,7 @@ return {
                         style={{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.border }}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <span className="text-[10px] opacity-50 shrink-0 font-mono">预览效果:</span>
+                          <span className="text-[10px] opacity-50 shrink-0 font-mono">{language === 'en' ? 'Preview:' : '预览效果:'}</span>
                           <span
                             className="font-medium truncate"
                             style={{
@@ -1638,7 +1745,7 @@ return {
                                 : (!theme.isDark ? (theme.id === 'paper-parchment' ? '#c95738' : '#292524') : accentColor),
                             }}
                           >
-                            “喵喵喵，汪汪汪”
+                            {language === 'en' ? '“The night was quiet, and the wind whispered softly.”' : '“喵喵喵，汪汪汪”'}
                           </span>
                         </div>
                         <span className="text-[10px] font-mono opacity-50 shrink-0">
@@ -1674,10 +1781,10 @@ return {
                           />
                           <div>
                             <div className="text-xs font-medium" style={{ color: theme.colors.text }}>
-                              跟随当前主题 ({theme.nameZh})
+                              {language === 'en' ? `Follow Active Theme (${theme.name})` : `跟随当前主题 (${theme.nameZh})`}
                             </div>
                             <span className="text-[10px] opacity-50 font-mono" style={{ color: theme.colors.textMuted }}>
-                              根据当前主题自动适配高对比对白字色
+                              {language === 'en' ? 'Automatically adjust dialogue contrast to match current theme' : '根据当前主题自动适配高对比对白字色'}
                             </span>
                           </div>
                         </div>
@@ -1689,18 +1796,18 @@ return {
                       {/* 预设对白字色 */}
                       <div>
                         <span className="text-[11px] opacity-75 block mb-2 font-medium" style={{ color: theme.colors.text }}>
-                          预设对白字色
+                          {language === 'en' ? 'Preset Dialogue Palette' : '预设对白字色'}
                         </span>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {[
-                            { id: '#c95738', name: '朱红' },
-                            { id: '#292524', name: '玄黑' },
-                            { id: '#d97706', name: '琥珀' },
-                            { id: '#0f766e', name: '墨绿' },
-                            { id: '#1d4ed8', name: '霁蓝' },
-                            { id: '#7c3aed', name: '淡紫' },
-                            { id: '#ffffff', name: '纯白' },
-                            { id: '#d4b0b5', name: '莫兰迪粉' },
+                            { id: '#c95738', name: language === 'en' ? 'Vermilion' : '朱红' },
+                            { id: '#292524', name: language === 'en' ? 'Deep Charcoal' : '玄黑' },
+                            { id: '#d97706', name: language === 'en' ? 'Amber Gold' : '琥珀' },
+                            { id: '#0f766e', name: language === 'en' ? 'Forest Ink' : '墨绿' },
+                            { id: '#1d4ed8', name: language === 'en' ? 'Sky Blue' : '霁蓝' },
+                            { id: '#7c3aed', name: language === 'en' ? 'Lavender' : '淡紫' },
+                            { id: '#ffffff', name: language === 'en' ? 'Pure White' : '纯白' },
+                            { id: '#d4b0b5', name: language === 'en' ? 'Morandi Rose' : '莫兰迪粉' },
                           ].map((swatch) => {
                             const isCur = dialogueColor === swatch.id;
                             return (
@@ -1742,7 +1849,7 @@ return {
                             className="h-6 w-6 rounded-lg border-0 cursor-pointer bg-transparent"
                           />
                           <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
-                            自定义对白颜色
+                            {language === 'en' ? 'Custom Dialogue Color' : '自定义对白颜色'}
                           </span>
                         </div>
                         <input
@@ -1763,9 +1870,9 @@ return {
                       <div className="flex items-center justify-between pt-2 border-t" style={{ borderColor: `${theme.colors.border}30` }}>
                         <div>
                           <span className="font-medium text-[11px]" style={{ color: theme.colors.text }}>
-                            高亮心理独白 （……）
+                            {t('typography.dialogueThoughtsTitle')}
                           </span>
-                          <p className="text-[9.5px] opacity-40">识别括号内的心理独白并应用斜体</p>
+                          <p className="text-[9.5px] opacity-40">{t('typography.dialogueThoughtsDesc')}</p>
                         </div>
                         <button
                           onClick={handleToggleDialogueThoughts}
@@ -1776,7 +1883,7 @@ return {
                             border: `1px solid ${dialogueHighlightThoughts ? `${accentColor}40` : theme.colors.border}`,
                           }}
                         >
-                          {dialogueHighlightThoughts ? '已开启' : '未开启'}
+                          {dialogueHighlightThoughts ? t('common.active') : t('common.inactive')}
                         </button>
                       </div>
                     </div>
@@ -1792,13 +1899,13 @@ return {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          中文段首全角空格缩进
+                          {t('typography.indentTitle')}
                         </span>
                         <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">
-                          标准全角字符
+                          {t('typography.indentBadge')}
                         </span>
                       </div>
-                      <p className="text-[10px] opacity-50 mt-0.5">换行自动在段首插入两个全角空格（<code>　　</code>），复制或导出 TXT 时保留标准排版</p>
+                      <p className="text-[10px] opacity-50 mt-0.5">{t('typography.indentDesc')}</p>
                     </div>
                     <button
                       onClick={onToggleIndent}
@@ -1810,7 +1917,7 @@ return {
                       }}
                     >
                       {indentEnabled && <Check className="h-3 w-3" />}
-                      <span>{indentEnabled ? '已开启' : '已关闭'}</span>
+                      <span>{indentEnabled ? t('common.active') : t('common.inactive')}</span>
                     </button>
                   </div>
 
@@ -1822,9 +1929,9 @@ return {
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          一键排版操作
+                          {t('typography.cleanActionsTitle')}
                         </span>
-                        <span className="text-[10px] opacity-40 font-mono">作用于当前章节</span>
+                        <span className="text-[10px] opacity-40 font-mono">{t('typography.cleanChapterScope')}</span>
                       </div>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1836,32 +1943,32 @@ return {
                             color: textAccentColor,
                             borderColor: `${accentColor}40`,
                           }}
-                          title="为当前章节每一行正文开头统一缩进两个全角空格，标题与分割线自动顶格"
+                          title={t('typography.indentTwoSpaces')}
                         >
-                          <span>一键缩进两格</span>
+                          <span>{t('typography.indentTwoSpaces')}</span>
                         </button>
 
                         <button
                           onClick={handleRemoveChapterPhysicalIndent}
                           className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-all cursor-pointer shadow-xs"
                           style={{ color: theme.colors.text }}
-                          title="清除当前章节每一行开头的多余空格，恢复顶格排版"
+                          title={t('typography.removeIndents')}
                         >
-                          <span>一键恢复顶格</span>
+                          <span>{t('typography.removeIndents')}</span>
                         </button>
 
                         <button
                           onClick={handleCleanChapterPunctuation}
                           className="flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-all cursor-pointer shadow-xs"
                           style={{ color: theme.colors.text }}
-                          title="将当前章节英文半角标点转为中文全角标点，修复成对引号与双破折号"
+                          title={t('typography.cleanPunctuation')}
                         >
-                          <span>一键修复标点</span>
+                          <span>{t('typography.cleanPunctuation')}</span>
                         </button>
                       </div>
 
                       <p className="text-[10px] opacity-50 leading-relaxed" style={{ color: theme.colors.textMuted }}>
-                        <strong>段首缩进两格</strong>：为每个正文自然段开头规范添加 2 个全角空格（两个字框格子宽度），章节标题（如 <code># 第一章</code> 或 <code>第一章 标题</code>）与分割线自动保持顶格避让。
+                        {t('typography.indentTip')}
                       </p>
                     </div>
 
@@ -1869,10 +1976,10 @@ return {
                       <div className="rounded-xl border border-white/5 p-3 bg-white/[0.02] space-y-1 text-[10.5px] animate-in fade-in duration-150">
                         <div className="flex items-center gap-1.5 font-medium" style={{ color: textAccentColor }}>
                           <Check className="h-3 w-3 shrink-0" />
-                          <span>换行自动缩进已开启</span>
+                          <span>{t('typography.autoIndentActive')}</span>
                         </div>
                         <p className="opacity-60 text-[10px] leading-relaxed" style={{ color: theme.colors.textMuted }}>
-                          打字时按回车换行会自动对齐正文缩进两格，空行再次回车自动清空，段首按 Backspace 键可整块删除两格。
+                          {t('typography.autoIndentActiveDesc')}
                         </p>
                       </div>
                     )}
@@ -1887,9 +1994,9 @@ return {
                   <div className="flex items-center justify-between pb-3 border-b border-white/5">
                     <div>
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        标点避头尾与对齐
+                        {t('typography.kinsokuTitle')}
                       </span>
-                      <p className="text-[10px] opacity-50">避免标点出现在行首，破折号与省略号不断行</p>
+                      <p className="text-[10px] opacity-50">{t('typography.kinsokuDesc')}</p>
                     </div>
                   </div>
 
@@ -1897,12 +2004,12 @@ return {
                     {/* Kinsoku Strictness */}
                     <div>
                       <label className="text-[11px] opacity-75 block mb-1.5 font-medium" style={{ color: theme.colors.text }}>
-                        避头尾级别
+                        {language === 'en' ? 'Line Break Mode' : '避头尾级别'}
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         {[
-                          { id: 'strict', name: '严格避头尾', desc: '标点不落行首' },
-                          { id: 'native', name: '系统默认', desc: '浏览器原生折行' },
+                          { id: 'strict', name: t('typography.strictKinsoku'), desc: t('typography.strictKinsokuDesc') },
+                          { id: 'native', name: t('typography.nativeKinsoku'), desc: t('typography.nativeKinsokuDesc') },
                         ].map((k) => {
                           const isCur = (kinsokuStrictness || 'strict') === k.id;
                           return (
@@ -1933,12 +2040,12 @@ return {
                     {/* Text Alignment */}
                     <div>
                       <label className="text-[11px] opacity-75 block mb-1.5 font-medium" style={{ color: theme.colors.text }}>
-                        文本对齐模式
+                        {t('typography.alignmentTitle')}
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         {[
-                          { id: 'justify', name: '两端对齐', desc: '段落两侧整齐', icon: AlignJustify },
-                          { id: 'left', name: '居左对齐', desc: '传统左对齐', icon: AlignLeft },
+                          { id: 'justify', name: t('typography.justify'), desc: t('typography.justifyDesc'), icon: AlignJustify },
+                          { id: 'left', name: t('typography.alignLeft'), desc: t('typography.alignLeftDesc'), icon: AlignLeft },
                         ].map((a) => {
                           const isCur = (textAlignment || 'justify') === a.id;
                           const Icon = a.icon;
@@ -1975,9 +2082,9 @@ return {
                   <div className="flex items-center justify-between pt-2 border-t border-white/5">
                     <div>
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        标点间距挤压
+                        {t('typography.haltTitle')}
                       </span>
-                      <p className="text-[10px] opacity-50">压缩连续标点间多余的空白</p>
+                      <p className="text-[10px] opacity-50">{t('typography.haltDesc')}</p>
                     </div>
                     <button
                       onClick={onTogglePunctuationHalt}
@@ -1989,7 +2096,7 @@ return {
                       }}
                     >
                       {punctuationHalt !== false && <Check className="h-3 w-3" />}
-                      <span>{punctuationHalt !== false ? '已开启' : '已关闭'}</span>
+                      <span>{punctuationHalt !== false ? t('common.active') : t('common.inactive')}</span>
                     </button>
                   </div>
                 </div>
@@ -2000,14 +2107,14 @@ return {
                   style={{ borderColor: theme.colors.border, backgroundColor: theme.colors.bg }}
                 >
                   <span className="font-semibold text-xs block pb-2 border-b border-white/5" style={{ color: theme.colors.text }}>
-                    版心尺寸与字距微调
+                    {t('typography.metricsTitle')}
                   </span>
 
                   {/* Width & Margins */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span style={{ color: theme.colors.text }}>版心最大宽度</span>
+                        <span style={{ color: theme.colors.text }}>{t('typography.maxWidth')}</span>
                         <span className="font-mono font-bold" style={{ color: textAccentColor }}>{contentMaxWidth}px</span>
                       </div>
                       <input
@@ -2024,7 +2131,7 @@ return {
 
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span style={{ color: theme.colors.text }}>左右页边距</span>
+                        <span style={{ color: theme.colors.text }}>{t('typography.pagePadding')}</span>
                         <span className="font-mono font-bold" style={{ color: textAccentColor }}>{horizontalPadding}px</span>
                       </div>
                       <input
@@ -2044,7 +2151,7 @@ return {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2 border-t border-white/5">
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span style={{ color: theme.colors.text }}>正文字号</span>
+                        <span style={{ color: theme.colors.text }}>{t('typography.fontSize')}</span>
                         <span className="font-mono font-bold" style={{ color: textAccentColor }}>{fontSize}px</span>
                       </div>
                       <input
@@ -2061,7 +2168,7 @@ return {
 
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span style={{ color: theme.colors.text }}>行高比例</span>
+                        <span style={{ color: theme.colors.text }}>{t('typography.lineHeight')}</span>
                         <span className="font-mono font-bold" style={{ color: textAccentColor }}>{lineHeight}</span>
                       </div>
                       <input
@@ -2078,7 +2185,7 @@ return {
 
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span style={{ color: theme.colors.text }}>段落间距</span>
+                        <span style={{ color: theme.colors.text }}>{t('typography.paragraphSpacing')}</span>
                         <span className="font-mono font-bold" style={{ color: textAccentColor }}>{paragraphSpacing}em</span>
                       </div>
                       <input
@@ -2095,7 +2202,7 @@ return {
 
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span style={{ color: theme.colors.text }}>字间微距</span>
+                        <span style={{ color: theme.colors.text }}>{t('typography.letterSpacing')}</span>
                         <span className="font-mono font-bold" style={{ color: textAccentColor }}>{letterSpacing || 0.02}em</span>
                       </div>
                       <input
@@ -2119,8 +2226,8 @@ return {
                     <div className="flex items-center gap-2.5">
                       <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
                       <div>
-                        <span className="font-semibold text-xs">「沉浸写作」插件当前处于禁用状态</span>
-                        <p className="text-[10px] opacity-80 mt-0.5">段落专注聚光灯、打字机视线高度与台词对话微光暂未在手稿中生效。</p>
+                        <span className="font-semibold text-xs">{t('typography.immersionDisabledTitle')}</span>
+                        <p className="text-[10px] opacity-80 mt-0.5">{t('typography.immersionDisabledDesc')}</p>
                       </div>
                     </div>
                     <button
@@ -2130,7 +2237,7 @@ return {
                       }}
                       className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all cursor-pointer shrink-0"
                     >
-                      一键启用插件
+                      {t('cursor.enablePlugin')}
                     </button>
                   </div>
                 )}
@@ -2144,19 +2251,19 @@ return {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                        顶栏打字沉浸行为
+                        {t('typography.titlebarImmersionTitle')}
                       </span>
                       <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        开始码字时自动隐藏或淡化顶部栏目，鼠标移至顶端时平滑唤醒
+                        {t('typography.titlebarImmersionDesc')}
                       </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 pt-1">
                     {[
-                      { id: 'fade_out', label: '打字时隐藏', desc: '输入时自动隐藏' },
-                      { id: 'dim', label: '打字时变淡', desc: '保持微弱可见' },
-                      { id: 'always_visible', label: '始终显示', desc: '常驻显示' },
+                      { id: 'fade_out', label: language === 'en' ? 'Fade on Typing' : '打字时隐藏', desc: language === 'en' ? 'Auto fades while typing' : '输入时自动隐藏' },
+                      { id: 'dim', label: language === 'en' ? 'Dim on Typing' : '打字时变淡', desc: language === 'en' ? 'Subtle low opacity' : '保持微弱可见' },
+                      { id: 'always_visible', label: language === 'en' ? 'Always Visible' : '始终显示', desc: language === 'en' ? 'Pinned visible' : '常驻显示' },
                     ].map((opt) => {
                       const cur = (localStorage.getItem('novelite_titlebar_behavior') as any) || 'fade_out';
                       const isSelected = cur === opt.id;
@@ -2164,9 +2271,9 @@ return {
                         <button
                           key={opt.id}
                           onClick={() => {
-                            localStorage.setItem('novelite_titlebar_behavior', opt.id);
+                            safeStorageSet('novelite_titlebar_behavior', opt.id);
                             eventBus.emit('titlebar-behavior-changed', opt.id);
-                            eventBus.emit('show-toast', { message: `已设置顶栏沉浸为：${opt.label}`, type: 'info' });
+                            eventBus.emit('show-toast', { message: `${opt.label}`, type: 'info' });
                           }}
                           className={`p-2.5 rounded-xl border text-left text-xs transition-all cursor-pointer ${
                             isSelected
@@ -2194,10 +2301,10 @@ return {
                 >
                   <div>
                     <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                      极简底栏隐藏模式
+                      {language === 'en' ? 'Zero-Chrome Focus Mode' : '极简底栏隐藏模式'}
                     </span>
                     <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                      隐藏底部状态栏，获得更纯净的专注写作视野
+                      {language === 'en' ? 'Hide bottom status bar for a clean writing field' : '隐藏底部状态栏，获得更纯净的专注写作视野'}
                     </p>
                   </div>
                   <button
@@ -2210,7 +2317,7 @@ return {
                     }}
                   >
                     {zeroChrome && <Check className="h-3 w-3" />}
-                    <span>{zeroChrome ? '已开启' : '未开启'}</span>
+                    <span>{zeroChrome ? t('common.active') : t('common.inactive')}</span>
                   </button>
                 </div>
 
@@ -2223,17 +2330,17 @@ return {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          打字机视线锁定模式
+                          {t('typography.typewriterTitle')}
                         </span>
                         <span
                           className="text-[9px] font-mono px-1.5 py-0.5 rounded"
                           style={{ backgroundColor: `${accentColor}18`, color: textAccentColor }}
                         >
-                          视线居中
+                          {language === 'en' ? 'Eye-Level' : '视线居中'}
                         </span>
                       </div>
                       <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        平滑自动推移视口，保持光标与当前编辑行处于黄金视线高度，消除低头疲劳
+                        {t('typography.typewriterDesc')}
                       </p>
                     </div>
 
@@ -2247,7 +2354,7 @@ return {
                       }}
                     >
                       {typewriterEnabled && <Check className="h-3 w-3" />}
-                      <span>{typewriterEnabled ? '已开启' : '未开启'}</span>
+                      <span>{typewriterEnabled ? t('common.active') : t('common.inactive')}</span>
                     </button>
                   </div>
 
@@ -2256,13 +2363,13 @@ return {
                       {/* 垂直锚点位置 */}
                       <div>
                         <label className="font-medium text-[11px] block mb-2 opacity-80" style={{ color: theme.colors.text }}>
-                          视口垂直锁定位置
+                          {t('typography.typewriterRatioTitle')}
                         </label>
                         <div className="grid grid-cols-3 gap-2.5">
                           {[
-                            { value: 0.38, name: '38% 黄金视线', desc: '微仰舒适阅读位' },
-                            { value: 0.50, name: '50% 视口正中', desc: '经典打字机正中' },
-                            { value: 0.60, name: '60% 沉浸低位', desc: '自上而下宏观视野' },
+                            { value: 0.38, name: language === 'en' ? '38% Golden Eye-Level' : '38% 黄金视线', desc: language === 'en' ? 'Comfortable reading' : '微仰舒适阅读位' },
+                            { value: 0.50, name: language === 'en' ? '50% Viewport Center' : '50% 视口正中', desc: language === 'en' ? 'Classic typewriter center' : '经典打字机正中' },
+                            { value: 0.60, name: language === 'en' ? '60% Lower Horizon' : '60% 沉浸低位', desc: language === 'en' ? 'Macro overview' : '自上而下宏观视野' },
                           ].map((item) => {
                             const isCur = Math.abs((typewriterRatio ?? 0.38) - item.value) < 0.04;
                             return (
@@ -2293,13 +2400,13 @@ return {
                       {/* 平滑滚动节奏 */}
                       <div>
                         <label className="font-medium text-[11px] block mb-2 opacity-80" style={{ color: theme.colors.text }}>
-                          平滑推移节奏
+                          {t('typography.typewriterSpeedTitle')}
                         </label>
                         <div className="grid grid-cols-3 gap-2.5">
                           {[
-                            { id: 'gentle', name: '舒缓', desc: '柔和渐进平滑移动' },
-                            { id: 'balanced', name: '标准', desc: '适中平滑跟随' },
-                            { id: 'snappy', name: '敏捷', desc: '快速响应' },
+                            { id: 'gentle', name: language === 'en' ? 'Gentle' : '舒缓', desc: language === 'en' ? 'Soft smooth gliding' : '柔和渐进平滑移动' },
+                            { id: 'balanced', name: language === 'en' ? 'Balanced' : '标准', desc: language === 'en' ? 'Optimal fluid follow' : '适中平滑跟随' },
+                            { id: 'snappy', name: language === 'en' ? 'Snappy' : '敏捷', desc: language === 'en' ? 'Instant response' : '快速响应' },
                           ].map((sp) => {
                             const isCur = (typewriterSpeed ?? 'balanced') === sp.id;
                             return (
@@ -2339,14 +2446,14 @@ return {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          段落与单句专注聚光灯
+                          {t('typography.focusTitle')}
                         </span>
                         <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 opacity-60">
                           {keymapRegistry.getFormattedKey('focus:toggle', 'Alt+F')}
                         </span>
                       </div>
                       <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        照亮当前正在写作的段落或单句，平滑暗化周围文字以消除视觉干扰
+                        {t('typography.focusDesc')}
                       </p>
                     </div>
 
@@ -2360,7 +2467,7 @@ return {
                       }}
                     >
                       {focusEnabled && <Check className="h-3 w-3" />}
-                      <span>{focusEnabled ? '已开启' : '未开启'}</span>
+                      <span>{focusEnabled ? t('common.active') : t('common.inactive')}</span>
                     </button>
                   </div>
 
@@ -2370,18 +2477,18 @@ return {
                       <div>
                         <div className="flex items-center justify-between mb-2">
                           <label className="font-medium text-[11px] opacity-80" style={{ color: theme.colors.text }}>
-                            聚光范围模式
+                            {t('typography.focusScopeTitle')}
                           </label>
                           <span className="text-[9.5px] font-mono opacity-40">
-                            {keymapRegistry.getFormattedKey('focus:toggle-scope', 'Alt+Shift+F')} 快速切换
+                            {keymapRegistry.getFormattedKey('focus:toggle-scope', 'Alt+Shift+F')}
                           </span>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2.5">
                           {[
-                            { id: 'paragraph', name: '当前逻辑段落', desc: '完整照亮长段落全部折行' },
-                            { id: 'sentence', name: '当前单句推敲', desc: '以标点为界单句雕琢' },
-                            { id: 'horizon', name: '三行微光渐变', desc: '当前行100%，相邻62%' },
+                            { id: 'paragraph', name: language === 'en' ? 'Active Paragraph' : '当前逻辑段落', desc: language === 'en' ? 'Illuminates full paragraph' : '完整照亮长段落全部折行' },
+                            { id: 'sentence', name: language === 'en' ? 'Active Sentence' : '当前单句推敲', desc: language === 'en' ? 'Focuses on current clause' : '以标点为界单句雕琢' },
+                            { id: 'horizon', name: language === 'en' ? '3-Line Gradient' : '三行微光渐变', desc: language === 'en' ? '100% active, 62% adjacent' : '当前行100%，相邻62%' },
                           ].map((mode) => {
                             const isCur = focusScope === mode.id;
                             return (
@@ -2413,10 +2520,10 @@ return {
                       <div>
                         <div className="flex items-center justify-between mb-1.5">
                           <label className="font-medium text-[11px] opacity-80" style={{ color: theme.colors.text }}>
-                            周围非活动文字暗化深度
+                            {t('typography.focusDimTitle')}
                           </label>
                           <span className="text-xs font-mono font-semibold" style={{ color: textAccentColor }}>
-                            {Math.round((1 - focusDimOpacity) * 100)}% 弱化 (透明度 {Math.round(focusDimOpacity * 100)}%)
+                            {Math.round((1 - focusDimOpacity) * 100)}%
                           </span>
                         </div>
                         <input
@@ -2430,9 +2537,9 @@ return {
                           style={{ accentColor: accentColor }}
                         />
                         <div className="flex justify-between text-[9.5px] opacity-40 font-mono mt-1">
-                          <span>0.10 (深邃沉浸)</span>
-                          <span>0.28 (标准平衡)</span>
-                          <span>0.55 (轻度微暗)</span>
+                          <span>0.10 ({language === 'en' ? 'Deep Immersion' : '深邃沉浸'})</span>
+                          <span>0.28 ({language === 'en' ? 'Balanced Focus' : '标准平衡'})</span>
+                          <span>0.55 ({language === 'en' ? 'Mild Dim' : '轻度微暗'})</span>
                         </div>
                       </div>
                     </div>
@@ -2478,7 +2585,7 @@ return {
                                 className="text-[10px] font-serif font-medium tracking-wide truncate"
                                 style={{ color: th.colors.editorText }}
                               >
-                                “夜幕低垂，星火如织...”
+                                {t('themes.previewQuote')}
                               </span>
                               <span
                                 className="h-3 w-1 rounded-full shrink-0 shadow-[0_0_8px_currentColor]"
@@ -2505,7 +2612,7 @@ return {
                               className="text-[9px] px-1.5 py-0.5 rounded font-mono font-medium"
                               style={{ backgroundColor: `${th.colors.accent}25`, color: th.colors.accent }}
                             >
-                              {th.isDark ? '暗黑' : '明亮'}
+                              {th.isDark ? t('themes.dark') : t('themes.light')}
                             </span>
                           </div>
                         </div>
@@ -2514,19 +2621,19 @@ return {
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="font-semibold text-xs" style={{ color: th.colors.text }}>
-                              {th.nameZh}
+                              {language === 'en' ? th.name : th.nameZh}
                             </span>
                             <span className="text-[10px] opacity-40 ml-2 font-mono" style={{ color: theme.colors.textMuted }}>
-                              {th.name}
+                              {language === 'en' ? (th.isDark ? 'Dark Theme' : 'Light Theme') : th.name}
                             </span>
                           </div>
                           {isCur ? (
                             <span className="flex items-center gap-1 text-[10px] font-mono font-semibold" style={{ color: textAccentColor }}>
-                              <Check className="h-3 w-3" /> 当前应用
+                              <Check className="h-3 w-3" /> {language === 'en' ? 'Active' : '当前应用'}
                             </span>
                           ) : (
                             <span className="text-[10px] opacity-0 group-hover:opacity-60 transition-opacity font-mono">
-                              点击应用
+                              {language === 'en' ? 'Select' : '点击应用'}
                             </span>
                           )}
                         </div>
@@ -2547,7 +2654,7 @@ return {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                          界面交互强调色
+                          {language === 'en' ? 'UI Interaction Accent Color' : '界面交互强调色'}
                         </span>
                         <span
                           className="text-[9.5px] px-2 py-0.5 rounded-full font-mono font-medium"
@@ -2557,11 +2664,15 @@ return {
                             border: `1px solid ${accentColor}35`,
                           }}
                         >
-                          {uiAccentColor === 'auto' ? '跟随主题' : '自定义'}
+                          {uiAccentColor === 'auto'
+                            ? (language === 'en' ? 'Follow Theme' : '跟随主题')
+                            : (language === 'en' ? 'Custom' : '自定义')}
                         </span>
                       </div>
                       <p className="text-[10px] opacity-50 mt-0.5" style={{ color: theme.colors.textMuted }}>
-                        自定义按钮、滑块与状态指示灯的色彩
+                        {language === 'en'
+                          ? 'Customize highlight color for buttons, sliders, and active indicator lights'
+                          : '自定义按钮、滑块与状态指示灯的色彩'}
                       </p>
                     </div>
 
@@ -2571,7 +2682,7 @@ return {
                         className="text-[10.5px] font-mono opacity-70 hover:opacity-100 underline cursor-pointer shrink-0"
                         style={{ color: textAccentColor }}
                       >
-                        重置为跟随主题
+                        {language === 'en' ? 'Reset to Follow Theme' : '重置为跟随主题'}
                       </button>
                     )}
                   </div>
@@ -2580,14 +2691,14 @@ return {
                     {/* 8 大精选强调色芯片 */}
                     <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
                       {[
-                        { name: '玄黑', hex: '#292524' },
-                        { name: '朱红', hex: '#c95738' },
-                        { name: '青蓝', hex: '#0284c7' },
-                        { name: '苍紫', hex: '#8b5cf6' },
-                        { name: '翠绿', hex: '#059669' },
-                        { name: '琥珀', hex: '#d97706' },
-                        { name: '绯红', hex: '#e11d48' },
-                        { name: '群青', hex: '#2563eb' },
+                        { name: language === 'en' ? 'Charcoal' : '玄黑', hex: '#292524' },
+                        { name: language === 'en' ? 'Vermilion' : '朱红', hex: '#c95738' },
+                        { name: language === 'en' ? 'Sky Cyan' : '青蓝', hex: '#0284c7' },
+                        { name: language === 'en' ? 'Violet' : '苍紫', hex: '#8b5cf6' },
+                        { name: language === 'en' ? 'Emerald' : '翠绿', hex: '#059669' },
+                        { name: language === 'en' ? 'Amber' : '琥珀', hex: '#d97706' },
+                        { name: language === 'en' ? 'Crimson' : '绯红', hex: '#e11d48' },
+                        { name: language === 'en' ? 'Ultramarine' : '群青', hex: '#2563eb' },
                       ].map((c) => {
                         const isCur = uiAccentColor === c.hex;
                         return (
@@ -2620,7 +2731,7 @@ return {
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] font-medium" style={{ color: theme.colors.text }}>
-                          自定义强调色
+                          {language === 'en' ? 'Custom Accent Color' : '自定义强调色'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2660,9 +2771,9 @@ return {
                     style={{ backgroundColor: `${theme.colors.bgSecondary}`, borderColor: theme.colors.border }}
                   >
                     {[
-                      { id: 'all', label: '全部插件', count: pluginManager.getAllPlugins().length },
-                      { id: 'enabled', label: '已启用', count: pluginManager.getEnabledPlugins().length },
-                      { id: 'disabled', label: '已禁用', count: pluginManager.getAllPlugins().length - pluginManager.getEnabledPlugins().length },
+                      { id: 'all', label: t('plugins.all'), count: pluginManager.getAllPlugins().length },
+                      { id: 'enabled', label: t('plugins.enabled'), count: pluginManager.getEnabledPlugins().length },
+                      { id: 'disabled', label: t('plugins.disabled'), count: pluginManager.getAllPlugins().length - pluginManager.getEnabledPlugins().length },
                     ].map((f) => {
                       const isCur = pluginFilter === f.id;
                       return (
@@ -2694,7 +2805,7 @@ return {
                       style={{ color: theme.colors.text }}
                     >
                       <Code2 className="h-3.5 w-3.5" style={{ color: textAccentColor }} />
-                      <span>+ 自定义脚本 (JS)</span>
+                      <span>+ {t('plugins.writeScript')}</span>
                     </button>
                   </div>
                 </div>
@@ -2710,7 +2821,7 @@ return {
                       type="text"
                       value={pluginSearch}
                       onChange={(e) => setPluginSearch(e.target.value)}
-                      placeholder="搜索插件名称、作者 (如 hirovel)、功能或快捷键 (如 Alt+T)..."
+                      placeholder={t('plugins.searchPlaceholder')}
                       className="w-full pl-9 pr-4 py-2 rounded-xl border text-xs font-sans placeholder:text-neutral-500 focus:outline-hidden transition-all"
                       style={{
                         backgroundColor: theme.colors.bg,
@@ -2732,12 +2843,12 @@ return {
                   <button
                     onClick={handleRefreshRegistry}
                     disabled={isRefreshingRegistry}
-                    title="刷新插件列表"
+                    title={t('plugins.reloadRegistry')}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-xs font-mono shrink-0 disabled:opacity-50 cursor-pointer"
                     style={{ color: theme.colors.text }}
                   >
                     <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingRegistry ? 'animate-spin' : ''}`} style={{ color: textAccentColor }} />
-                    <span>{isRefreshingRegistry ? '刷新中...' : '刷新'}</span>
+                    <span>{isRefreshingRegistry ? (language === 'en' ? 'Refreshing...' : '刷新中...') : t('plugins.reloadRegistry')}</span>
                   </button>
                 </div>
 
@@ -2790,7 +2901,7 @@ return {
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <span className="font-semibold text-xs" style={{ color: theme.colors.text }}>
-                                    {p.metadata.name}
+                                    {(language === 'en' && info?.nameEn) ? info.nameEn : p.metadata.name}
                                   </span>
                                   <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-white/5 text-neutral-400 border border-white/5">
                                     v{p.metadata.version}
@@ -2800,19 +2911,19 @@ return {
                                       by {p.metadata.author}
                                     </span>
                                   )}
-                                  {info?.category && (
+                                  {info && (
                                     <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-white/5 text-neutral-400">
-                                      {info.category}
+                                      {(language === 'en' && info.categoryEn) ? info.categoryEn : info.category}
                                     </span>
                                   )}
                                   {isCustom && (
                                     <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
-                                      自定义脚本
+                                      {t('plugins.customScriptBadge')}
                                     </span>
                                   )}
                                 </div>
                                 <p className="text-[11px] leading-relaxed opacity-65" style={{ color: theme.colors.textMuted }}>
-                                  {p.metadata.description}
+                                  {(language === 'en' && info?.descEn) ? info.descEn : p.metadata.description}
                                 </p>
                               </div>
                             </div>
@@ -2823,7 +2934,7 @@ return {
                                 <button
                                   onClick={() => handleUninstallCustomPlugin(p.metadata.id)}
                                   className="p-1.5 rounded-lg text-rose-400/70 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
-                                  title="卸载此脚本"
+                                  title={t('plugins.uninstallScript')}
                                 >
                                   <Trash className="h-3.5 w-3.5" />
                                 </button>
@@ -2845,7 +2956,7 @@ return {
                                 }}
                               >
                                 {isEnabled && <Check className="h-3 w-3" />}
-                                <span>{isEnabled ? '已启用' : '已禁用'}</span>
+                                <span>{isEnabled ? t('common.enabled') : t('common.disabled')}</span>
                               </button>
                             </div>
                           </div>
@@ -2858,7 +2969,7 @@ return {
                                 className="flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity ml-auto text-[11px] cursor-pointer"
                                 style={{ color: textAccentColor }}
                               >
-                                <span>前往详细配置</span>
+                                <span>{language === 'en' ? 'Configure Details' : '前往详细配置'}</span>
                                 <ChevronRight className="h-3 w-3" />
                               </button>
                             </div>
@@ -2871,7 +2982,7 @@ return {
                   {dynamicPluginLoader.getAllCustomPlugins().length > 0 && (
                     <div className="pt-3 border-t border-white/5 space-y-2">
                       <span className="font-semibold text-xs opacity-75" style={{ color: theme.colors.text }}>
-                        自定义注入的 JavaScript 脚本
+                        {language === 'en' ? 'Custom Injected JavaScript Scripts' : '自定义注入的 JavaScript 脚本'}
                       </span>
                       {dynamicPluginLoader.getAllCustomPlugins().map((c) => (
                         <div
@@ -2896,7 +3007,7 @@ return {
                             onClick={() => handleUninstallCustomPlugin(c.id)}
                             className="px-2.5 py-1 rounded-lg text-[11px] font-mono text-rose-400 border border-rose-500/20 hover:bg-rose-500/10 transition-all shrink-0 cursor-pointer"
                           >
-                            卸载
+                            {language === 'en' ? 'Uninstall' : '卸载'}
                           </button>
                         </div>
                       ))}
@@ -2918,24 +3029,28 @@ return {
                     <div className="flex items-center gap-2">
                       <Keyboard className="h-4 w-4" style={{ color: textAccentColor }} />
                       <h4 className="text-xs font-semibold" style={{ color: theme.colors.text }}>
-                        快捷键速查面板
+                        {language === 'en' ? 'Hotkeys Cheatsheet & Manager' : '快捷键速查面板'}
                       </h4>
                     </div>
                     <p className="text-[11px] opacity-55" style={{ color: theme.colors.textMuted }}>
-                      随时按下 <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd> 即可打开快捷键速查面板
+                      {language === 'en' ? (
+                        <>Press <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd> anytime to open keymap cheatsheet</>
+                      ) : (
+                        <>随时按下 <kbd className="font-mono font-bold" style={{ color: textAccentColor }}>{keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl + /')}</kbd> 即可打开快捷键速查面板</>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
                         keymapRegistry.resetAll();
-                        eventBus.emit('show-toast', { message: '所有快捷键已恢复默认设置', type: 'success' });
+                        eventBus.emit('show-toast', { message: t('keymap.resetAllSuccess'), type: 'success' });
                       }}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs opacity-60 hover:opacity-100 hover:bg-white/5 border border-white/10 transition-all cursor-pointer text-neutral-400 hover:text-neutral-200"
-                      title="恢复所有快捷键为默认设置"
+                      title={t('keymap.resetAllTitle')}
                     >
                       <RotateCcw className="h-3 w-3" />
-                      <span>恢复默认</span>
+                      <span>{t('common.restoreDefault')}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -2950,7 +3065,7 @@ return {
                       }}
                     >
                       <Keyboard className="h-3.5 w-3.5" />
-                      <span>唤起悬浮面板 ({keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl+/')})</span>
+                      <span>{t('keymap.triggerFloating')} ({keymapRegistry.getFormattedKey('keymap:open-cheatsheet', 'Ctrl+/')})</span>
                     </button>
                   </div>
                 </div>
@@ -2963,7 +3078,7 @@ return {
                       type="text"
                       value={keymapSearch}
                       onChange={(e) => setKeymapSearch(e.target.value)}
-                      placeholder="搜索快捷键动作、按键名称或描述..."
+                      placeholder={t('keymap.searchPlaceholder')}
                       className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border text-xs outline-none transition-colors shadow-inner"
                       style={{
                         backgroundColor: theme.colors.bg,
@@ -2984,13 +3099,13 @@ return {
                   {/* Category Pills */}
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                     {[
-                      { id: 'all', label: '全部', icon: Sparkles },
-                      { id: 'editing', label: '文本编辑', icon: FileText },
-                      { id: 'navigation', label: '光标导航', icon: Compass },
-                      { id: 'search', label: '查找与检索', icon: Search },
-                      { id: 'split_view', label: '分屏编辑', icon: Columns },
-                      { id: 'literary', label: '排版与写作', icon: BookOpen },
-                      { id: 'system', label: '界面与系统', icon: SlidersHorizontal },
+                      { id: 'all', label: t('keymap.categories.all'), icon: Sparkles },
+                      { id: 'editing', label: t('keymap.categories.editing'), icon: FileText },
+                      { id: 'navigation', label: t('keymap.categories.navigation'), icon: Compass },
+                      { id: 'search', label: t('keymap.categories.search'), icon: Search },
+                      { id: 'split_view', label: t('keymap.categories.split_view'), icon: Columns },
+                      { id: 'literary', label: t('keymap.categories.literary'), icon: BookOpen },
+                      { id: 'system', label: t('keymap.categories.system'), icon: SlidersHorizontal },
                     ].map((cat) => {
                       const Icon = cat.icon;
                       const isCur = keymapCategory === cat.id;
@@ -3021,13 +3136,15 @@ return {
                 <div className="space-y-2">
                   {filteredKeymapItems.length === 0 ? (
                     <div className="text-center py-12 opacity-40 text-xs font-mono">
-                      未找到与 "{keymapSearch}" 匹配的快捷键
+                      {t('keymap.notFound')}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                       {filteredKeymapItems.map((item) => {
                         const isRecording = recordingKeymapId === item.id;
                         const isCustom = item.currentKey !== item.defaultKey;
+                        const itemTitle = language === 'en' && item.titleEn ? item.titleEn : item.title;
+                        const itemDesc = language === 'en' && item.descriptionEn ? item.descriptionEn : item.description;
                         const displayKey = keymapRegistry.formatDisplayKey(
                           isRecording && recordedKeymapStr ? recordedKeymapStr : item.currentKey
                         );
@@ -3050,16 +3167,16 @@ return {
                               <div className="min-w-0 space-y-0.5">
                                  <div className="flex items-center gap-1.5 flex-wrap">
                                    <span className="font-semibold text-xs truncate" style={{ color: theme.colors.text }}>
-                                     {item.title}
+                                     {itemTitle}
                                    </span>
                                    {isCustom && (
                                      <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                       已自定义
+                                       {t('keymap.customizedBadge')}
                                      </span>
                                    )}
                                  </div>
                                  <p className="text-[11px] opacity-55 line-clamp-1" style={{ color: theme.colors.textMuted }}>
-                                   {item.description}
+                                   {itemDesc}
                                  </p>
                                </div>
 
@@ -3081,13 +3198,13 @@ return {
                                          </kbd>
                                        ))}
                                        {displayKey.mods.length > 0 && <span className="opacity-40">+</span>}
-                                       <kbd className="font-bold">{displayKey.key || '请按下新按键...'}</kbd>
+                                       <kbd className="font-bold">{displayKey.key || t('keymap.recordingPrompt')}</kbd>
                                      </div>
                                      <button
                                        onClick={() => handleSaveKeymapRecording(item.id)}
                                        disabled={!recordedKeymapStr}
                                        className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-30 cursor-pointer"
-                                       title="保存"
+                                       title={t('common.save')}
                                      >
                                        <Check className="h-3.5 w-3.5" />
                                      </button>
@@ -3098,7 +3215,7 @@ return {
                                          setConflictKeymapItem(null);
                                        }}
                                        className="p-1.5 rounded-lg bg-white/5 text-neutral-400 border border-white/10 hover:bg-white/10 cursor-pointer"
-                                       title="取消"
+                                       title={t('common.cancel')}
                                      >
                                        <X className="h-3.5 w-3.5" />
                                      </button>
@@ -3109,11 +3226,11 @@ return {
                                        <button
                                          onClick={() => {
                                            item.run?.();
-                                           eventBus.emit('show-toast', { message: `已执行「${item.title}」`, type: 'info' });
+                                           eventBus.emit('show-toast', { message: `${t('keymap.actionExecuted')}「${itemTitle}」`, type: 'info' });
                                          }}
                                          className="p-1 rounded-lg bg-white/5 border border-white/5 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
                                          style={{ color: textAccentColor }}
-                                         title="立即运行此动作"
+                                         title={t('keymap.runActionNow')}
                                        >
                                          <Play className="h-2.5 w-2.5 fill-current" />
                                        </button>
@@ -3125,7 +3242,7 @@ return {
                                          setConflictKeymapItem(null);
                                        }}
                                        className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/40 border border-white/10 font-mono text-[11px] hover:bg-white/5 transition-all cursor-pointer group/btn"
-                                       title="点击录制新按键"
+                                       title={t('keymap.recordNewKey')}
                                      >
                                        {displayKey.mods.map((m) => (
                                          <kbd key={m} className="opacity-70 font-semibold text-neutral-300">
@@ -3145,20 +3262,20 @@ return {
                              {isRecording && conflictKeymapItem && (
                                <div className="flex items-center gap-1.5 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-[10.5px]">
                                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                 <span>按键与「{conflictKeymapItem.title}」冲突，保存将覆盖原绑定</span>
-                               </div>
+                                 <span>{t('keymap.conflictWarning')}</span>
+                                </div>
                              )}
 
                              {!isRecording && isCustom && (
                                <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-white/5">
-                                 <span className="opacity-40 font-mono">出厂默认：{item.defaultKey}</span>
+                                 <span className="opacity-40 font-mono">{t('keymap.defaultKey')}：{item.defaultKey}</span>
                                  <button
                                    onClick={() => handleResetSingleKeymap(item.id)}
                                    className="flex items-center gap-1 transition-colors cursor-pointer"
                                    style={{ color: textAccentColor }}
                                  >
                                    <RotateCcw className="h-2.5 w-2.5" />
-                                   <span>恢复默认</span>
+                                   <span>{t('common.restoreDefault')}</span>
                                  </button>
                                </div>
                              )}
@@ -3191,7 +3308,7 @@ return {
               <div className="flex items-center gap-2">
                 <Code2 className="h-4 w-4" style={{ color: textAccentColor }} />
                 <h4 className="font-bold text-sm" style={{ color: theme.colors.text }}>
-                  编写 / 注入自定义小说插件 (JavaScript)
+                  {t('plugins.scriptModalTitle')}
                 </h4>
               </div>
               <button
@@ -3204,7 +3321,7 @@ return {
             </div>
 
             <p className="text-xs opacity-70 leading-relaxed" style={{ color: theme.colors.textMuted }}>
-              编写符合 <code>NovelitePlugin</code> 接口的 JavaScript 脚本。插件初始化时将获得 <code>PluginContext</code>（支持注册命令、快捷键、编辑器扩展与提示）。
+              {t('plugins.scriptModalDesc')}
             </p>
 
             <div className="space-y-1.5">
@@ -3233,7 +3350,7 @@ return {
                 className="px-4 py-2 rounded-xl text-xs font-sans opacity-70 hover:opacity-100 cursor-pointer"
                 style={{ color: theme.colors.text }}
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleSaveAndRunCustomScript}
@@ -3244,7 +3361,7 @@ return {
                   borderColor: `${accentColor}40`,
                 }}
               >
-                测试运行并安装
+                {t('plugins.testAndInstall')}
               </button>
             </div>
           </div>
