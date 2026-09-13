@@ -1,7 +1,7 @@
 {
   "name": "novelite",
   "version": "1.0.0",
-  "description": "专为长篇小说创作打造的极简终端美学写作工作室",
+  "description": "轻量、插件化的小说文本编辑器",
   "author": "hirovel",
   "license": "GPL-3.0",
   "type": "module",

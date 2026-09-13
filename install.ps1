@@ -10,8 +10,8 @@ $ErrorActionPreference = 'Stop'
 Write-Host @"
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│   🖋️  Novelite (小说工坊) - 极简终端美学写作工作室           │
-│   🚀  Windows 一键极速安装程序                              │
+│   🖋️  Novelite - 轻量、插件化的小说文本编辑器                │
+│   🚀  Windows 一键安装程序                                  │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 "@ -ForegroundColor Cyan
@@ -55,7 +55,7 @@ if (-not (Test-Path $InstallDir)) {
 $LauncherBat = "$InstallDir\Novelite.cmd"
 @"
 @echo off
-title Novelite - 小说工坊
+title Novelite
 where npx >nul 2>nul
 if %ERRORLEVEL% equ 0 (
     npx --yes novelite
@@ -69,21 +69,21 @@ if %ERRORLEVEL% equ 0 (
 Write-Host "[3/3] 创建桌面快捷方式..." -ForegroundColor Yellow
 try {
     $WshShell = New-Object -ComObject WScript.Shell
-    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Novelite 小说工坊.lnk")
+    $Shortcut = $WshShell.CreateShortcut("$DesktopPath\Novelite.lnk")
     $Shortcut.TargetPath = $LauncherBat
     $Shortcut.WorkingDirectory = $InstallDir
-    $Shortcut.Description = "Novelite - 专为长篇小说创作打造的极简终端美学写作工作室"
+    $Shortcut.Description = "Novelite - 轻量、插件化的小说文本编辑器"
     $Shortcut.WindowStyle = 7 # Minimized launch window
     $Shortcut.Save()
-    Write-Host " -> 桌面快捷方式已生成: $DesktopPath\Novelite 小说工坊.lnk" -ForegroundColor Green
+    Write-Host " -> 桌面快捷方式已生成: $DesktopPath\Novelite.lnk" -ForegroundColor Green
 } catch {
     Write-Host " -> 快捷方式已就绪于: $LauncherBat" -ForegroundColor Gray
 }
 
 Write-Host @"
 
-🎉 安装完成！正在为您极速启动 Novelite 小说工坊...
-提示: 以后可直接双击桌面的【Novelite 小说工坊】图标或在终端输入 npx novelite 启动。
+🎉 安装完成！正在启动 Novelite...
+提示: 以后可直接双击桌面的【Novelite】图标或在终端输入 npx novelite 启动。
 
 "@ -ForegroundColor Green
 
