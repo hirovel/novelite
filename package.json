@@ -16,6 +16,20 @@
     "type": "git",
     "url": "https://github.com/hirovel/novelite.git"
   },
+  "homepage": "https://github.com/hirovel/novelite#readme",
+  "bugs": {
+    "url": "https://github.com/hirovel/novelite/issues"
+  },
+  "keywords": [
+    "novel",
+    "editor",
+    "markdown",
+    "writer",
+    "minimalist",
+    "tauri",
+    "focus-mode",
+    "codemirror"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
