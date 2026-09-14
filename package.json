@@ -6,7 +6,7 @@
   "license": "GPL-3.0",
   "type": "module",
   "bin": {
-    "novelite": "./bin/novelite.js"
+    "novelite": "bin/novelite.js"
   },
   "files": [
     "dist",
@@ -14,7 +14,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/hirovel/novelite.git"
+    "url": "git+https://github.com/hirovel/novelite.git"
   },
   "homepage": "https://github.com/hirovel/novelite#readme",
   "bugs": {
