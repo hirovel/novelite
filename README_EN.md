@@ -48,10 +48,13 @@ Designed with a **minimal core** principle, the foundation remains lightweight w
 
 Download `Novelite-Setup.exe` or portable release from [Releases](https://github.com/hirovel/novelite/releases/latest).
 
-#### Instant Run via Node.js (v18+)
+#### Run from Source
 
 ```bash
-npx novelite
+git clone https://github.com/hirovel/novelite.git
+cd novelite
+npm install
+npm run dev
 ```
 
 ---

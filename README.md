@@ -48,10 +48,13 @@
 
 前往 [Releases](https://github.com/hirovel/novelite/releases/latest) 下载 `Novelite-Setup.exe` 或绿色便携版。
 
-#### 通过 Node.js (v18+) 一行运行
+#### 从源码运行
 
 ```bash
-npx novelite
+git clone https://github.com/hirovel/novelite.git
+cd novelite
+npm install
+npm run dev
 ```
 
 ---
