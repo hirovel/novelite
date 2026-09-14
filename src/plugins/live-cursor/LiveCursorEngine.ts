@@ -461,9 +461,9 @@ export class LiveCursorEngine {
     // Spine Cascade (Silky progressive lag without oscillation)
     const omegas = [
       omega0,
-      (38.0 - trailFactor * 3.0) * timeScale * speedMultiplier,
-      (28.0 - trailFactor * 4.0) * timeScale * speedMultiplier,
-      (20.0 - trailFactor * 5.0) * timeScale * speedMultiplier,
+      (32.0 - trailFactor * 3.0) * timeScale * speedMultiplier,
+      (22.0 - trailFactor * 4.0) * timeScale * speedMultiplier,
+      (15.0 - trailFactor * 5.0) * timeScale * speedMultiplier,
     ];
     const zetas = [zeta0, 1.0, 1.0, 1.0];
 
@@ -483,7 +483,7 @@ export class LiveCursorEngine {
     // 2-Body Step for Fluid / Quantum:
     // Retains luxurious, elastic, visible trailing stretch while ensuring 100% monotonic asymptotic settling
     let omegaLead = 50.0 * timeScale * speedMultiplier;
-    let omegaTrail = (25.0 - trailFactor * 4.0) * timeScale * speedMultiplier;
+    let omegaTrail = (18.0 - trailFactor * 4.0) * timeScale * speedMultiplier;
     let zetaLead = 1.0;
     let zetaTrail = 1.0;
 
@@ -493,8 +493,8 @@ export class LiveCursorEngine {
       zetaLead = 1.0;
       zetaTrail = 1.0;
     } else if (this.lastJumpDist <= 32) {
-      omegaLead = 54.0 * timeScale * speedMultiplier;
-      omegaTrail = (28.0 - trailFactor * 3.0) * timeScale * speedMultiplier;
+      omegaLead = 52.0 * timeScale * speedMultiplier;
+      omegaTrail = (20.0 - trailFactor * 4.0) * timeScale * speedMultiplier;
       zetaLead = 1.0;
       zetaTrail = 1.0;
     }
