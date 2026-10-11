@@ -45,8 +45,29 @@ try {
       await editor.reload();
       await editor.locator('.cm-content').first().waitFor({ state: 'visible' });
       assert.match(await editor.locator('.cm-content').first().innerText(), /MAC_COMPATIBILITY_CHECK/);
+      const chapters = await editor.evaluate(async () => {
+        const { projectStore } = await import('/src/core/storage/ProjectStore.ts');
+        const first = projectStore.getActiveChapter().id;
+        const second = projectStore.addChapter(projectStore.getProject().volumes[0].id, 'Switch test');
+        projectStore.setActiveChapter(first);
+        return { first, second: second.id, original: second.content };
+      });
+      await editor.locator('.cm-content').first().click();
+      await editor.keyboard.insertText('PENDING_CHAPTER_EDIT');
+      await editor.evaluate(async ({ second }) => {
+        const { projectStore } = await import('/src/core/storage/ProjectStore.ts');
+        projectStore.setActiveChapter(second);
+      }, chapters);
+      // Cross the real 250ms editor debounce boundary before inspecting both chapters.
+      await editor.waitForTimeout(350);
+      const afterSwitch = await editor.evaluate(async ({ first, second }) => {
+        const { projectStore } = await import('/src/core/storage/ProjectStore.ts');
+        return { first: projectStore.findChapter(first).content, second: projectStore.findChapter(second).content };
+      }, chapters);
+      assert.match(afterSwitch.first, /PENDING_CHAPTER_EDIT/, 'Pending edit stays with its original chapter');
+      assert.equal(afterSwitch.second, chapters.original, 'Chapter navigation must not overwrite the destination');
       assert.deepEqual(errors, [], 'No uncaught frontend errors');
-      console.log(`${name}: PASS editor typing, Cmd+Z, Cmd+Shift+Z, Cmd+S and persistence`);
+      console.log(`${name}: PASS editor typing, Cmd+Z, Cmd+Shift+Z, Cmd+S, persistence and rapid chapter switching`);
       await app.close();
     } finally {
       await browser.close();

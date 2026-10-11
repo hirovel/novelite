@@ -436,9 +436,10 @@ export const NovelEditor: React.FC<Props> = ({
 
         // 🌟 2. 防抖序列化保存
         if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+        // Capture the destination before navigation can change the active chapter.
+        const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
         saveDebounceTimerRef.current = setTimeout(() => {
           const newContent = update.state.doc.toString();
-          const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
           if (curTargetId) {
             projectStore.updateChapterContent(curTargetId, newContent);
             fileSystemStore.writeChapterDirectToDisk(curTargetId, newContent);
