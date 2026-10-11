@@ -14,6 +14,8 @@ $installDir = Join-Path $env:RUNNER_TEMP 'novelite-nsis-test'
 $setup = Start-Process -FilePath $exe[0].FullName -ArgumentList "/S /D=$installDir" -Wait -PassThru -WindowStyle Hidden
 if ($setup.ExitCode -ne 0) { throw "NSIS installation failed: $($setup.ExitCode)" }
 Test-App (Join-Path $installDir 'novelite.exe')
+$registration = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\novelite'
+$registration | Select-Object DisplayName, Publisher, DisplayVersion | ConvertTo-Json -Compress | Write-Output
 $uninstaller = Join-Path $installDir 'uninstall.exe'
 $remove = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru -WindowStyle Hidden
 if ($remove.ExitCode -ne 0) { throw 'NSIS uninstall failed' }
@@ -21,7 +23,7 @@ if ($remove.ExitCode -ne 0) { throw 'NSIS uninstall failed' }
 $msi = @(Get-ChildItem -LiteralPath "$bundle/msi" -Filter '*.msi')
 if ($msi.Count -ne 1) { throw 'Expected one MSI installer' }
 $msiDir = Join-Path $env:RUNNER_TEMP 'novelite-msi-test'
-$setup = Start-Process msiexec.exe -ArgumentList "/i `"$($msi[0].FullName)`" /qn /norestart APPLICATIONFOLDER=`"$msiDir`" /L*v `"$env:RUNNER_TEMP/novelite-msi.log`"" -Wait -PassThru -WindowStyle Hidden
+$setup = Start-Process msiexec.exe -ArgumentList "/i `"$($msi[0].FullName)`" /qn /norestart INSTALLDIR=`"$msiDir`" /L*v `"$env:RUNNER_TEMP/novelite-msi.log`"" -Wait -PassThru -WindowStyle Hidden
 if ($setup.ExitCode -notin @(0, 3010)) {
     Get-Content "$env:RUNNER_TEMP/novelite-msi.log" -Tail 100
     throw "MSI installation failed: $($setup.ExitCode)"
