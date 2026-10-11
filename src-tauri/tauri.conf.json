@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "novelite",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "identifier": "com.novelite.editor",
   "build": {
     "frontendDist": "../dist",
@@ -39,6 +39,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlGM0M5NUQ3NUZEMjhGNjAKUldSZ2o5SmYxNVU4bnlHa01wQldpVjRHT1ZIdmp1eUozYVlUSndMVTYxT1VrK0t3akV3N2V3amcK",
+      "endpoints": [
+        "https://github.com/hirovel/novelite/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

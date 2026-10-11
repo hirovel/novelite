@@ -4,7 +4,7 @@ import { chromium, webkit } from 'playwright';
 
 const server = await createServer({
   server: { host: '127.0.0.1', port: 0 },
-  optimizeDeps: { noDiscovery: true, include: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom', 'react-dom/client', 'canvas-confetti', '@tauri-apps/api/core', '@tauri-apps/api/path', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-fs'] },
+  optimizeDeps: { noDiscovery: true, include: ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom', 'react-dom/client', 'canvas-confetti', '@tauri-apps/api/core', '@tauri-apps/api/path', '@tauri-apps/plugin-dialog', '@tauri-apps/plugin-fs', '@tauri-apps/plugin-updater', '@tauri-apps/plugin-process'] },
 });
 server.middlewares.use('/__test', (_req, res) => res.end('<html><body>Compatibility tests</body></html>'));
 await server.listen();
@@ -19,6 +19,8 @@ try {
       await page.goto(`${url}__test`);
       const results = await page.evaluate(async () => (await import('/tests/compatibility.ts')).runRegressions());
       for (const result of results) console.log(`${name}: PASS ${result}`);
+      const updaterResults = await page.evaluate(async () => (await import('/tests/updater.ts')).runUpdaterRegressions());
+      for (const result of updaterResults) console.log(`${name}: PASS ${result}`);
       await context.close();
 
       const app = await browser.newContext();
@@ -42,9 +44,12 @@ try {
       await editor.keyboard.press('Meta+Shift+z');
       assert.match(await content.innerText(), /MAC_COMPATIBILITY_CHECK/);
       await editor.keyboard.press('Meta+s');
+      await editor.keyboard.insertText('IMMEDIATE_UPDATE_SAVE');
+      await editor.evaluate(async () => (await import('/src/core/storage/restartGuard.ts')).saveBeforeRestart());
       await editor.reload();
       await editor.locator('.cm-content').first().waitFor({ state: 'visible' });
       assert.match(await editor.locator('.cm-content').first().innerText(), /MAC_COMPATIBILITY_CHECK/);
+      assert.match(await editor.locator('.cm-content').first().innerText(), /IMMEDIATE_UPDATE_SAVE/);
       const chapters = await editor.evaluate(async () => {
         const { projectStore } = await import('/src/core/storage/ProjectStore.ts');
         const first = projectStore.getActiveChapter().id;

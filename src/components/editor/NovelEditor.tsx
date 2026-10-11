@@ -5,6 +5,7 @@ import { defaultKeymap, history, historyKeymap, undo, redo } from '@codemirror/c
 import { markdown } from '@codemirror/lang-markdown';
 import { projectStore, countWordsFast } from '../../core/storage/ProjectStore';
 import { fileSystemStore } from '../../core/storage/FileSystemStore';
+import { registerRestartSave } from '../../core/storage/restartGuard';
 import { safeStorageSet } from '../../core/storage/safeStorage';
 import { pluginManager } from '../../core/plugins/PluginManager';
 import { eventBus } from '../../core/events/EventBus';
@@ -242,6 +243,7 @@ export const NovelEditor: React.FC<Props> = ({
 
   const typingTimerRef = useRef<any>(null);
   const saveDebounceTimerRef = useRef<any>(null);
+  const pendingSaveRef = useRef<(() => void) | null>(null);
   const { t, language } = useTranslation();
   const languageRef = useRef(language);
   useEffect(() => {
@@ -438,7 +440,8 @@ export const NovelEditor: React.FC<Props> = ({
         if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
         // Capture the destination before navigation can change the active chapter.
         const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
-        saveDebounceTimerRef.current = setTimeout(() => {
+        const commit = () => {
+          pendingSaveRef.current = null;
           const newContent = update.state.doc.toString();
           if (curTargetId) {
             projectStore.updateChapterContent(curTargetId, newContent);
@@ -447,7 +450,9 @@ export const NovelEditor: React.FC<Props> = ({
           }
           const exactCount = countWordsFast(newContent);
           setCharCount(exactCount);
-        }, 250);
+        };
+        pendingSaveRef.current = commit;
+        saveDebounceTimerRef.current = setTimeout(commit, 250);
       }
 
       if (update.docChanged || update.selectionSet) {
@@ -755,14 +760,29 @@ export const NovelEditor: React.FC<Props> = ({
       }
     });
 
-    const unsubSave = eventBus.on('save-current-chapter', () => {
+    const flushEditor = () => {
+      if (saveDebounceTimerRef.current) clearTimeout(saveDebounceTimerRef.current);
+      pendingSaveRef.current?.();
       const curTargetId = paneId === 'secondary' ? secondaryChapterIdRef.current : projectStore.getActiveChapter()?.id;
       if (curTargetId) {
         const text = view.state.doc.toString();
         projectStore.updateChapterContent(curTargetId, text);
-        projectStore.save();
-        fileSystemStore.writeChapterDirectToDisk(curTargetId, text);
+        return { id: curTargetId, text };
       }
+      return null;
+    };
+    const unsubRestartSave = registerRestartSave(async () => {
+      const chapter = flushEditor();
+      if (chapter && fileSystemStore.hasChapterOnDisk(chapter.id)) {
+        if (!await fileSystemStore.writeChapterDirectToDisk(chapter.id, chapter.text)) {
+          throw new Error('Could not save manuscript to disk');
+        }
+      }
+    });
+    const unsubSave = eventBus.on('save-current-chapter', () => {
+      const chapter = flushEditor();
+      projectStore.save();
+      if (chapter) void fileSystemStore.writeChapterDirectToDisk(chapter.id, chapter.text);
     });
 
     const unsubTyping = eventBus.on('typing-state-changed', (typing: boolean) => {
@@ -789,6 +809,7 @@ export const NovelEditor: React.FC<Props> = ({
       unsubNavigateToMatch();
       unsubFocus();
       unsubSave();
+      unsubRestartSave();
       unsubUndo();
       unsubRedo();
       unsubFormatChinese();

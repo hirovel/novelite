@@ -111,13 +111,15 @@ export class ProjectStore {
     return defaultMap;
   }
 
-  public save(): void {
+  public save(): boolean {
     this.project.updatedAt = Date.now();
     this.library[this.project.id] = this.project;
-    this.safeStorageSet('novelite_library_map', JSON.stringify(this.library));
-    this.safeStorageSet('novelite_project_data', JSON.stringify(this.project));
-    this.safeStorageSet('novelite_active_project_id', this.project.id);
-    eventBus.emit('project-saved', this.project);
+    const librarySaved = this.safeStorageSet('novelite_library_map', JSON.stringify(this.library));
+    const projectSaved = this.safeStorageSet('novelite_project_data', JSON.stringify(this.project));
+    const activeSaved = this.safeStorageSet('novelite_active_project_id', this.project.id);
+    const saved = librarySaved && projectSaved && activeSaved;
+    if (saved) eventBus.emit('project-saved', this.project);
+    return saved;
   }
 
   public getProject(): NovelProject {
