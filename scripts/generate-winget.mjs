@@ -52,5 +52,9 @@ ManifestVersion: 1.12.0
 `,
 };
 mkdirSync(destination, { recursive: true });
-for (const [name, content] of Object.entries(files)) writeFileSync(join(destination, name), content);
+for (const [name, content] of Object.entries(files)) {
+  const type = content.match(/^ManifestType: (.+)$/m)[1];
+  const schema = `# yaml-language-server: $schema=https://aka.ms/winget-manifest.${type}.1.12.0.schema.json\n\n`;
+  writeFileSync(join(destination, name), schema + content);
+}
 console.log(`Generated ${id} ${version} manifests in ${destination}`);
