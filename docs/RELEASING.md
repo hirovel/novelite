@@ -55,3 +55,16 @@ Keep the checked-in cask pointing to the last public release while preparing the
 Manual workflow runs build and verify artifacts without publishing a release. A failed build leaves no public release. If publication fails after creating a draft, rerun the failed job; it resumes the draft. Already public releases are deliberately not overwritten.
 
 Before declaring a fully manually tested Mac release, check on a physical Mac: first launch after download, native open/save dialogs, Chinese input, close/reopen, folder rename, external file changes, and export with both successful and cancelled saves.
+
+## WinGet submission
+
+After a release is public, download its NSIS installer and run:
+
+```sh
+node scripts/generate-winget.mjs release-dist/novelite_X.Y.Z_x64-setup.exe release-dist/winget
+winget validate --manifest release-dist/winget
+```
+
+The publisher, product name and product code match Tauri's current Windows registration (`novelite`). Recheck those values when changing bundle metadata. Submit the three generated files to `microsoft/winget-pkgs` under `manifests/h/hirovel/Novelite/X.Y.Z/` in one package-version PR. Follow the official [submission guide](https://learn.microsoft.com/windows/package-manager/package/repository).
+
+Only advertise `winget install --exact --id hirovel.Novelite` as available after the upstream PR is merged and `winget show --exact --id hirovel.Novelite --source winget` finds the release. Until then, users can use the verified PowerShell installer or direct downloads. WinGet review, malware scanning and any required contributor agreement are controlled by Microsoft.
