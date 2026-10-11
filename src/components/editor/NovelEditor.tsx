@@ -759,6 +759,7 @@ export const NovelEditor: React.FC<Props> = ({
       if (curTargetId) {
         const text = view.state.doc.toString();
         projectStore.updateChapterContent(curTargetId, text);
+        projectStore.save();
         fileSystemStore.writeChapterDirectToDisk(curTargetId, text);
       }
     });

@@ -1,5 +1,6 @@
 import type { NovelProject, Chapter } from './types';
 import { eventBus } from '../events/EventBus';
+import { saveTextFile } from './desktopFiles';
 
 /**
  * 🌟 WYSIWYG Novel Export Service (可见即所得小说导出服务)
@@ -45,7 +46,7 @@ export class ExportNovelService {
   /**
    * 导出整部小说为 TXT 纯文本文件（所见即所得）
    */
-  public exportProjectToTxt(project: NovelProject): void {
+  public async exportProjectToTxt(project: NovelProject): Promise<void> {
     if (!project) return;
 
     const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
@@ -63,66 +64,45 @@ export class ExportNovelService {
       });
     });
 
-    const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = isEn ? `${bookTitle}_Complete.txt` : `《${bookTitle}》_全本.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    eventBus.emit('show-toast', {
-      message: isEn ? `Successfully exported "${bookTitle}" full manuscript TXT` : `已成功导出《${bookTitle}》全本 TXT`,
-      type: 'success',
-    });
+    await this.saveExport(
+      isEn ? `${bookTitle}_Complete.txt` : `《${bookTitle}》_全本.txt`, output,
+      isEn ? `Successfully exported "${bookTitle}" full manuscript TXT` : `已成功导出《${bookTitle}》全本 TXT`,
+    );
   }
 
   /**
    * 导出单个章节为 TXT 文件（所见即所得）
    */
-  public exportChapterToTxt(chap: Chapter): void {
+  public async exportChapterToTxt(chap: Chapter): Promise<void> {
     if (!chap) return;
     const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
     const content = this.formatChapterWysiwyg(chap);
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${chap.title}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    eventBus.emit('show-toast', {
-      message: isEn ? `Exported "${chap.title}.txt"` : `已导出《${chap.title}.txt》`,
-      type: 'success',
-    });
+    await this.saveExport(`${chap.title}.txt`, content,
+      isEn ? `Exported "${chap.title}.txt"` : `已导出《${chap.title}.txt》`);
   }
 
   /**
    * 导出单个章节为 Markdown 文件（原始 Markdown 源码）
    */
-  public exportChapterToMd(chap: Chapter): void {
+  public async exportChapterToMd(chap: Chapter): Promise<void> {
     if (!chap) return;
     const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
     const content = chap.content || `# ${chap.title}\n`;
-    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${chap.title}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await this.saveExport(`${chap.title}.md`, content,
+      isEn ? `Exported "${chap.title}.md"` : `已导出《${chap.title}.md》`);
+  }
 
-    eventBus.emit('show-toast', {
-      message: isEn ? `Exported "${chap.title}.md"` : `已导出《${chap.title}.md》`,
-      type: 'success',
-    });
+  private async saveExport(name: string, content: string, message: string): Promise<void> {
+    try {
+      if (await saveTextFile(name, content)) eventBus.emit('show-toast', { message, type: 'success' });
+    } catch (error) {
+      console.error('Export failed:', error);
+      const isEn = localStorage.getItem('novelite_language') === 'en';
+      eventBus.emit('show-toast', {
+        message: isEn ? 'Export failed. Please choose another location or check disk space.' : '导出失败，请更换保存位置或检查磁盘空间。',
+        type: 'error',
+      });
+    }
   }
 }
 

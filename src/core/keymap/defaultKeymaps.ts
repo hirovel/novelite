@@ -1,4 +1,5 @@
 import type { KeybindingItem } from './types';
+import { isMac } from './platform';
 
 export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'>[] = [
   // 1. 文本编辑与字号 (Editing & Typography)
@@ -20,7 +21,7 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
     descriptionEn: 'Redo the undone editing action',
     category: 'editing',
     scope: 'editor',
-    defaultKey: 'Ctrl+Y',
+    defaultKey: isMac() ? 'Ctrl+Shift+Z' : 'Ctrl+Y',
   },
   {
     id: 'editor:zoom-in',
@@ -124,7 +125,7 @@ export const DEFAULT_KEYMAPS: Omit<KeybindingItem, 'currentKey' | 'isCustomized'
     descriptionEn: 'Directly open replacement mode in search HUD',
     category: 'search',
     scope: 'global',
-    defaultKey: 'Ctrl+H',
+    defaultKey: isMac() ? 'Ctrl+Alt+F' : 'Ctrl+H',
   },
   {
     id: 'nav:command-palette',

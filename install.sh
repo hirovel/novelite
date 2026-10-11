@@ -30,21 +30,19 @@ if command -v curl >/dev/null 2>&1; then
     RELEASE_JSON=$(curl -sSL -H "User-Agent: Novelite-Installer" "${API_URL}" || true)
     if [ -n "${RELEASE_JSON}" ]; then
         if [ "${OS}" = "Darwin" ]; then
-            DMG_URL=$(echo "${RELEASE_JSON}" | grep -io 'https://[^"]*novelite[^"]*\.dmg' | head -n 1 || true)
+            case "$(uname -m)" in
+                arm64) MAC_ARCH="aarch64" ;;
+                x86_64) MAC_ARCH="x64" ;;
+                *) echo "不支持此 Mac 架构，请从 GitHub Releases 手动下载。"; exit 1 ;;
+            esac
+            DMG_URL=$(echo "${RELEASE_JSON}" | grep -io "https://[^\"]*novelite[^\"]*_${MAC_ARCH}\.dmg" | head -n 1 || true)
             if [ -n "${DMG_URL}" ]; then
                 echo -e "\033[32m -> 发现 macOS 原生桌面安装包，正在下载...\033[0m"
-                TMP_DMG="/tmp/Novelite.dmg"
-                curl -sSL "${DMG_URL}" -o "${TMP_DMG}"
-                echo -e "\033[32m -> 正在挂载并安装到 /Applications...\033[0m"
-                hdiutil attach "${TMP_DMG}" -nobrowse -quiet || true
-                cp -R /Volumes/*[nN]ovelite*/*.app /Applications/ 2>/dev/null || true
-                hdiutil detach /Volumes/*[nN]ovelite* -quiet 2>/dev/null || true
-                rm -f "${TMP_DMG}"
-                # 移除隔离属性，防止 macOS Gatekeeper 拦截未公证应用
-                xattr -cr /Applications/novelite.app 2>/dev/null || xattr -cr /Applications/Novelite.app 2>/dev/null || true
-                INSTALLED=1
-                echo -e "\033[32m🎉 Novelite 已成功安装到“应用程序”！\033[0m"
-                open /Applications/novelite.app 2>/dev/null || open /Applications/Novelite.app 2>/dev/null || true
+                mkdir -p "${HOME}/Downloads"
+                TMP_DMG="${HOME}/Downloads/novelite-latest-${MAC_ARCH}.dmg"
+                curl -fSL "${DMG_URL}" -o "${TMP_DMG}"
+                open "${TMP_DMG}"
+                echo '请将 Novelite 拖入“应用程序”。本版本未公证，首次打开如被拦截，请在“隐私与安全性”中选择“仍要打开”。'
                 exit 0
             fi
         elif [ "${OS}" = "Linux" ]; then

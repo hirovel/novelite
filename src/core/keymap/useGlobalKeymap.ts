@@ -10,6 +10,8 @@ import { getLanguage } from '../i18n';
 export function useGlobalKeymap() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // CodeMirror handles native editing keys first; do not undo a second time.
+      if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
       // 🌟 1. Ignore keystrokes when editing inside standalone inputs/textareas (unless ESC or global shortcuts)
       const target = e.target as HTMLElement | null;
       const isInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA';

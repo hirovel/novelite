@@ -2,6 +2,7 @@
 import type { NovelProject, Volume, Chapter } from './types';
 import { projectStore, countWordsFast } from './ProjectStore';
 import { eventBus } from '../events/EventBus';
+import { pickDirectory, supportsDirectoryPicker, type DirectoryHandle, type TextFileHandle } from './desktopFiles';
 
 export type DiskSyncStatus = 'idle' | 'syncing' | 'saved' | 'external-change' | 'error';
 
@@ -11,9 +12,10 @@ function getIsEn(): boolean {
 
 export class FileSystemStore {
   private static instance: FileSystemStore;
-  private currentDirHandle: any = null;
-  private chapterFileHandles: Map<string, any> = new Map();
-  private volumeDirHandles: Map<string, any> = new Map();
+  private currentDirHandle: DirectoryHandle | null = null;
+  private connectedProjectId: string | null = null;
+  private chapterFileHandles: Map<string, TextFileHandle> = new Map();
+  private volumeDirHandles: Map<string, DirectoryHandle> = new Map();
   private volumeNames: Map<string, string> = new Map();
   private chapterMeta: Map<string, { volId: string; fileName: string }> = new Map();
   private fileLastModified: Map<string, number> = new Map();
@@ -35,7 +37,7 @@ export class FileSystemStore {
   }
 
   public isSupported(): boolean {
-    return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+    return supportsDirectoryPicker();
   }
 
   public isDiskConnected(): boolean {
@@ -48,6 +50,18 @@ export class FileSystemStore {
 
   public getSyncStatus(): DiskSyncStatus {
     return this.syncStatus;
+  }
+
+  public disconnect(): void {
+    this.currentDirHandle = null;
+    this.connectedProjectId = null;
+    this.chapterFileHandles.clear();
+    this.volumeDirHandles.clear();
+    this.volumeNames.clear();
+    this.chapterMeta.clear();
+    this.fileLastModified.clear();
+    this.syncStatus = 'idle';
+    eventBus.emit('disk-sync-changed', { status: 'idle' });
   }
 
   /**
@@ -64,20 +78,28 @@ export class FileSystemStore {
       return null;
     }
 
+    const previous = {
+      currentDirHandle: this.currentDirHandle,
+      connectedProjectId: this.connectedProjectId,
+      chapterFileHandles: this.chapterFileHandles,
+      volumeDirHandles: this.volumeDirHandles,
+      volumeNames: this.volumeNames,
+      chapterMeta: this.chapterMeta,
+      fileLastModified: this.fileLastModified,
+    };
     try {
-      // @ts-ignore
-      const dirHandle = await window.showDirectoryPicker({
-        mode: 'readwrite',
-      });
+      const dirHandle = await pickDirectory();
 
       this.currentDirHandle = dirHandle;
-      this.chapterFileHandles.clear();
-      this.volumeDirHandles.clear();
-      this.volumeNames.clear();
-      this.chapterMeta.clear();
-      this.fileLastModified.clear();
+      this.connectedProjectId = null;
+      this.chapterFileHandles = new Map();
+      this.volumeDirHandles = new Map();
+      this.volumeNames = new Map();
+      this.chapterMeta = new Map();
+      this.fileLastModified = new Map();
 
       const volumes: Volume[] = [];
+      let rootVolume: Volume | undefined;
       let totalChaptersCount = 0;
 
       // Scan directories and files
@@ -91,7 +113,7 @@ export class FileSystemStore {
 
           // @ts-ignore
           for await (const [fileName, fileHandle] of handle.entries()) {
-            if (fileHandle.kind === 'file' && (fileName.endsWith('.txt') || fileName.endsWith('.md'))) {
+            if (fileHandle.kind === 'file' && /\.(txt|md)$/i.test(fileName)) {
               const file = await fileHandle.getFile();
               const content = await file.text();
               const cleanTitle = fileName.replace(/\.(txt|md)$/i, '');
@@ -121,32 +143,33 @@ export class FileSystemStore {
             isExpanded: true,
             chapters: volChapters,
           });
-        } else if (handle.kind === 'file' && (name.endsWith('.txt') || name.endsWith('.md'))) {
+        } else if (handle.kind === 'file' && /\.(txt|md)$/i.test(name)) {
           // Root level chapter file
           const file = await handle.getFile();
           const content = await file.text();
           const cleanTitle = name.replace(/\.(txt|md)$/i, '');
           const chapId = `chap_fs_root_${name}`;
 
-          if (!volumes[0]) {
+          if (!rootVolume) {
             const rootVolId = `vol_fs_root_${Date.now()}`;
             const rootVolTitle = getIsEn() ? 'Volume 1' : '第一卷';
             this.volumeDirHandles.set(rootVolId, dirHandle);
             this.volumeNames.set(rootVolId, rootVolTitle);
-            volumes.push({
+            rootVolume = {
               id: rootVolId,
               title: rootVolTitle,
               isExpanded: true,
               chapters: [],
-            });
+            };
+            volumes.unshift(rootVolume);
           }
 
-          const targetVolId = volumes[0].id;
+          const targetVolId = rootVolume.id;
           this.chapterFileHandles.set(chapId, handle);
           this.chapterMeta.set(chapId, { volId: targetVolId, fileName: name });
           this.fileLastModified.set(chapId, file.lastModified);
 
-          volumes[0].chapters.push({
+          rootVolume.chapters.push({
             id: chapId,
             title: cleanTitle,
             content,
@@ -156,6 +179,8 @@ export class FileSystemStore {
           totalChaptersCount++;
         }
       }
+
+      rootVolume?.chapters.sort((a, b) => a.title.localeCompare(b.title, 'zh-Hans-CN', { numeric: true }));
 
       if (volumes.length === 0) {
         // Create initial default chapter on disk
@@ -200,6 +225,7 @@ export class FileSystemStore {
       const isEn = getIsEn();
       const bookTitle = dirHandle.name || (isEn ? 'Local Project' : '本地作品');
       const newProj = projectStore.createProject(bookTitle, isEn ? 'Local Author' : '本地作者');
+      this.connectedProjectId = newProj.id;
       newProj.volumes = volumes;
       newProj.activeChapterId = volumes[0]?.chapters[0]?.id || null;
       projectStore.save();
@@ -222,6 +248,7 @@ export class FileSystemStore {
 
       return newProj;
     } catch (err: any) {
+      Object.assign(this, previous);
       if (err.name !== 'AbortError') {
         console.error('Error opening directory:', err);
         const isEn = getIsEn();
@@ -343,16 +370,14 @@ export class FileSystemStore {
     if (!this.isSupported()) return false;
 
     try {
-      // @ts-ignore
-      const dirHandle = await window.showDirectoryPicker({
-        mode: 'readwrite',
-      });
+      const dirHandle = await pickDirectory();
 
       for (const vol of project.volumes) {
-        const volDir = await dirHandle.getDirectoryHandle(vol.title, { create: true });
+        const volName = vol.title.replace(/[\\/:*?"<>|]/g, '_');
+        const volDir = await dirHandle.getDirectoryHandle(volName, { create: true });
         for (let i = 0; i < vol.chapters.length; i++) {
           const chap = vol.chapters[i];
-          const fileName = `${String(i + 1).padStart(2, '0')}_${chap.title}.txt`;
+          const fileName = `${String(i + 1).padStart(2, '0')}_${chap.title.replace(/[\\/:*?"<>|]/g, '_')}.txt`;
           const fileHandle = await volDir.getFileHandle(fileName, { create: true });
           const writable = await fileHandle.createWritable();
           await writable.write(chap.content || '');
@@ -400,6 +425,7 @@ export class FileSystemStore {
 
   public async deleteVolumeFromDisk(volumeId: string): Promise<boolean> {
     if (!this.currentDirHandle) return false;
+    if (this.volumeDirHandles.get(volumeId) === this.currentDirHandle) return false;
     const volName = this.volumeNames.get(volumeId);
     if (!volName) return false;
 
@@ -516,6 +542,7 @@ export class FileSystemStore {
 
   public async renameVolumeOnDisk(volumeId: string, newTitle: string): Promise<boolean> {
     if (!this.currentDirHandle) return false;
+    if (this.volumeDirHandles.get(volumeId) === this.currentDirHandle) return false;
     const oldName = this.volumeNames.get(volumeId);
     if (!oldName) return false;
 
@@ -558,6 +585,9 @@ export class FileSystemStore {
   }
 
   private registerEventHandlers(): void {
+    eventBus.on('project-tree-changed', (project: NovelProject) => {
+      if (this.connectedProjectId && project.id !== this.connectedProjectId) this.disconnect();
+    });
     eventBus.on('chapter-created', async ({ volumeId, chapter }: any) => {
       if (chapter && volumeId) {
         await this.createChapterOnDisk(volumeId, chapter.id, chapter.title, chapter.content);
