@@ -23,6 +23,18 @@ export class FileSystemStore {
   private watchTimer: any = null;
   private focusHandler: (() => void) | null = null;
   private isWriting = false;
+  private writes = new Map<string, Promise<boolean>>();
+
+  public hasChapterOnDisk(chapterId: string): boolean {
+    return this.chapterFileHandles.has(chapterId);
+  }
+
+  public async finishPendingWrites(): Promise<void> {
+    const saved = await Promise.all([...this.writes.values()]);
+    if (saved.some(result => !result) || this.syncStatus === 'error') {
+      throw new Error('Pending manuscript write failed');
+    }
+  }
 
   private constructor() {
     this.startExternalWatchLoop();
@@ -264,7 +276,18 @@ export class FileSystemStore {
   /**
    * 🌟 2. Direct Disk Writeback: writes active chapter text straight to disk file
    */
-  public async writeChapterDirectToDisk(chapterId: string, content: string): Promise<boolean> {
+  public writeChapterDirectToDisk(chapterId: string, content: string): Promise<boolean> {
+    // Preserve write order when a restart flush follows an in-flight autosave.
+    const previous = this.writes.get(chapterId) ?? Promise.resolve(true);
+    const next = previous.then(() => this.writeChapter(chapterId, content));
+    this.writes.set(chapterId, next);
+    void next.finally(() => {
+      if (this.writes.get(chapterId) === next) this.writes.delete(chapterId);
+    });
+    return next;
+  }
+
+  private async writeChapter(chapterId: string, content: string): Promise<boolean> {
     if (!this.currentDirHandle) return false;
     const fileHandle = this.chapterFileHandles.get(chapterId);
     if (!fileHandle) return false;

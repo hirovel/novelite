@@ -20,7 +20,7 @@ The regression suite checks real editor interactions in both browser engines and
 
 ```sh
 rustup target add aarch64-apple-darwin
-npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg
+node scripts/build-native.mjs --target aarch64-apple-darwin --bundles app,dmg --ci -- --locked
 ```
 
 Build macOS installers on macOS. CI uses an Apple Silicon host, runs WebKit regressions, verifies the app signature, executable architecture and DMG integrity, and checks the packaged process survives startup. It then installs the candidate DMG through a temporary Homebrew tap, starts the installed app and uninstalls it. The local test cask and published cask share the same generator and SHA-256 calculation.
@@ -68,3 +68,13 @@ winget validate --manifest release-dist/winget
 The publisher, product name and product code match Tauri's current Windows registration (`novelite`). Recheck those values when changing bundle metadata. Submit the three generated files to `microsoft/winget-pkgs` under `manifests/h/hirovel/Novelite/X.Y.Z/` in one package-version PR. Follow the official [submission guide](https://learn.microsoft.com/windows/package-manager/package/repository).
 
 Only advertise `winget install --exact --id hirovel.Novelite` as available after the upstream PR is merged and `winget show --exact --id hirovel.Novelite --source winget` finds the release. Until then, users can use the verified PowerShell installer or direct downloads. WinGet review, malware scanning and any required contributor agreement are controlled by Microsoft.
+
+## Signed application updates (v1.0.3+)
+
+The Tauri updater uses the public key in `src-tauri/tauri.conf.json` and the HTTPS endpoint `https://github.com/hirovel/novelite/releases/latest/download/latest.json`. The release workflow reads `TAURI_SIGNING_PRIVATE_KEY` from repository Actions secrets. Keep an offline backup of this key; replacing it prevents existing clients from accepting new releases. This key is separate from Apple code signing and notarization. Never commit the private key.
+
+Tag builds require the production signing secret. PR/manual builds generate temporary keys and override only the candidate's updater public key, so untrusted PRs never receive the release key. `scripts/verify-updater.mjs` checks each generated artifact using the same minisign verifier as Tauri, then flips a byte and requires rejection. The release contains the macOS `.app.tar.gz`, EXE, MSI, their signatures, `latest.json` and SHA-256 checksums. Each manifest URL is pinned to the release tag. Windows uses separate `windows-x86_64-nsis` and `windows-x86_64-msi` entries to preserve the existing installation type.
+
+The app checks on startup/every four hours, prompts before downloading, awaits editor and disk saves before installation, and restarts only after installation. Windows installers close the running process themselves; macOS relaunches through Tauri. Failures remain visible and retryable. Homebrew casks are marked `auto_updates true`; use `brew upgrade --cask --greedy hirovel/novelite/novelite` to explicitly update through Homebrew. WinGet continues to need a new upstream manifest per release.
+
+v1.0.2 and older only link to downloads; users must install v1.0.3 once before subsequent in-app upgrades work. CI verifies package signatures, tamper rejection, editor/save failure regressions, fresh native installation and startup. A real end-to-end in-app upgrade between two published updater-enabled versions remains a release smoke-test requirement.

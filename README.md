@@ -68,7 +68,7 @@ brew tap hirovel/novelite https://github.com/hirovel/novelite.git && brew instal
 安装后从「应用程序」打开 Novelite。更新和卸载：
 
 ```bash
-brew update && brew upgrade --cask hirovel/novelite/novelite
+brew update && brew upgrade --cask --greedy hirovel/novelite/novelite
 brew uninstall --cask hirovel/novelite/novelite
 ```
 
@@ -79,6 +79,12 @@ brew uninstall --cask hirovel/novelite/novelite
 
 支持原生文件夹读写和保存对话框。Mac 快捷键使用 `⌘`，重做为 `⌘⇧Z`，替换为 `⌘⌥F`。
 重启后需重新选择本地文件夹来恢复磁盘连接；已编辑的手稿仍保留在应用内。
+
+#### 自动更新
+
+从 v1.0.3 起，应用启动后及每 4 小时自动检查更新，也可在命令中心选择「检查软件新版本」。点击「安装并重启」后，会下载并校验更新签名、保存手稿，再安装并重启；保存或校验失败时不会继续安装。离线检查失败会明确提示，可稍后重试。
+
+v1.0.2 及更早版本请先用上述安装命令或安装包升级一次。之后可直接在应用内更新。Homebrew 用户也可使用上述 `--greedy` 更新命令。升级保留手稿和设置；重启后重新选择本地文件夹以恢复磁盘同步。
 
 #### 开发桌面应用
 

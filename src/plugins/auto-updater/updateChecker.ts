@@ -1,111 +1,77 @@
-import type { UpdateInfo } from './types';
-import { eventBus } from '../../core/events/EventBus';
-import { safeStorageSet } from '../../core/storage/safeStorage';
-
+import { isTauri } from '@tauri-apps/api/core';
+import { check, type Update } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { saveBeforeRestart } from '../../core/storage/restartGuard';
 import { version } from '../../../package.json';
+import type { UpdateInfo } from './types';
 
 export const CURRENT_VERSION = version;
-export const GITHUB_REPO = 'hirovel/novelite';
-const CACHE_KEY = 'novelite_update_cache';
-const LAST_CHECK_KEY = 'novelite_last_update_check';
+let pending: Update | null = null;
+let lastCheck = 0;
+let checking: Promise<UpdateInfo> | null = null;
+let installing = false;
 
-/**
- * 比较两个语义化版本号 (例如 "1.0.1" vs "1.0.0")
- * 返回 1 表示 v1 > v2，-1 表示 v1 < v2，0 表示相等
- */
-export function compareSemver(v1: string, v2: string): number {
-  const clean1 = v1.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
-  const clean2 = v2.replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
-  const len = Math.max(clean1.length, clean2.length);
-  for (let i = 0; i < len; i++) {
-    const n1 = clean1[i] ?? 0;
-    const n2 = clean2[i] ?? 0;
-    if (n1 > n2) return 1;
-    if (n1 < n2) return -1;
-  }
-  return 0;
+function metadata(): UpdateInfo {
+  return {
+    currentVersion: CURRENT_VERSION,
+    latestVersion: pending?.version ?? CURRENT_VERSION,
+    hasUpdate: !!pending,
+    publishedAt: pending?.date,
+    releaseNotes: pending?.body,
+  };
 }
 
-/**
- * 检查软件是否有新版本
- */
-export async function checkForUpdates(
-  currentVersion = CURRENT_VERSION,
-  force = false
-): Promise<UpdateInfo | null> {
-  const now = Date.now();
-  const lastCheck = parseInt(localStorage.getItem(LAST_CHECK_KEY) || '0', 10);
+export async function checkForUpdates(force = false): Promise<UpdateInfo> {
+  if (!isTauri()) throw new Error('Updates require the desktop app');
+  if (installing) return metadata();
+  if (checking) return checking;
+  if (!force && lastCheck && Date.now() - lastCheck < 4 * 60 * 60 * 1000) return metadata();
+  checking = (async () => {
+    const update = await check({ timeout: 15000 });
+    await pending?.close();
+    pending = update;
+    lastCheck = Date.now();
+    return metadata();
+  })();
+  try { return await checking; } finally { checking = null; }
+}
 
-  // 若非强制检查且 4 小时内已检查过，直接使用缓存
-  if (!force && now - lastCheck < 4 * 60 * 60 * 1000) {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      try {
-        const info: UpdateInfo = JSON.parse(cached);
-        if (info.currentVersion === currentVersion) return info;
-      } catch {
-        // Fall through
-      }
-    }
-  }
+export type UpdateProgress = { phase: 'download' | 'saving' | 'installing' | 'restarting'; downloaded?: number; total?: number };
 
+/** Separate verified download from install: Windows exits immediately at install. */
+export async function applyUpdate(
+  update: Pick<Update, 'download' | 'install'>,
+  progress: (state: UpdateProgress) => void,
+  save = saveBeforeRestart,
+  restart = relaunch,
+): Promise<void> {
+  let downloaded = 0;
+  let total: number | undefined;
+  progress({ phase: 'download', downloaded });
+  await update.download(event => {
+    if (event.event === 'Started') total = event.data.contentLength;
+    if (event.event === 'Progress') downloaded += event.data.chunkLength;
+    progress({ phase: 'download', downloaded, total });
+  }, { timeout: 120000 });
+  progress({ phase: 'saving' });
+  await save();
+  progress({ phase: 'installing' });
+  await update.install({ restartAfterInstall: true });
+  progress({ phase: 'restarting' });
+  await restart();
+}
+
+export async function installUpdate(expectedVersion: string, progress: (state: UpdateProgress) => void): Promise<void> {
+  if (installing) throw new Error('An update is already in progress');
+  installing = true;
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 6000);
-
-    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      signal: controller.signal,
-      headers: {
-        Accept: 'application/vnd.github.v3+json',
-      },
-    });
-    clearTimeout(timer);
-
-    if (!res.ok) {
-      // 暂无 Releases 或网络不可达时优雅退出
-      return {
-        currentVersion,
-        latestVersion: currentVersion,
-        hasUpdate: false,
-      };
-    }
-
-    const release = await res.json();
-    const rawTag = release.tag_name || release.name || currentVersion;
-    const latestVersion = rawTag.replace(/^v/i, '').trim();
-    const hasUpdate = compareSemver(latestVersion, currentVersion) > 0;
-
-    const assets = (release.assets || []).map((a: any) => ({
-      name: a.name,
-      url: a.browser_download_url,
-      size: a.size,
-    }));
-
-    const updateInfo: UpdateInfo = {
-      currentVersion,
-      latestVersion,
-      hasUpdate,
-      publishedAt: release.published_at,
-      releaseTitle: release.name || rawTag,
-      releaseNotes: release.body || '',
-      htmlUrl: release.html_url || `https://github.com/${GITHUB_REPO}/releases`,
-      assets,
-    };
-
-    safeStorageSet(LAST_CHECK_KEY, String(now));
-    safeStorageSet(CACHE_KEY, JSON.stringify(updateInfo));
-
-    if (hasUpdate) {
-      eventBus.emit('app:update-available', updateInfo);
-    }
-
-    return updateInfo;
-  } catch (err) {
-    console.debug('[AutoUpdater] Check for updates failed or offline:', err);
-    return {
-      currentVersion,
-      latestVersion: currentVersion,
-      hasUpdate: false,
-    };
+    if (checking) await checking;
+    if (!pending || pending.version !== expectedVersion) throw new Error('Check for updates again');
+    await applyUpdate(pending, progress);
+  } finally {
+    await pending?.close().catch(() => {});
+    pending = null;
+    lastCheck = 0;
+    installing = false;
   }
 }

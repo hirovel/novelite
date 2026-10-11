@@ -1,5 +1,6 @@
-import React from 'react';
-import { Sparkles, DownloadCloud, ExternalLink, X } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { checkForUpdates, installUpdate, type UpdateProgress } from './updateChecker';
+import { Sparkles, DownloadCloud, X } from 'lucide-react';
 import type { UpdateInfo } from './types';
 import type { Theme } from '../../core/themes/types';
 import { useI18n } from '../../core/i18n';
@@ -15,7 +16,35 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
   const { language } = useI18n();
   const isEn = language === 'en';
 
+  const [progress, setProgress] = useState<UpdateProgress | null>(null);
+  const [error, setError] = useState('');
+  const busyRef = useRef(false);
+  const close = () => { if (!busyRef.current) { setError(''); setProgress(null); onClose(); } };
   if (!isOpen || !updateInfo) return null;
+  const busy = !!progress;
+  const handleInstall = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    (document.activeElement as HTMLElement | null)?.blur();
+    setError('');
+    setProgress({ phase: 'download', downloaded: 0 });
+    try {
+      const latest = await checkForUpdates(true);
+      if (latest.latestVersion !== updateInfo.latestVersion || !latest.hasUpdate) {
+        throw new Error('Release changed; check for updates again');
+      }
+      await installUpdate(updateInfo.latestVersion, setProgress);
+    } catch (err) {
+      console.error('[Updater]', err);
+      setError(isEn ? 'Update did not complete. Check your connection and manuscript save status, then retry. If installation completed, reopen Novelite.' : '更新未完成，请检查网络和手稿保存状态后重试。如安装已完成，请重新打开 Novelite。');
+      setProgress(null);
+    } finally { busyRef.current = false; }
+  };
+  const status = progress?.phase === 'download'
+    ? (isEn ? 'Downloading and verifying…' : '正在下载并校验…') + (progress.total ? ` ${Math.min(100, Math.round((progress.downloaded || 0) / progress.total * 100))}%` : '')
+    : progress?.phase === 'saving' ? (isEn ? 'Saving manuscript…' : '正在保存手稿…')
+    : progress?.phase === 'installing' ? (isEn ? 'Installing…' : '正在安装…')
+    : (isEn ? 'Restarting…' : '正在重启…');
 
   const publishedDate = updateInfo.publishedAt
     ? new Date(updateInfo.publishedAt).toLocaleDateString(isEn ? 'en-US' : 'zh-CN', {
@@ -25,16 +54,10 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
       })
     : '';
 
-  const handleOpenRelease = () => {
-    const url = updateInfo.htmlUrl || 'https://github.com/hirovel/novelite/releases';
-    window.open(url, '_blank');
-    onClose();
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs select-none animate-in fade-in duration-150"
-      onClick={onClose}
+      onClick={close}
     >
       <div
         className="w-[520px] max-w-[94vw] max-h-[82vh] rounded-2xl border shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
@@ -82,7 +105,7 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
           </div>
 
           <button
-            onClick={onClose}
+            onClick={close}
             className="p-1 rounded-lg opacity-40 hover:opacity-100 hover:bg-white/10 transition-colors cursor-pointer"
             style={{ color: theme.colors.text }}
           >
@@ -103,27 +126,9 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
             {updateInfo.releaseNotes || (isEn ? 'This release includes multiple performance optimizations and writing experience improvements.' : '此版本包含多项性能优化与创作体验改进。')}
           </div>
 
-          {/* Download Assets List if Available */}
-          {updateInfo.assets && updateInfo.assets.length > 0 && (
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[10px] font-mono opacity-50">{isEn ? 'Download Assets:' : '安装包资源：'}</span>
-              <div className="flex flex-wrap gap-1.5">
-                {updateInfo.assets.map((asset, idx) => (
-                  <a
-                    key={asset.url || `${asset.name}-${idx}`}
-                    href={asset.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/25 bg-white/[0.04] hover:bg-white/[0.08] transition-all text-[10.5px] font-mono"
-                    style={{ color: theme.colors.text }}
-                  >
-                    <DownloadCloud className="h-3 w-3 opacity-60" />
-                    <span>{asset.name}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+          <p className="text-xs opacity-70">{isEn ? 'Your manuscript will be saved before installing. Novelite will restart after the update.' : '安装前会保存手稿，完成后 Novelite 将重新启动。'}</p>
+          {progress && <p role="status" className="text-sm">{status}</p>}
+          {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
         </div>
 
         {/* Footer */}
@@ -132,7 +137,7 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
           style={{ borderColor: `${theme.colors.border}30` }}
         >
           <button
-            onClick={onClose}
+            onClick={close}
             className="px-3 py-1.5 rounded-xl text-xs opacity-50 hover:opacity-100 hover:bg-white/5 transition-colors cursor-pointer"
             style={{ color: theme.colors.text }}
           >
@@ -140,11 +145,12 @@ export const UpdateModal: React.FC<Props> = ({ isOpen, onClose, updateInfo, them
           </button>
 
           <button
-            onClick={handleOpenRelease}
+            disabled={busy}
+            onClick={handleInstall}
             className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-white transition-all cursor-pointer shadow-md"
           >
-            <span>{isEn ? 'Download on GitHub' : '前往 GitHub 下载升级'}</span>
-            <ExternalLink className="h-3.5 w-3.5" />
+            <span>{busy ? status : (isEn ? 'Install and restart' : '安装并重启')}</span>
+            <DownloadCloud className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
