@@ -1,6 +1,6 @@
 cask "novelite" do
-  version "1.0.2"
-  sha256 "9661242a67353663c4a53c9d75f3a311309e500a3d3b15dfba13aa697660d35a"
+  version "1.0.3"
+  sha256 "9d05c3711db90b05ef7b0c5f4a62194d55c532379896798603d94a1a1fa0da32"
 
   url "https://github.com/hirovel/novelite/releases/download/v#{version}/novelite_#{version}_aarch64.dmg"
   name "Novelite"
@@ -9,6 +9,8 @@ cask "novelite" do
 
   depends_on arch: :arm64
   depends_on macos: ">= :big_sur"
+
+  auto_updates true
 
   app "novelite.app"
 
