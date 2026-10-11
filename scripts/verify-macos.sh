@@ -8,7 +8,6 @@ test -x "$binary"
 codesign --verify --deep --strict --verbose=2 "$app"
 case "$TARGET" in
   aarch64-apple-darwin) lipo "$binary" -verify_arch arm64 ;;
-  x86_64-apple-darwin) lipo "$binary" -verify_arch x86_64 ;;
   *) exit 1 ;;
 esac
 for dmg in "$bundle"/dmg/*.dmg; do hdiutil verify "$dmg"; done

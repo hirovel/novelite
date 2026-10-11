@@ -50,7 +50,8 @@
 
 #### macOS 桌面客户端
 
-支持 macOS 11 及以上，并需 Safari/WebKit 16.4+（旧系统请先安装 Safari 更新）：Apple Silicon（M 系列）选择 `*_aarch64.dmg`，Intel 选择 `*_x64.dmg`。
+Mac 安装包仅支持 **Apple Silicon（M 系列）**，请选择 `*_aarch64.dmg`。**暂不提供 Intel Mac 安装包。**
+需要 macOS 11 及以上和 Safari/WebKit 16.4+（旧系统请先安装 Safari 更新）。
 从 [Releases](https://github.com/hirovel/novelite/releases/latest) 下载后打开 DMG，将 Novelite 拖入「应用程序」。
 
 当前版本为 ad-hoc 签名，未经 Apple 公证。首次启动如被拦截，在「系统设置 → 隐私与安全性」选择「仍要打开」。参见 [Apple 打开未经公证 App 的说明](https://support.apple.com/102445)。

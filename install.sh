@@ -32,7 +32,7 @@ if command -v curl >/dev/null 2>&1; then
         if [ "${OS}" = "Darwin" ]; then
             case "$(uname -m)" in
                 arm64) MAC_ARCH="aarch64" ;;
-                x86_64) MAC_ARCH="x64" ;;
+                x86_64) echo "当前版本暂不提供 Intel Mac 安装包。No Intel Mac installer is provided."; exit 1 ;;
                 *) echo "不支持此 Mac 架构，请从 GitHub Releases 手动下载。"; exit 1 ;;
             esac
             DMG_URL=$(echo "${RELEASE_JSON}" | grep -io "https://[^\"]*novelite[^\"]*_${MAC_ARCH}\.dmg" | head -n 1 || true)

@@ -17,12 +17,11 @@ The regression suite checks real editor interactions in both browser engines and
 ## macOS builds
 
 ```sh
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
+rustup target add aarch64-apple-darwin
 npm run tauri build -- --target aarch64-apple-darwin --bundles app,dmg
-npm run tauri build -- --target x86_64-apple-darwin --bundles app,dmg
 ```
 
-Build macOS installers on macOS. CI uses separate Apple Silicon and Intel hosts, runs WebKit regressions on both, verifies the app signature, executable architecture and DMG integrity, and checks the packaged process survives startup.
+Build macOS installers on macOS. CI uses an Apple Silicon host, runs WebKit regressions, verifies the app signature, executable architecture and DMG integrity, and checks the packaged process survives startup. **Intel Mac installers are not provided in this release.**
 
 The current config uses ad-hoc signing (`signingIdentity: "-"`) and macOS 11 as its minimum. The frontend additionally requires Safari/WebKit 16.4+ because of [Tailwind v4 browser support](https://tailwindcss.com/docs/compatibility). [Safari 16.4 is available on Big Sur and later](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes); older systems need Safari updates. Ad-hoc signing is not Apple notarization: first-time users may need **Privacy & Security → Open Anyway**. See [Tauri signing](https://v2.tauri.app/distribute/sign/macos/) and [Apple's guidance](https://support.apple.com/102445). Do not tell users to disable Gatekeeper globally.
 
@@ -32,7 +31,7 @@ Filesystem capabilities enable individual commands without broad path grants. Na
 
 1. Update `package.json`, `package-lock.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock` to the same version. The update checker imports the package version.
 2. Add `docs/releases/vX.Y.Z.md` with changes, installation notes and validation limits.
-3. Open a PR and wait for quality, Windows, Linux, Apple Silicon and Intel checks to pass. Review changes and merge.
+3. Open a PR and wait for quality, Windows, Linux and Apple Silicon checks to pass. Review changes and merge.
 4. Tag the reviewed commit with `vX.Y.Z` and push the tag. The workflow verifies the tag matches the application version.
 5. All installers are built and uploaded as Actions artifacts before the publish job runs. It then creates a draft, uploads installers and SHA-256 checksums, and makes the release public only after all jobs succeed.
 

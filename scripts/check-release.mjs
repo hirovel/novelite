@@ -18,7 +18,7 @@ for (const name of Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }))
   assert.ok(!entry.os && !entry.cpu, `Platform-specific package must not be a required dependency: ${name}`);
 }
 for (const family of ['@oxlint/binding', '@rolldown/binding', '@tauri-apps/cli', '@tailwindcss/oxide']) {
-  for (const arch of ['arm64', 'x64']) {
+  for (const arch of ['arm64']) {
     assert.ok(lock.packages[`node_modules/${family}-darwin-${arch}`]?.optional, `Missing optional Mac ${arch} dependency: ${family}`);
   }
 }
