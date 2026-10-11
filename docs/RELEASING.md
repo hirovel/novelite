@@ -24,7 +24,7 @@ npm run tauri build -- --target x86_64-apple-darwin --bundles app,dmg
 
 Build macOS installers on macOS. CI uses separate Apple Silicon and Intel hosts, runs WebKit regressions on both, verifies the app signature, executable architecture and DMG integrity, and checks the packaged process survives startup.
 
-The current config uses ad-hoc signing (`signingIdentity: "-"`) and macOS 11 as its minimum. Ad-hoc signing is not Apple notarization: first-time users may need **Privacy & Security → Open Anyway**. See [Tauri signing](https://v2.tauri.app/distribute/sign/macos/) and [Apple's guidance](https://support.apple.com/102445). Do not tell users to disable Gatekeeper globally.
+The current config uses ad-hoc signing (`signingIdentity: "-"`) and macOS 11 as its minimum. The frontend additionally requires Safari/WebKit 16.4+ because of [Tailwind v4 browser support](https://tailwindcss.com/docs/compatibility). [Safari 16.4 is available on Big Sur and later](https://developer.apple.com/documentation/safari-release-notes/safari-16_4-release-notes); older systems need Safari updates. Ad-hoc signing is not Apple notarization: first-time users may need **Privacy & Security → Open Anyway**. See [Tauri signing](https://v2.tauri.app/distribute/sign/macos/) and [Apple's guidance](https://support.apple.com/102445). Do not tell users to disable Gatekeeper globally.
 
 Filesystem capabilities enable individual commands without broad path grants. Native open/save dialogs grant access only to selected paths; folder access is recursive for manuscript volumes. Scopes are session-only, so users reselect folders after relaunch. Local manuscript copies remain in app storage.
 

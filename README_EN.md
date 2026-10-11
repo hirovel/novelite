@@ -50,7 +50,7 @@ Download `*-setup.exe` or `.msi` from [Releases](https://github.com/hirovel/nove
 
 #### macOS Desktop App
 
-Requires macOS 11 or later. Download `*_aarch64.dmg` for Apple Silicon (M-series), or `*_x64.dmg` for Intel, from [Releases](https://github.com/hirovel/novelite/releases/latest). Open the DMG and drag Novelite into Applications.
+Requires macOS 11 or later with Safari/WebKit 16.4+ (install Safari updates on older systems). Download `*_aarch64.dmg` for Apple Silicon (M-series), or `*_x64.dmg` for Intel, from [Releases](https://github.com/hirovel/novelite/releases/latest). Open the DMG and drag Novelite into Applications.
 
 This version is ad-hoc signed and **not notarized by Apple**. If the first launch is blocked, use **System Settings → Privacy & Security → Open Anyway**. See [Apple's guidance](https://support.apple.com/102445).
 
