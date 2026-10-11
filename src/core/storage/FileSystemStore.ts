@@ -277,6 +277,7 @@ export class FileSystemStore {
    * 🌟 2. Direct Disk Writeback: writes active chapter text straight to disk file
    */
   public writeChapterDirectToDisk(chapterId: string, content: string): Promise<boolean> {
+    if (!this.currentDirHandle || !this.chapterFileHandles.has(chapterId)) return Promise.resolve(false);
     // Preserve write order when a restart flush follows an in-flight autosave.
     const previous = this.writes.get(chapterId) ?? Promise.resolve(true);
     const next = previous.then(() => this.writeChapter(chapterId, content));
