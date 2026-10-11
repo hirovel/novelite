@@ -44,23 +44,44 @@ Designed with a **minimal core** principle, the foundation remains lightweight w
 
 ### Installation & Run
 
-#### Windows Desktop Client
+Standalone desktop apps are available for **Windows x64** and **Apple Silicon Macs (M-series)**. Open Novelite from the Start menu or Applications after installation. Node.js is not required.
 
-Download `*-setup.exe` or `.msi` from [Releases](https://github.com/hirovel/novelite/releases/latest).
+#### Windows: one-line installation
 
-#### macOS Desktop App
+Run in PowerShell (an administrator terminal is not needed):
 
-Mac installers support **Apple Silicon (M-series) only**. **No Intel Mac installer is provided.** Requires macOS 11 or later with Safari/WebKit 16.4+ (install Safari updates on older systems). Download `*_aarch64.dmg` from [Releases](https://github.com/hirovel/novelite/releases/latest), open the DMG and drag Novelite into Applications.
+```powershell
+irm https://raw.githubusercontent.com/hirovel/novelite/main/install.ps1 | iex
+```
 
-This version is ad-hoc signed and **not notarized by Apple**. If the first launch is blocked, use **System Settings → Privacy & Security → Open Anyway**. See [Apple's guidance](https://support.apple.com/102445).
+The script downloads the latest installer, verifies SHA-256 and installs silently. Errors stop installation. Open Novelite from the Start menu. Run the same command again to update.
+Alternatively download `*-setup.exe` or `.msi` from [Releases](https://github.com/hirovel/novelite/releases/latest). Requires Windows 10/11 x64; the installer installs Microsoft Edge WebView2 if needed.
 
-Native folder access and save dialogs are supported. Shortcuts use `⌘`; redo is `⌘⇧Z` and replace is `⌘⌥F`. After relaunch, reselect the local folder to restore disk sync. Your local manuscript copy remains in the app.
+#### Mac: Homebrew installation
 
-#### Linux Desktop App
+With [Homebrew](https://brew.sh) installed, run:
 
-Download `.deb` or `.AppImage` from [Releases](https://github.com/hirovel/novelite/releases/latest).
+```bash
+brew tap hirovel/novelite https://github.com/hirovel/novelite.git && brew install --cask hirovel/novelite/novelite
+```
 
-#### Run from Source
+Open Novelite from Applications. Update or uninstall with:
+
+```bash
+brew update && brew upgrade --cask hirovel/novelite/novelite
+brew uninstall --cask hirovel/novelite/novelite
+```
+
+Uninstallation preserves manuscripts and settings. Homebrew verifies the download checksum; the tap updates automatically after each release.
+Alternatively download the [DMG](https://github.com/hirovel/novelite/releases/latest) and drag Novelite into Applications. The app requires macOS 11+ with Safari/WebKit 16.4+; see Homebrew's website for its own system requirements.
+
+The Mac app is ad-hoc signed and **not notarized by Apple**. If first launch is blocked, use **System Settings → Privacy & Security → Open Anyway**. See [Apple's guidance](https://support.apple.com/102445).
+
+Native folder access and save dialogs are supported. Mac shortcuts use `⌘`; redo is `⌘⇧Z` and replace is `⌘⌥F`. After relaunch, reselect the local folder to restore disk sync. Your local manuscript copy remains in the app.
+
+#### Develop the desktop app
+
+Requires Node.js 22.12+ (CI uses 24), Rust and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
 git clone https://github.com/hirovel/novelite.git
@@ -69,9 +90,8 @@ npm ci
 npm run dev
 ```
 
-Requires Node.js 22.12+ (CI uses Node.js 24). Desktop development also needs Rust and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/); run `npm run tauri:dev` to start it.
-
-See the [release guide](./docs/RELEASING.md) for development checks and publishing.
+`npm run dev` opens the desktop window. `npm run tauri:build` builds installers for the current platform. npm is used only for development tooling; no npm launcher is published.
+See the [release guide](./docs/RELEASING.md) for publishing.
 
 ---
 

@@ -71,8 +71,8 @@ export class FileSystemStore {
     if (!this.isSupported()) {
       eventBus.emit('show-toast', {
         message: getIsEn()
-          ? 'Your browser does not support the File System Access API. Please use Chrome or Edge.'
-          : '当前浏览器不支持原生文件系统 API，请使用 Edge 或 Chrome',
+          ? 'Open the Novelite desktop app to access local folders.'
+          : '请在 Novelite 桌面应用中打开本地文件夹。',
         type: 'warning',
       });
       return null;

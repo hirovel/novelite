@@ -124,7 +124,7 @@ class NativeFile implements TextFileHandle {
 }
 
 export function supportsDirectoryPicker(): boolean {
-  return isTauri() || (typeof window !== 'undefined' && 'showDirectoryPicker' in window);
+  return isTauri();
 }
 
 export async function pickDirectory(): Promise<DirectoryHandle> {
@@ -133,9 +133,7 @@ export async function pickDirectory(): Promise<DirectoryHandle> {
     if (!path) throw new DOMException('Selection cancelled', 'AbortError');
     return new NativeDirectory(await basename(path), path);
   }
-  return (window as unknown as {
-    showDirectoryPicker(options: { mode: string }): Promise<DirectoryHandle>;
-  }).showDirectoryPicker({ mode: 'readwrite' });
+  throw new Error('Open the Novelite desktop app to access local folders');
 }
 
 export async function saveTextFile(name: string, content: string): Promise<boolean> {
@@ -147,14 +145,5 @@ export async function saveTextFile(name: string, content: string): Promise<boole
     await fs.writeTextFile(path, content);
     return true;
   }
-  const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = safeName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  // WebKit needs the object URL to survive until the download starts.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return true;
+  throw new Error('Open the Novelite desktop app to export files');
 }
