@@ -1,6 +1,6 @@
 cask "novelite" do
-  version "1.0.1"
-  sha256 "771f54d50aae5c532a36ac814814f0f59535fa0f7a3dc48e65a7d4dfbe173fef"
+  version "1.0.2"
+  sha256 "9661242a67353663c4a53c9d75f3a311309e500a3d3b15dfba13aa697660d35a"
 
   url "https://github.com/hirovel/novelite/releases/download/v#{version}/novelite_#{version}_aarch64.dmg"
   name "Novelite"
