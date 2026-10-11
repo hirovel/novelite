@@ -1,17 +1,10 @@
 {
   "name": "novelite",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "轻量、插件化的小说文本编辑器",
   "author": "hirovel",
   "license": "GPL-3.0",
   "type": "module",
-  "bin": {
-    "novelite": "bin/novelite.js"
-  },
-  "files": [
-    "dist",
-    "bin"
-  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hirovel/novelite.git"
@@ -33,12 +26,12 @@
   "scripts": {
     "test": "node scripts/test.mjs",
     "check:release": "node scripts/check-release.mjs",
-    "dev": "vite",
+    "dev": "tauri dev",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "dev:frontend": "vite"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",

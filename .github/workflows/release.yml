@@ -42,9 +42,6 @@ jobs:
           - platform: 'macos-15'
             target: aarch64-apple-darwin
             bundles: app,dmg
-          - platform: 'ubuntu-22.04'
-            target: x86_64-unknown-linux-gnu
-            bundles: deb,appimage
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -67,14 +64,17 @@ jobs:
           workspaces: src-tauri
           key: ${{ matrix.target }}
 
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev xdg-utils
-
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Test Windows bootstrap failure handling
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($scenario in @('cancel', 'success', 'checksum', 'network')) {
+            powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows-installer.ps1 -Scenario $scenario
+            if ($LASTEXITCODE -ne 0) { throw "Installer regression failed: $scenario" }
+          }
 
       - name: Test on macOS WebKit
         if: runner.os == 'macOS'
@@ -93,6 +93,20 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: bash scripts/verify-macos.sh
 
+      - name: Verify Homebrew installation and uninstall
+        if: runner.os == 'macOS'
+        env:
+          TARGET: ${{ matrix.target }}
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: bash scripts/verify-homebrew.sh
+
+      - name: Verify Windows installers and native startup
+        if: runner.os == 'Windows'
+        env:
+          TARGET: ${{ matrix.target }}
+        shell: pwsh
+        run: ./scripts/verify-windows.ps1
+
       - uses: actions/upload-artifact@v4
         with:
           name: installers-${{ matrix.target }}
@@ -101,8 +115,6 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
-            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -134,3 +146,24 @@ jobs:
           test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
           gh release upload "$TAG" release-upload/* --clobber
           gh release edit "$TAG" --draft=false --latest
+
+  homebrew:
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Update Homebrew to the verified public release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --pattern '*_aarch64.dmg' --dir release-dist
+          node scripts/generate-cask.mjs release-dist/*_aarch64.dmg Casks/novelite.rb
+          node scripts/sync-homebrew.mjs Casks/novelite.rb "$TAG"

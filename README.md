@@ -44,26 +44,45 @@
 
 ### 安装和运行
 
-#### Windows 桌面客户端
+提供 **Windows x64** 和 **Apple Silicon Mac（M 系列）** 独立桌面应用。安装后从开始菜单或「应用程序」打开，无需 Node.js。
 
-前往 [Releases](https://github.com/hirovel/novelite/releases/latest) 下载 `*-setup.exe` 或 `.msi` 安装包。
+#### Windows：一行安装
 
-#### macOS 桌面客户端
+在 PowerShell 中运行（无需管理员终端）：
 
-Mac 安装包仅支持 **Apple Silicon（M 系列）**，请选择 `*_aarch64.dmg`。**暂不提供 Intel Mac 安装包。**
-需要 macOS 11 及以上和 Safari/WebKit 16.4+（旧系统请先安装 Safari 更新）。
-从 [Releases](https://github.com/hirovel/novelite/releases/latest) 下载后打开 DMG，将 Novelite 拖入「应用程序」。
+```powershell
+irm https://raw.githubusercontent.com/hirovel/novelite/main/install.ps1 | iex
+```
 
-当前版本为 ad-hoc 签名，未经 Apple 公证。首次启动如被拦截，在「系统设置 → 隐私与安全性」选择「仍要打开」。参见 [Apple 打开未经公证 App 的说明](https://support.apple.com/102445)。
+脚本下载最新桌面安装器、校验 SHA-256 并静默安装。安装失败会报错，完成后从开始菜单打开 Novelite。更新时重新运行同一命令。
+也可从 [Releases](https://github.com/hirovel/novelite/releases/latest) 下载 `*-setup.exe` 或 `.msi`。需要 Windows 10/11 x64；安装器会按需安装 Microsoft Edge WebView2 运行时。
 
-支持原生文件夹读写和保存对话框。快捷键使用 `⌘`，重做为 `⌘⇧Z`，替换为 `⌘⌥F`。
+#### Mac：Homebrew 安装
+
+已安装 [Homebrew](https://brew.sh) 的用户，在终端运行：
+
+```bash
+brew tap hirovel/novelite https://github.com/hirovel/novelite.git && brew install --cask hirovel/novelite/novelite
+```
+
+安装后从「应用程序」打开 Novelite。更新和卸载：
+
+```bash
+brew update && brew upgrade --cask hirovel/novelite/novelite
+brew uninstall --cask hirovel/novelite/novelite
+```
+
+卸载应用保留手稿和设置。Homebrew 校验安装包的 SHA-256；安装源随正式发布自动更新。
+也可直接下载 [DMG](https://github.com/hirovel/novelite/releases/latest)，拖入「应用程序」。需要 macOS 11+ 和 Safari/WebKit 16.4+；Homebrew 自身的系统要求以其官网为准。
+
+当前 Mac 版为 ad-hoc 签名，未经 Apple 公证。首次启动如被拦截，在「系统设置 → 隐私与安全性」选择「仍要打开」。参见 [Apple 说明](https://support.apple.com/102445)。
+
+支持原生文件夹读写和保存对话框。Mac 快捷键使用 `⌘`，重做为 `⌘⇧Z`，替换为 `⌘⌥F`。
 重启后需重新选择本地文件夹来恢复磁盘连接；已编辑的手稿仍保留在应用内。
 
-#### Linux 桌面客户端
+#### 开发桌面应用
 
-在 [Releases](https://github.com/hirovel/novelite/releases/latest) 下载 `.deb` 或 `.AppImage`。
-
-#### 从源码运行
+需要 Node.js 22.12+（CI 使用 24）、Rust 和 [Tauri 系统依赖](https://v2.tauri.app/start/prerequisites/)。
 
 ```bash
 git clone https://github.com/hirovel/novelite.git
@@ -72,9 +91,8 @@ npm ci
 npm run dev
 ```
 
-需要 Node.js 22.12+（CI 使用 Node.js 24）。开发桌面版还需 Rust 和 [Tauri 系统依赖](https://v2.tauri.app/start/prerequisites/)，然后运行 `npm run tauri:dev`。
-
-开发验证与发布步骤见 [发布指南](./docs/RELEASING.md)。
+`npm run dev` 打开独立桌面窗口。`npm run tauri:build` 生成当前平台安装包。npm 只用于开发工具链；不发布 npm 启动器。
+发布步骤见 [发布指南](./docs/RELEASING.md)。
 
 ---
 

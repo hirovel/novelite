@@ -3,8 +3,11 @@ import { readFileSync } from 'node:fs';
 
 const json = path => JSON.parse(readFileSync(path, 'utf8'));
 const pkg = json('package.json');
+assert.equal(pkg.bin, undefined, 'No browser launcher should be shipped');
 const lock = json('package-lock.json');
 const tauri = json('src-tauri/tauri.conf.json');
+assert.equal(pkg.scripts.dev, 'tauri dev', 'Default development command must open the desktop app');
+assert.equal(tauri.build.beforeDevCommand, 'npm run dev:frontend', 'Tauri must start only its internal frontend server');
 const cargo = readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = "([^"]+)"/m)?.[1];
 for (const version of [lock.version, lock.packages[''].version, tauri.version, cargo]) {
   assert.equal(version, pkg.version, 'Release versions must match');

@@ -20,8 +20,8 @@ export function safeStorageSet(key: string, value: string): boolean {
         const isEn = typeof localStorage !== 'undefined' && localStorage.getItem('novelite_language') === 'en';
         eventBus.emit('show-toast', {
           message: isEn
-            ? 'Browser local storage quota exceeded, please backup your manuscript or save to local disk!'
-            : '本地浏览器存储配额已满，请及时备份手稿或连接本地磁盘保存！',
+            ? 'App storage is full. Please back up your manuscript or save to local disk!'
+            : '应用存储空间已满，请及时备份手稿或连接本地磁盘保存！',
           type: 'warning',
         });
         setTimeout(() => {
