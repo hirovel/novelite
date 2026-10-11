@@ -1,6 +1,6 @@
 {
   "name": "novelite",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "轻量、插件化的小说文本编辑器",
   "author": "hirovel",
   "license": "GPL-3.0",
@@ -31,6 +31,8 @@
     "codemirror"
   ],
   "scripts": {
+    "test": "node scripts/test.mjs",
+    "check:release": "node scripts/check-release.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
@@ -59,8 +61,6 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@oxlint/binding-win32-x64-msvc": "^1.80.0",
-    "@rolldown/binding-win32-x64-msvc": "^1.2.5",
     "@tauri-apps/cli": "^2.11.4",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^24.13.3",
@@ -71,5 +71,8 @@
     "playwright": "^1.62.1",
     "typescript": "~6.0.2",
     "vite": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

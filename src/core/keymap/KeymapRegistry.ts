@@ -3,6 +3,7 @@ import type { KeybindingCategory, KeybindingItem } from './types';
 import { eventBus } from '../events/EventBus';
 import { commandRegistry } from '../plugins/CommandRegistry';
 import { safeStorageSet } from '../storage/safeStorage';
+import { isMac, shortcutKey } from './platform';
 
 const STORAGE_KEY = 'novelite_custom_keybindings';
 
@@ -190,7 +191,7 @@ export class KeymapRegistry {
     if (e.altKey) parts.push('Alt');
     if (e.shiftKey) parts.push('Shift');
 
-    const key = e.key;
+    const key = shortcutKey(e);
     if (!['Control', 'Meta', 'Alt', 'Shift'].includes(key)) {
       if (key === ' ') {
         parts.push('Space');
@@ -228,18 +229,19 @@ export class KeymapRegistry {
    * Match an incoming KeyboardEvent against all registered keybindings
    */
   public findMatchingBinding(e: KeyboardEvent): KeybindingItem | undefined {
-    const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-    const hasCtrl = e.ctrlKey || (isMac && e.metaKey);
+    if (e.isComposing || e.keyCode === 229) return undefined;
+    const hasCtrl = e.ctrlKey || (isMac() && e.metaKey);
+    if (!isMac() && e.metaKey) return undefined;
     const hasAlt = e.altKey;
     const hasShift = e.shiftKey;
-    const actualKey = e.key.toLowerCase();
+    const actualKey = shortcutKey(e).toLowerCase();
 
     let matchedFallback: KeybindingItem | undefined = undefined;
 
     for (const item of this.getAll()) {
       const parts = item.currentKey.split('+').map((s) => s.trim().toLowerCase());
       const needsCtrl = parts.includes('ctrl') || parts.includes('control') || parts.includes('cmd') || parts.includes('meta');
-      const needsAlt = parts.includes('alt') || parts.includes('opt');
+      const needsAlt = parts.includes('alt') || parts.includes('opt') || parts.includes('option');
       const needsShift = parts.includes('shift');
 
       if (needsCtrl !== hasCtrl) continue;
@@ -247,7 +249,7 @@ export class KeymapRegistry {
       if (needsShift !== hasShift) continue;
 
       const targetKey = parts.find(
-        (p) => !['ctrl', 'control', 'cmd', 'meta', 'alt', 'opt', 'shift'].includes(p)
+        (p) => !['ctrl', 'control', 'cmd', 'meta', 'alt', 'opt', 'option', 'shift'].includes(p)
       );
 
       if (!targetKey) continue;
@@ -279,7 +281,7 @@ export class KeymapRegistry {
    * Format key string for gorgeous cross-platform UI badge display
    */
   public formatDisplayKey(keyString: string): { mods: string[]; key: string } {
-    const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+    const mac = isMac();
     const parts = keyString.split('+').map((s) => s.trim());
     const mods: string[] = [];
     let mainKey = '';
@@ -287,11 +289,11 @@ export class KeymapRegistry {
     parts.forEach((p) => {
       const low = p.toLowerCase();
       if (low === 'ctrl' || low === 'control' || low === 'cmd' || low === 'meta') {
-        mods.push(isMac ? '⌘' : 'Ctrl');
+        mods.push(mac ? '⌘' : 'Ctrl');
       } else if (low === 'alt' || low === 'opt' || low === 'option') {
-        mods.push(isMac ? '⌥' : 'Alt');
+        mods.push(mac ? '⌥' : 'Alt');
       } else if (low === 'shift') {
-        mods.push(isMac ? '⇧' : 'Shift');
+        mods.push(mac ? '⇧' : 'Shift');
       } else {
         if (low === 'arrowup') mainKey = '↑';
         else if (low === 'arrowdown') mainKey = '↓';

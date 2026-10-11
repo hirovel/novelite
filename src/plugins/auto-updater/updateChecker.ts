@@ -2,7 +2,9 @@ import type { UpdateInfo } from './types';
 import { eventBus } from '../../core/events/EventBus';
 import { safeStorageSet } from '../../core/storage/safeStorage';
 
-export const CURRENT_VERSION = '1.0.0';
+import { version } from '../../../package.json';
+
+export const CURRENT_VERSION = version;
 export const GITHUB_REPO = 'hirovel/novelite';
 const CACHE_KEY = 'novelite_update_cache';
 const LAST_CHECK_KEY = 'novelite_last_update_check';
@@ -39,7 +41,8 @@ export async function checkForUpdates(
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const info: UpdateInfo = JSON.parse(cached);
+        if (info.currentVersion === currentVersion) return info;
       } catch {
         // Fall through
       }
