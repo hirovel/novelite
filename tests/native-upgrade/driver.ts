@@ -13,6 +13,10 @@ const mode = (mode: string, version: string) => call('mode', { mode, version });
 function assert(ok: unknown, message: string): asserts ok { if (!ok) throw new Error(message); }
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const storageKey = 'novelite_upgrade_test';
+const initialStorage = {
+  metadata: localStorage.getItem(storageKey),
+  library: localStorage.getItem('novelite_library_map'),
+};
 
 async function checkpoint(stage: string, details: object = {}) {
   await report(stage, details);
@@ -57,7 +61,16 @@ async function run() {
   } else {
     const raw = localStorage.getItem(storageKey);
     assert(raw, 'App replacement lost the WebView data directory');
-    saved = JSON.parse(raw);
+    // The oracle must survive independently of the storage being tested: both the manuscript
+    // and a localStorage-based expected value can roll back together on an abrupt exit.
+    saved = await call<Saved>('expected');
+    const initialProject = initialStorage.library && JSON.parse(initialStorage.library)[saved.project];
+    await report('restore-observation', {
+      expected: saved, metadata: raw, initialMetadata: initialStorage.metadata,
+      initialContent: initialProject?.volumes.flatMap((volume: { chapters: { id: string; content: string }[] }) => volume.chapters)
+        .find((chapter: { id: string }) => chapter.id === saved.chapter)?.content,
+      restoredContent: projectStore.findChapter(saved.chapter)?.content,
+    });
     assert(projectStore.getProject().id === saved.project, 'Active book changed after update');
     assert(projectStore.getActiveChapter()?.id === saved.chapter, 'Active chapter changed after update');
     assert(projectStore.findChapter(saved.chapter)?.content === saved.content, 'Unsaved manuscript text was lost during update');
@@ -100,6 +113,7 @@ async function run() {
       catch (reason) { rejected = true; error = String(reason); }
       finally { unregister(); }
       assert(rejected, `${fault} unexpectedly installed an update`);
+      if (fault === 'corrupt') assert(/signature|verify/i.test(error), `Corrupted payload failed for an unrelated reason: ${error}`);
       assert(!phases.includes('installing'), `${fault} reached installer execution`);
       if (fault !== 'save-failed') assert(!phases.includes('saving'), `${fault} bypassed verified download`);
       assert(projectStore.findChapter(saved.chapter)?.content === saved.content, `${fault} lost manuscript data`);
@@ -113,7 +127,7 @@ async function run() {
   let edited = false;
   const unregister = registerRestartSave(async () => {
     assert(edited, 'Save guard ran before the pending editor edit');
-    await report('save-guard', { next });
+    await report('save-guard', { next, snapshot: saved });
   });
   await report('upgrading', { next });
   try {

@@ -10,6 +10,8 @@ pub fn upgrade_test(action: String, payload: Value, app: tauri::AppHandle) -> Re
     match action.as_str() {
         "config" => serde_json::from_slice(&fs::read(root.join("active.json")).map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string()),
+        "expected" => serde_json::from_slice(&fs::read(root.join("expected.json")).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string()),
         "mode" => {
             fs::write(root.join("mode.json"), payload.to_string()).map_err(|e| e.to_string())?;
             Ok(Value::Null)
@@ -21,6 +23,9 @@ pub fn upgrade_test(action: String, payload: Value, app: tauri::AppHandle) -> Re
         }
         "report" => {
             let _guard = REPORT_LOCK.lock().map_err(|e| e.to_string())?;
+            if payload["stage"] == "save-guard" {
+                fs::write(root.join("expected.json"), payload["snapshot"].to_string()).map_err(|e| e.to_string())?;
+            }
             let record = json!({
                 "nativeVersion": app.package_info().version.to_string(),
                 "pid": std::process::id(),
