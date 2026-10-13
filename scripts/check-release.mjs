@@ -5,6 +5,12 @@ const json = path => JSON.parse(readFileSync(path, 'utf8'));
 const pkg = json('package.json');
 const lock = json('package-lock.json');
 const tauri = json('src-tauri/tauri.conf.json');
+assert.equal(tauri.identifier, 'com.novelite.editor', 'Production application identity must stay stable');
+assert.ok(!tauri.plugins.updater.dangerousInsecureTransportProtocol, 'Production updates must require HTTPS');
+assert.ok(tauri.plugins.updater.endpoints.every(url => url.startsWith('https://')), 'Production updater endpoint must use HTTPS');
+for (const path of ['src/main.tsx', 'src-tauri/src/lib.rs']) {
+  assert.ok(!/native-upgrade|upgrade_test/.test(readFileSync(path, 'utf8')), 'Native test instrumentation must not ship');
+}
 assert.equal(pkg.scripts.dev, 'tauri dev', 'Default development command must open the desktop app');
 assert.equal(tauri.build.beforeDevCommand, 'npm run dev:frontend', 'Tauri must start only its internal frontend server');
 const cargo = readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = "([^"]+)"/m)?.[1];

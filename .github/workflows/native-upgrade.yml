@@ -1,0 +1,53 @@
+name: Native cross-version upgrades
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    name: Upgrade ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-15
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+          cache-on-failure: true
+      - run: npm ci
+      - name: Build three isolated signed application versions
+        run: node tests/native-upgrade/build.mjs
+      - name: Exercise real installation, update, restart and manuscript persistence
+        run: node tests/native-upgrade/run.mjs
+      - name: Upload native upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-evidence-${{ matrix.target }}
+          path: |
+            scratch/native-upgrade/result.json
+            scratch/native-upgrade/events.jsonl
+            scratch/native-upgrade/*.log
+          if-no-files-found: warn
