@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Native installer tests require a disposable GitHub runner');
@@ -10,35 +10,62 @@ mkdirSync(root, { recursive: true });
 const cli = resolve('node_modules/@tauri-apps/cli/tauri.js');
 const target = process.platform === 'win32' ? 'x86_64-pc-windows-msvc' : 'aarch64-apple-darwin';
 const bundles = process.platform === 'win32' ? 'nsis,msi' : 'app,dmg';
-const originals = new Map(['package.json', 'package-lock.json', 'src/main.tsx', 'src-tauri/Cargo.toml',
-  'src-tauri/Cargo.lock', 'src-tauri/tauri.conf.json', 'src-tauri/src/lib.rs'].map(path => [path, readFileSync(path, 'utf8')]));
-const pkg = JSON.parse(originals.get('package.json'));
+const trackedFiles = ['package.json', 'package-lock.json', 'src/main.tsx', 'src-tauri/Cargo.toml',
+  'src-tauri/Cargo.lock', 'src-tauri/tauri.conf.json', 'src-tauri/src/lib.rs'];
+const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const [major, minor, patch] = pkg.version.split('.').map(Number);
 assert.ok([major, minor, patch].every(Number.isInteger), 'Expected a stable baseline version');
-const versions = [0, 1, 2].map(offset => `${major}.${minor}.${patch + offset}`);
+// v1.0.3 is the oldest published native-updater client. Preserve its actual application code.
+const baseline = '1.0.3';
+assert.notEqual(pkg.version, baseline, 'The fixed candidate must be newer than the published baseline');
+const versions = [baseline, pkg.version, `${major}.${minor}.${patch + 1}`];
 writeFileSync(join(root, 'versions.json'), JSON.stringify(versions));
 const key = join(root, 'test.key');
 // Independent ephemeral trust root. Never read or use the production signing secret.
 execFileSync(process.execPath, [cli, 'signer', 'generate', '--ci', '--force', '-w', key], { stdio: 'pipe' });
-const env = { ...process.env, NOVELITE_UPGRADE_TEST_DIR: root,
+const targetDirectory = resolve('src-tauri/target');
+const env = { ...process.env, NOVELITE_UPGRADE_TEST_DIR: root, CARGO_TARGET_DIR: targetDirectory,
   TAURI_SIGNING_PRIVATE_KEY: readFileSync(key, 'utf8').trim(), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: '' };
 const pubkey = readFileSync(`${key}.pub`, 'utf8').trim();
-const bridge = 'src-tauri/src/upgrade_test.rs';
+const legacy = join(root, 'legacy-source');
+mkdirSync(legacy, { recursive: true });
+const archive = execFileSync('git', ['archive', `v${baseline}`], { maxBuffer: 64 * 1024 * 1024 });
+execFileSync('tar', ['-xf', '-', '-C', legacy], { input: archive });
+symlinkSync(resolve('node_modules'), join(legacy, 'node_modules'), windowsLinkType());
+cpSync('tests/native-upgrade', join(legacy, 'tests/native-upgrade'), { recursive: true });
+
+function windowsLinkType() { return process.platform === 'win32' ? 'junction' : 'dir'; }
+
 try {
-  copyFileSync('tests/native-upgrade/bridge.rs', bridge);
-  writeFileSync('src/main.tsx', `${originals.get('src/main.tsx')}\nimport '../tests/native-upgrade/driver';\n`);
-  const lib = originals.get('src-tauri/src/lib.rs');
-  assert.equal(lib.split('tauri::Builder::default()').length, 2, 'Expected one app builder');
-  writeFileSync('src-tauri/src/lib.rs', 'mod upgrade_test;\n' + lib.replace('tauri::Builder::default()',
-    'tauri::Builder::default().invoke_handler(tauri::generate_handler![upgrade_test::upgrade_test])'));
   for (const version of versions) {
+    const source = version === baseline ? legacy : process.cwd();
+    const originals = new Map(trackedFiles.map(path => [path, readFileSync(join(source, path), 'utf8')]));
+    const put = (path, contents) => writeFileSync(join(source, path), contents);
+    const bridge = join(source, 'src-tauri/src/upgrade_test.rs');
+    try {
+      copyFileSync('tests/native-upgrade/bridge.rs', bridge);
+      const main = originals.get('src/main.tsx');
+      // Start after checkpoint restoration in fixed clients; importing the driver earlier
+      // would instantiate ProjectStore before the application has restored its data.
+      put('src/main.tsx', main.includes('void bootstrap().catch(')
+        ? main.replace('void bootstrap().catch(', "void bootstrap().then(() => import('../tests/native-upgrade/driver')).catch(")
+        : `${main}\nvoid import('../tests/native-upgrade/driver');\n`);
+      let lib = originals.get('src-tauri/src/lib.rs');
+      if (lib.includes('.invoke_handler(tauri::generate_handler![')) {
+        lib = lib.replace('.invoke_handler(tauri::generate_handler![', '.invoke_handler(tauri::generate_handler![upgrade_test::upgrade_test,');
+      } else {
+        assert.equal(lib.split('tauri::Builder::default()').length, 2, 'Expected one app builder');
+        lib = lib.replace('tauri::Builder::default()',
+          'tauri::Builder::default().invoke_handler(tauri::generate_handler![upgrade_test::upgrade_test])');
+      }
+      put('src-tauri/src/lib.rs', 'mod upgrade_test;\n' + lib);
     console.log(`::group::Build native upgrade fixture ${version}`);
-    writeFileSync('package.json', JSON.stringify({ ...pkg, version }, null, 2));
+    put('package.json', JSON.stringify({ ...JSON.parse(originals.get('package.json')), version }, null, 2));
     const lock = JSON.parse(originals.get('package-lock.json'));
     lock.version = lock.packages[''].version = version;
-    writeFileSync('package-lock.json', JSON.stringify(lock, null, 2));
-    writeFileSync('src-tauri/Cargo.toml', originals.get('src-tauri/Cargo.toml').replace(/^version = "[^"]+"/m, `version = "${version}"`));
-    writeFileSync('src-tauri/Cargo.lock', originals.get('src-tauri/Cargo.lock').replace(/(name = "novelite"\r?\nversion = ")[^"]+/, `$1${version}`));
+    put('package-lock.json', JSON.stringify(lock, null, 2));
+    put('src-tauri/Cargo.toml', originals.get('src-tauri/Cargo.toml').replace(/^version = "[^"]+"/m, `version = "${version}"`));
+    put('src-tauri/Cargo.lock', originals.get('src-tauri/Cargo.lock').replace(/(name = "novelite"\r?\nversion = ")[^"]+/, `$1${version}`));
     const config = JSON.parse(originals.get('src-tauri/tauri.conf.json'));
     config.version = version;
     config.identifier = 'com.novelite.upgrade-test';
@@ -46,12 +73,12 @@ try {
     config.plugins.updater.endpoints = ['http://127.0.0.1:39187/latest.json'];
     config.plugins.updater.dangerousInsecureTransportProtocol = true;
     // Keep the shipped passive install/restart behavior and all application code unchanged.
-    writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(config, null, 2));
+    put('src-tauri/tauri.conf.json', JSON.stringify(config, null, 2));
     execFileSync(process.execPath, [cli, 'build', '--target', target, '--bundles', bundles, '--ci', '--', '--locked'],
-      { stdio: 'inherit', env });
+      { stdio: 'inherit', env, cwd: source });
     const output = join(root, version);
     mkdirSync(output, { recursive: true });
-    const bundleRoot = `src-tauri/target/${target}/release/bundle`;
+    const bundleRoot = `${targetDirectory}/${target}/release/bundle`;
     for (const kind of process.platform === 'win32' ? ['nsis', 'msi'] : ['macos', 'dmg']) {
       for (const file of readdirSync(`${bundleRoot}/${kind}`, { withFileTypes: true })) {
         if (file.isFile() && (file.name.includes(`_${version}_`) || file.name.startsWith('novelite.app.tar.gz'))) {
@@ -60,10 +87,12 @@ try {
       }
     }
     console.log('::endgroup::');
+    } finally {
+      for (const [path, contents] of originals) put(path, contents);
+      rmSync(bridge, { force: true });
+    }
   }
 } finally {
-  for (const [path, contents] of originals) writeFileSync(path, contents);
-  rmSync(bridge, { force: true });
   // Retain only the public key and signed fixtures for the runtime tests.
   rmSync(key, { force: true });
 }

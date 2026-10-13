@@ -1,5 +1,6 @@
 import { projectStore } from './ProjectStore';
 import { fileSystemStore } from './FileSystemStore';
+import { persistRestartCheckpoint } from './restartCheckpoint';
 
 const editors = new Set<() => Promise<void>>();
 
@@ -13,4 +14,5 @@ export async function saveBeforeRestart(): Promise<void> {
   await Promise.all([...editors].map(save => save()));
   await fileSystemStore.finishPendingWrites();
   if (!projectStore.save()) throw new Error('Manuscript could not be saved');
+  await persistRestartCheckpoint();
 }

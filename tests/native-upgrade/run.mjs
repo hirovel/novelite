@@ -15,7 +15,7 @@ assert.ok(windows || process.platform === 'darwin');
 const versions = JSON.parse(readFileSync(join(root, 'versions.json'), 'utf8'));
 const last = versions.at(-1);
 const app = '/Applications/novelite.app';
-const executable = windows ? join(root, 'installed', 'novelite.exe') : `${app}/Contents/MacOS/novelite`;
+const executable = windows ? join(root, 'installed app', 'novelite.exe') : `${app}/Contents/MacOS/novelite`;
 const eventsPath = join(root, 'events.jsonl');
 const evidence = [];
 const downloads = [];

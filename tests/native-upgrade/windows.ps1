@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Disposable CI runner required' }
-$installDir = Join-Path $Root 'installed'
+$installDir = Join-Path $Root 'installed app'
 $fixture = Join-Path $Root $Version
 function Run-Installer([string]$Program, [string]$Arguments) {
     $process = Start-Process -FilePath $Program -ArgumentList $Arguments -PassThru -WindowStyle Hidden

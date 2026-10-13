@@ -100,6 +100,9 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: node scripts/verify-updater.mjs
 
+      - name: Verify durable restart checkpoint storage
+        run: cargo test --manifest-path src-tauri/Cargo.toml --release --target ${{ matrix.target }} --locked --lib restart_checkpoint::tests
+
       - name: Verify macOS app and disk image
         if: runner.os == 'macOS'
         env:

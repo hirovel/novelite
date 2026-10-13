@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import { App } from './App'
+import { restoreRestartCheckpoint } from './core/storage/restartCheckpoint'
 
 // 🌟 动态刷新浏览器 Tab 标题栏图标，杜绝浏览器内部 SQLite 对旧图标的缓存死锁，并自适应明暗主题
 function syncBrowserFavicon() {
@@ -35,8 +35,17 @@ if (window.matchMedia) {
   }
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+async function bootstrap() {
+  await restoreRestartCheckpoint();
+  const { App } = await import('./App');
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
+
+void bootstrap().catch(error => {
+  console.error('Unable to restore manuscript before startup', error);
+  document.getElementById('root')!.textContent = '无法恢复升级前保存的手稿，磁盘备份已保留。请重新启动应用。 / Unable to restore your saved manuscript. The disk backup is preserved. Please restart the app.';
+});
