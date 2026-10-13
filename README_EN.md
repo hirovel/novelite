@@ -103,4 +103,6 @@ GNU General Public License v3.0 (GPL-3.0)
 
 Starting with v1.0.3, Novelite checks at startup and every four hours. Use **Check for Updates** in the command palette for a manual check. **Install and restart** downloads and verifies the signed package, saves manuscripts, and installs the update. Failed verification or saving blocks installation. Manuscripts and settings are preserved; reselect local folders after restart to restore disk synchronization.
 
+Starting with v1.0.4, a native disk checkpoint protects the final edits from a fast Mac restart before WebView storage flushes. **Mac v1.0.3 users should save, export important manuscripts and close the app, then upgrade once through Homebrew or the new DMG.** Later in-app updates use the checkpoint safeguard.
+
 Users of v1.0.2 or earlier need to upgrade once using the installer or installation command. Existing Windows MSI users should use the new MSI for this first upgrade. Homebrew users can also run `brew update && brew upgrade --cask --greedy hirovel/novelite/novelite`.

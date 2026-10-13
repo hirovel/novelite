@@ -30,6 +30,10 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - run: npm test
 
+  native-upgrade:
+    needs: quality
+    uses: ./.github/workflows/native-upgrade.yml
+
   release-tauri:
     needs: quality
     strategy:
@@ -96,6 +100,9 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: node scripts/verify-updater.mjs
 
+      - name: Verify durable restart checkpoint storage
+        run: cargo test --manifest-path src-tauri/Cargo.toml --release --target ${{ matrix.target }} --locked --lib restart_checkpoint::tests
+
       - name: Verify macOS app and disk image
         if: runner.os == 'macOS'
         env:
@@ -132,7 +139,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: release-tauri
+    needs: [release-tauri, native-upgrade]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -21,6 +21,8 @@ try {
       for (const result of results) console.log(`${name}: PASS ${result}`);
       const updaterResults = await page.evaluate(async () => (await import('/tests/updater.ts')).runUpdaterRegressions());
       for (const result of updaterResults) console.log(`${name}: PASS ${result}`);
+      const checkpointResults = await page.evaluate(async () => (await import('/tests/restart-checkpoint.ts')).runCheckpointRegressions());
+      for (const result of checkpointResults) console.log(`${name}: PASS ${result}`);
       await context.close();
 
       const app = await browser.newContext();
