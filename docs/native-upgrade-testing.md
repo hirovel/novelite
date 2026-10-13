@@ -36,3 +36,5 @@ The test does not establish Apple notarization, Windows code-signing reputation,
 | Mac Homebrew-installed app | In-app 1.0.4 → fixture 1.0.6, then greedy cask upgrade | Passed both stages |
 
 The same run passed both platforms' native checkpoint filesystem tests, normal installer/startup and signature/tampering checks, and the Chromium/WebKit regression suite. The [earlier failing run](https://github.com/hirovel/novelite/actions/runs/38351116234) records the independently confirmed last-input loss before the fix. Published Mac v1.0.3's unsafe immediate-restart path is documented, not presented as passing.
+
+The [formal v1.0.4 release run](https://github.com/hirovel/novelite/actions/runs/38355200656) repeated the complete matrix and passed every job, then published at **2026-10-13 06:28:11 UTC** and synchronized Homebrew. All 9 public assets were downloaded; all 8 listed SHA-256 digests matched the files and GitHub asset digests. The signed platform URLs/signature strings and stable `releases/latest/download/latest.json` endpoint resolve to v1.0.4. The public DMG and Homebrew cask share SHA-256 `300ecf70096504880c829220d869bf14add1b0db178ea7a106619ee60ed90217`.
