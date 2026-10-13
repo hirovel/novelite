@@ -21,3 +21,18 @@ The first two runs reproduced an actual macOS failure: a quick second restart re
 In each in-app scenario, `tests/native-upgrade/run.mjs` installs and launches the baseline once. Subsequent replacements and launches must be performed by the production `checkForUpdates` / `installUpdate` implementation and native updater, not the controller. The explicitly separate Homebrew migration/upgrade scenarios use the external package manager with the app closed. Controller acknowledgments pause the app while independently checking installed bytes. A missing restart, lost manuscript or failed guard fails the job. JSON evidence is uploaded even on failure.
 
 The test does not establish Apple notarization, Windows code-signing reputation, every possible OS policy, or WinGet catalog acceptance. WinGet acceptance is checked separately from the underlying NSIS update route. Disk-folder save errors also retain their existing editor/storage regression tests; the native restart assertions here cover the persisted application manuscript.
+
+## Verified on 2026-10-13
+
+[Full passing run](https://github.com/hirovel/novelite/actions/runs/38353762571), tested PR commit `e68cd1f1b8cb5eb9b4c1e50165d720afb5e08215` (merged as `795beee`). JSON evidence is attached to the run.
+
+| Installed route | Verified transition | Result |
+| --- | --- | --- |
+| Windows NSIS and MSI | Published-source 1.0.3 → candidate 1.0.4 | Passed both formats |
+| Windows NSIS and MSI | 1.0.4 → fixture 1.0.5 → fixture 1.0.6 | Passed both formats |
+| Windows NSIS and MSI | 1.0.4 → fixture 1.0.6 | Passed both formats |
+| Mac Homebrew legacy migration | Save/close 1.0.3 → external upgrade to 1.0.4 | Passed |
+| Mac DMG-installed app | 1.0.4 → fixture 1.0.5 → fixture 1.0.6 | Passed |
+| Mac Homebrew-installed app | In-app 1.0.4 → fixture 1.0.6, then greedy cask upgrade | Passed both stages |
+
+The same run passed both platforms' native checkpoint filesystem tests, normal installer/startup and signature/tampering checks, and the Chromium/WebKit regression suite. The [earlier failing run](https://github.com/hirovel/novelite/actions/runs/38351116234) records the independently confirmed last-input loss before the fix. Published Mac v1.0.3's unsafe immediate-restart path is documented, not presented as passing.
