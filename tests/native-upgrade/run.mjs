@@ -13,6 +13,8 @@ const root = resolve('scratch/native-upgrade');
 const windows = process.platform === 'win32';
 assert.ok(windows || process.platform === 'darwin');
 const versions = JSON.parse(readFileSync(join(root, 'versions.json'), 'utf8'));
+const [legacyVersion, candidate] = versions;
+const modernVersions = versions.slice(1);
 const last = versions.at(-1);
 const app = '/Applications/novelite.app';
 const executable = windows ? join(root, 'installed app', 'novelite.exe') : `${app}/Contents/MacOS/novelite`;
@@ -133,8 +135,11 @@ async function observe(flow, kind, expectedVersions) {
           }
           assert.equal(seen.filter(stage => stage === 'restored').length, expectedVersions.length - 1);
         }
-        await pause(1500);
-        return;
+        for (let i = 0; i < 100; i++) {
+          try { process.kill(event.pid, 0); } catch { return; }
+          await pause(100);
+        }
+        throw new Error(`${flow}: app did not close before the external installer/uninstaller`);
       }
     }
     await pause(200);
@@ -142,8 +147,8 @@ async function observe(flow, kind, expectedVersions) {
   throw new Error(`${flow}: no verified automatic restart/completion within 240 seconds`);
 }
 
-async function installMac(kind) {
-  const dmg = join(root, versions[0], artifact(versions[0], '.dmg'));
+async function installMac(kind, version) {
+  const dmg = join(root, version, artifact(version, '.dmg'));
   assert.ok(!existsSync(app), 'CI runner already has Novelite installed');
   if (kind === 'brew') {
     const tap = join(root, 'tap');
@@ -164,19 +169,46 @@ async function installMac(kind) {
   }
 }
 
+async function upgradeBrew(version) {
+  const tap = await run('brew', ['--repository', 'novelite/upgrade-ci']);
+  await run(process.execPath, ['scripts/generate-cask.mjs', join(root, version, artifact(version, '.dmg')), join(tap, 'Casks/novelite.rb'), '--local']);
+  await run('brew', ['upgrade', '--cask', '--greedy', 'novelite/upgrade-ci/novelite']);
+  await verify('brew', version);
+}
+
+function configure(config) {
+  writeFileSync(eventsPath, '');
+  save('ack.json', null);
+  save('active.json', config);
+  save('mode.json', { mode: 'idle' });
+}
+
 try {
+  if (!windows) {
+    // The published Mac v1.0.3 updater has a demonstrated last-write persistence bug.
+    // Verify the supported one-time migration with the old app saved and closed, then
+    // demand immediate-write safety for every in-app update starting with the fixed client.
+    const route = [legacyVersion, candidate];
+    configure({ flow: 'brew-legacy-save', versions: route, seedOnly: true });
+    await installMac('brew', legacyVersion);
+    await launch('brew');
+    await observe('brew-legacy-save', 'brew', [legacyVersion]);
+    await upgradeBrew(candidate);
+    configure({ flow: 'brew-legacy-migration', versions: route, verifyOnly: true });
+    await launch('brew');
+    await observe('brew-legacy-migration', 'brew', [candidate]);
+    await run('brew', ['uninstall', '--cask', 'novelite/upgrade-ci/novelite']);
+  }
   const flows = windows
-    ? [['nsis', versions], ['nsis', [versions[0], last]], ['msi', versions], ['msi', [versions[0], last]]]
-    : [['dmg', versions], ['brew', [versions[0], last]]];
+    ? [['nsis', [legacyVersion, candidate]], ['msi', [legacyVersion, candidate]],
+      ['nsis', modernVersions], ['nsis', [candidate, last]], ['msi', modernVersions], ['msi', [candidate, last]]]
+    : [['dmg', modernVersions], ['brew', [candidate, last]]];
   for (const [kind, route] of flows) {
-    const flow = `${kind}-${route.length === 3 ? 'consecutive' : 'skip'}`;
+    const flow = `${kind}-${route[0] === legacyVersion ? 'legacy' : route.length === 3 ? 'consecutive' : 'skip'}`;
     console.log(`::group::${flow}: ${route.join(' → ')}`);
-    writeFileSync(eventsPath, '');
-    save('ack.json', null);
-    save('active.json', { flow, versions: route });
-    save('mode.json', { mode: 'idle' });
-    if (windows) await ps('install', kind, versions[0]);
-    else await installMac(kind);
+    configure({ flow, versions: route });
+    if (windows) await ps('install', kind, route[0]);
+    else await installMac(kind, route[0]);
     await launch(kind);
     await observe(flow, kind, route);
     const successfulDownloads = downloads.filter(download => download.flow === flow && download.mode === 'valid');
@@ -186,17 +218,12 @@ try {
     }
     if (kind === 'brew') {
       // Homebrew still records the original version after an in-app update. Its next greedy upgrade must coexist safely.
-      const tap = await run('brew', ['--repository', 'novelite/upgrade-ci']);
-      await run(process.execPath, ['scripts/generate-cask.mjs', join(root, last, artifact(last, '.dmg')), join(tap, 'Casks/novelite.rb'), '--local']);
-      await run('brew', ['upgrade', '--cask', '--greedy', 'novelite/upgrade-ci/novelite']);
-      await verify(kind, last);
-      writeFileSync(eventsPath, '');
-      save('ack.json', null);
-      save('active.json', { flow: 'brew-after-self-update', versions: route, verifyOnly: true });
+      await upgradeBrew(last);
+      configure({ flow: 'brew-after-self-update', versions: route, verifyOnly: true });
       await launch(kind);
       await observe('brew-after-self-update', kind, [last]);
       await run('brew', ['uninstall', '--cask', 'novelite/upgrade-ci/novelite']);
-    } else if (windows) await ps('uninstall', kind, last);
+    } else if (windows) await ps('uninstall', kind, route.at(-1));
     else rmSync(app, { recursive: true }); // Exact fixed app path, on a disposable Mac runner only.
     for (let i = 0; i < 100 && existsSync(executable); i++) await pause(100);
     assert.ok(!existsSync(executable), 'Uninstall left the application executable behind');

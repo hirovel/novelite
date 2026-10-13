@@ -18,7 +18,7 @@ assert.ok([major, minor, patch].every(Number.isInteger), 'Expected a stable base
 // v1.0.3 is the oldest published native-updater client. Preserve its actual application code.
 const baseline = '1.0.3';
 assert.notEqual(pkg.version, baseline, 'The fixed candidate must be newer than the published baseline');
-const versions = [baseline, pkg.version, `${major}.${minor}.${patch + 1}`];
+const versions = [baseline, pkg.version, `${major}.${minor}.${patch + 1}`, `${major}.${minor}.${patch + 2}`];
 writeFileSync(join(root, 'versions.json'), JSON.stringify(versions));
 const key = join(root, 'test.key');
 // Independent ephemeral trust root. Never read or use the production signing secret.
@@ -59,34 +59,34 @@ try {
           'tauri::Builder::default().invoke_handler(tauri::generate_handler![upgrade_test::upgrade_test])');
       }
       put('src-tauri/src/lib.rs', 'mod upgrade_test;\n' + lib);
-    console.log(`::group::Build native upgrade fixture ${version}`);
-    put('package.json', JSON.stringify({ ...JSON.parse(originals.get('package.json')), version }, null, 2));
-    const lock = JSON.parse(originals.get('package-lock.json'));
-    lock.version = lock.packages[''].version = version;
-    put('package-lock.json', JSON.stringify(lock, null, 2));
-    put('src-tauri/Cargo.toml', originals.get('src-tauri/Cargo.toml').replace(/^version = "[^"]+"/m, `version = "${version}"`));
-    put('src-tauri/Cargo.lock', originals.get('src-tauri/Cargo.lock').replace(/(name = "novelite"\r?\nversion = ")[^"]+/, `$1${version}`));
-    const config = JSON.parse(originals.get('src-tauri/tauri.conf.json'));
-    config.version = version;
-    config.identifier = 'com.novelite.upgrade-test';
-    config.plugins.updater.pubkey = pubkey;
-    config.plugins.updater.endpoints = ['http://127.0.0.1:39187/latest.json'];
-    config.plugins.updater.dangerousInsecureTransportProtocol = true;
-    // Keep the shipped passive install/restart behavior and all application code unchanged.
-    put('src-tauri/tauri.conf.json', JSON.stringify(config, null, 2));
-    execFileSync(process.execPath, [cli, 'build', '--target', target, '--bundles', bundles, '--ci', '--', '--locked'],
-      { stdio: 'inherit', env, cwd: source });
-    const output = join(root, version);
-    mkdirSync(output, { recursive: true });
-    const bundleRoot = `${targetDirectory}/${target}/release/bundle`;
-    for (const kind of process.platform === 'win32' ? ['nsis', 'msi'] : ['macos', 'dmg']) {
-      for (const file of readdirSync(`${bundleRoot}/${kind}`, { withFileTypes: true })) {
-        if (file.isFile() && (file.name.includes(`_${version}_`) || file.name.startsWith('novelite.app.tar.gz'))) {
-          copyFileSync(`${bundleRoot}/${kind}/${file.name}`, join(output, file.name));
+      console.log(`::group::Build native upgrade fixture ${version}`);
+      put('package.json', JSON.stringify({ ...JSON.parse(originals.get('package.json')), version }, null, 2));
+      const lock = JSON.parse(originals.get('package-lock.json'));
+      lock.version = lock.packages[''].version = version;
+      put('package-lock.json', JSON.stringify(lock, null, 2));
+      put('src-tauri/Cargo.toml', originals.get('src-tauri/Cargo.toml').replace(/^version = "[^"]+"/m, `version = "${version}"`));
+      put('src-tauri/Cargo.lock', originals.get('src-tauri/Cargo.lock').replace(/(name = "novelite"\r?\nversion = ")[^"]+/, `$1${version}`));
+      const config = JSON.parse(originals.get('src-tauri/tauri.conf.json'));
+      config.version = version;
+      config.identifier = 'com.novelite.upgrade-test';
+      config.plugins.updater.pubkey = pubkey;
+      config.plugins.updater.endpoints = ['http://127.0.0.1:39187/latest.json'];
+      config.plugins.updater.dangerousInsecureTransportProtocol = true;
+      // Keep the shipped passive install/restart behavior and all application code unchanged.
+      put('src-tauri/tauri.conf.json', JSON.stringify(config, null, 2));
+      execFileSync(process.execPath, [cli, 'build', '--target', target, '--bundles', bundles, '--ci', '--', '--locked'],
+        { stdio: 'inherit', env, cwd: source });
+      const output = join(root, version);
+      mkdirSync(output, { recursive: true });
+      const bundleRoot = `${targetDirectory}/${target}/release/bundle`;
+      for (const kind of process.platform === 'win32' ? ['nsis', 'msi'] : ['macos', 'dmg']) {
+        for (const file of readdirSync(`${bundleRoot}/${kind}`, { withFileTypes: true })) {
+          if (file.isFile() && (file.name.includes(`_${version}_`) || file.name.startsWith('novelite.app.tar.gz'))) {
+            copyFileSync(`${bundleRoot}/${kind}/${file.name}`, join(output, file.name));
+          }
         }
       }
-    }
-    console.log('::endgroup::');
+      console.log('::endgroup::');
     } finally {
       for (const [path, contents] of originals) put(path, contents);
       rmSync(bridge, { force: true });

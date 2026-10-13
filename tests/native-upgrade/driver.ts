@@ -2,10 +2,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { EditorView } from '@codemirror/view';
 import { projectStore } from '../../src/core/storage/ProjectStore';
-import { registerRestartSave } from '../../src/core/storage/restartGuard';
+import { registerRestartSave, saveBeforeRestart } from '../../src/core/storage/restartGuard';
 import { checkForUpdates, installUpdate, CURRENT_VERSION } from '../../src/plugins/auto-updater/updateChecker';
 
-type Config = { flow: string; versions: string[]; verifyOnly?: boolean };
+type Config = { flow: string; versions: string[]; verifyOnly?: boolean; seedOnly?: boolean };
 type Saved = { project: string; chapter: string; other: string; otherContent: string; content: string; scratchpad: string; completed: string[] };
 const call = <T = void>(action: string, payload: unknown = null) => invoke<T>('upgrade_test', { action, payload });
 const report = (stage: string, details: object = {}) => call('report', { stage, version: CURRENT_VERSION, ...details });
@@ -58,6 +58,23 @@ async function run() {
       content: chapter.content, scratchpad, completed: [] };
     localStorage.setItem(storageKey, JSON.stringify(saved));
     await pause(500);
+    if (config.seedOnly) {
+      // One-time migration from the published Mac client: save and close before Homebrew
+      // replaces it. That old client cannot acquire the new pre-install checkpoint retroactively.
+      const view = await editor();
+      view.dispatch({ changes: { from: view.state.doc.length, insert: '\n旧版保存后迁移：中文 café 🌙' } });
+      saved.content = view.state.doc.toString();
+      saved.completed.push(config.versions[1]);
+      localStorage.setItem(storageKey, JSON.stringify(saved));
+      await saveBeforeRestart();
+      await report('save-guard', { snapshot: saved });
+      // Only the legacy migration waits for an ordinary completed save. The fixed-client
+      // upgrade tests below continue to edit at the immediate install boundary with no delay.
+      await pause(2000);
+      await report('complete', { flow: config.flow });
+      await call('exit');
+      return;
+    }
   } else {
     const raw = localStorage.getItem(storageKey);
     assert(raw, 'App replacement lost the WebView data directory');

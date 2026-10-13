@@ -39,7 +39,7 @@ jobs:
           key: ${{ matrix.target }}
           cache-on-failure: true
       - run: npm ci
-      - name: Build three isolated signed application versions
+      - name: Build published baseline and three isolated signed candidate versions
         run: node tests/native-upgrade/build.mjs
       - name: Exercise real installation, update, restart and manuscript persistence
         run: node tests/native-upgrade/run.mjs
